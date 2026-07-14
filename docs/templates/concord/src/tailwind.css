@@ -8,7 +8,7 @@
   --color-teal-light: #6FE0D2;
   --color-violet: #7E5BD6;
   --color-near-black: #16110B;
-  --font-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
@@ -39,6 +39,7 @@
   --radius-selector: 0.5rem;
   --radius-field: 0.625rem;
   --radius-box: 1rem;
+  --depth: 0;
   --border-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -69,5 +70,6 @@
   --radius-selector: 0.5rem;
   --radius-field: 0.625rem;
   --radius-box: 1rem;
+  --depth: 0;
   --border-color: rgba(15, 15, 30, 0.08);
 }

@@ -1,74 +1,63 @@
 # Packages
 
-The Concord runtime ships as one merged assembly. Authoring tools ship in separate packages, and the repo is split into several projects. This page explains which package you need.
+Concord publishes four NuGet packages. The package you need depends on what you are building.
 
-## Which do I want?
+Use the same version for every Concord package in a project. The examples on this page use `0.7.0`.
 
-Most people touch one or two of these.
+## Choose what to reference
 
-| You are... | You want |
-| --- | --- |
-| Writing a mod for a target runtime that already runs Concord | `Concord.Ref` to compile, `Concord.Analyzers` for checks, and `Concord.Generators` for generated authoring support |
-| Integrating Concord into a target runtime | `Concord.Runtime`, which carries the Concord Assembly (`Concord.dll`) |
-| Working on Concord itself | the four core libraries below |
+| Project | Required | Optional |
+| --- | --- | --- |
+| A mod for a runtime that already loads Concord | `Concord.Ref` | `Concord.Analyzers` and `Concord.Generators` |
+| A runtime adapter or host | `Concord.Runtime` | None |
+| Concord itself | The projects in the Core repository | Analyzer and generator projects as needed |
 
-If you are writing a mod, reference `Concord.Ref` at compile time. Add `Concord.Analyzers` and `Concord.Generators` as private build tools. The target runtime's Concord Assembly runs your patches, so you do not ship `Concord.dll` yourself.
+Mods compile against `Concord.Ref`. The target runtime loads the implementation from `Concord.dll`, so a mod should not reference or ship `Concord.Runtime`.
 
-## Mod-author packages
+## Mod projects
 
 ### Concord.Ref
 
-A compile-time-only reference assembly. It mirrors Concord's public API (the `[Patch]`/`[Inject]` attributes, `ControlHandle<T>`, `Patcher`, `AttachedField<,>`, and so on) so your mod compiles and gets IntelliSense, but it carries no implementation. The target runtime's Concord Assembly runs your patches. Reference this, not `Concord.dll`, when authoring a mod.
+`Concord.Ref` is a metadata-only reference assembly. It gives the compiler and IDE access to Concord's public API, including `[Patch]`, `[Inject]`, `ControlHandle<T>`, `Patcher`, and `AttachedField<,>`.
+
+Add it to the mod project:
 
 ```xml
-<PackageReference Include="Concord.Ref" Version="0.6.0" />
+<ItemGroup>
+  <PackageReference Include="Concord.Ref" Version="0.7.0" />
+</ItemGroup>
 ```
 
-It targets both `net10.0` and `netstandard2.0`. The `netstandard2.0` build is the floor a net472 game mod (RimWorld) can compile against, and a net10.0 mod resolves the net10.0 build.
+The package contains no runtime implementation. Its assembly identity matches the Concord Assembly, so code compiled against `Concord.Ref` binds to the `Concord.dll` loaded by the target runtime.
 
-### Concord.Analyzers
+`Concord.Ref` provides `net10.0` and `netstandard2.0` assets. A .NET Framework 4.7.2 mod can compile against the `netstandard2.0` asset.
 
-Build-time Roslyn analyzers for Concord projects. They validate injected member declarations and `[Inject]` methods wherever the patch target is statically resolvable, including `typeof`, inherited, and resolvable string targets. That covers missing or ambiguous injection targets, injection method parameter and `ControlHandle<T>` mismatches, static target misuse, duplicate injections, malformed `[InjectInstance]` declarations, and plain fields that probably should be `[InjectField]` declarations.
+### Optional build tools
 
-They also suppress intentional `[InjectField]` field-use warnings, prefer `typeof`/`nameof`/inherited `[Patch]` declarations when those are available, and provide bootstrap checks for runtime adapters. Add this package beside `Concord.Ref` and mark it private:
+Patches compile and run without the analyzer or generator packages. Add either tool when you want the checks or generated code it provides. Keep `PrivateAssets="all"` so it stays in the build and does not become a dependency of the mod.
 
 ```xml
-<PackageReference Include="Concord.Analyzers" Version="0.6.0" PrivateAssets="all" />
+<ItemGroup>
+  <PackageReference Include="Concord.Analyzers" Version="0.7.0" PrivateAssets="all" />
+  <PackageReference Include="Concord.Generators" Version="0.7.0" PrivateAssets="all" />
+</ItemGroup>
 ```
 
-Analyzer packages are tooling only. They improve editor/build feedback and should not be copied into a mod or treated as runtime dependencies.
+#### Concord.Analyzers
 
-### Concord.Generators
+`Concord.Analyzers` reports patch mistakes in the compiler and IDE. It checks target names, injection signatures, injected members, control and operation handles, and patch ordering when it can resolve the target from the project.
 
-Optional build-time generators and IDE refactorings for patch declarations. The package emits a registry so `Patcher.Apply` can find `[Patch]` declarations without scanning every type through reflection. It also generates typed `[InjectField]`, `[InjectProperty]`, and `[InjectMethod]` members from `[Shadow]` attributes on partial patch classes.
+It also suppresses field-use warnings for valid `[InjectField]` declarations and suggests compiler-checked forms such as `typeof` and `nameof` when they are available.
 
-Its IDE refactorings can create a patch, add an injection, add a shadow member, or convert a class into a patch declaration. Keep the package private:
+#### Concord.Generators
 
-```xml
-<PackageReference Include="Concord.Generators" Version="0.6.0" PrivateAssets="all" />
-```
+`Concord.Generators` creates a patch registry for the assembly. `Patcher.Apply` uses that registry instead of scanning every type through reflection.
 
-### Concord Assembly (`Concord.Runtime`)
+The package can also generate typed `[InjectField]`, `[InjectProperty]`, and `[InjectMethod]` members from `[Shadow]` declarations. Its IDE refactorings can create patches, injections, and shadow members.
 
-The shipped artifact: a single `Concord.dll` produced by ILRepack-merging the four core libraries into one file. A target runtime loads it, and it supplies the implementation behind everything `Concord.Ref` declares. Build output lands under `Assemblies/<target-framework>/`. This is what a runtime adapter integrates and what a mod binds to at runtime.
+### Use a local Core checkout
 
-It publishes on nuget.org as `Concord.Runtime` (the plain `Concord` id belongs to an unrelated older package). The package carries one merged DLL for each target framework plus its README. It declares no NuGet dependencies:
-
-```xml
-<PackageReference Include="Concord.Runtime" Version="0.6.0" />
-```
-
-The package carries separate `net10.0`, `netstandard2.0`, and `net472` assemblies. A .NET Framework 4.7.2 runtime loads the `net472` build. Mods still compile against the compatible asset from `Concord.Ref`.
-
-Mods never reference this package. It exists for runtime integrators.
-
-## Core libraries (contributors)
-
-These four are internal. They compile separately but merge into the single `Concord.dll`, so a mod or runtime adapter never references them on their own. They are where the work happens if you are developing Concord.
-
-### Referencing a local Concord checkout
-
-If you are developing a mod against a sibling Concord source checkout before packages are published, use an explicit `Concord` reference plus project references for build order:
+You can reference a sibling Core checkout while developing against changes that have not been published. The explicit assembly reference keeps the reference assembly out of the mod output. The project references only set the build order.
 
 ```xml
 <PropertyGroup>
@@ -85,13 +74,13 @@ If you are developing a mod against a sibling Concord source checkout before pac
     <HintPath>$(ConcordRefDll)</HintPath>
     <Private>false</Private>
   </Reference>
-  <ProjectReference Include="$(ConcordRoot)/src/Concord.Ref/Concord.Ref.csproj"
-                    ReferenceOutputAssembly="false"
-                    PrivateAssets="all">
-    <Private>false</Private>
-  </ProjectReference>
+
   <Analyzer Include="$(ConcordAnalyzerDll)" />
   <Analyzer Include="$(ConcordGeneratorDll)" />
+
+  <ProjectReference Include="$(ConcordRoot)/src/Concord.Ref/Concord.Ref.csproj"
+                    ReferenceOutputAssembly="false"
+                    PrivateAssets="all" />
   <ProjectReference Include="$(ConcordRoot)/src/Concord.Analyzers/Concord.Analyzers.csproj"
                     ReferenceOutputAssembly="false"
                     PrivateAssets="all" />
@@ -101,7 +90,7 @@ If you are developing a mod against a sibling Concord source checkout before pac
 </ItemGroup>
 ```
 
-Build Concord once before loading the mod project in Rider:
+Remove the analyzer or generator lines if you do not use that tool. Build the selected Core projects once before opening or reloading the mod project in Rider:
 
 ```bash
 dotnet build ../../Concord/Core/src/Concord.Ref/Concord.Ref.csproj
@@ -109,40 +98,35 @@ dotnet build ../../Concord/Core/src/Concord.Analyzers/Concord.Analyzers.csproj
 dotnet build ../../Concord/Core/src/Concord.Generators/Concord.Generators.csproj
 ```
 
-If Rider still shows `using Concord;` or `[Patch]` as unresolved after the first build, reload the project so its design-time model picks up the new DLL paths.
+If Rider still marks `using Concord;` or `[Patch]` as unresolved, reload the project so Rider reads the new output paths.
 
-### Concord.Emit
+## Runtime adapters
 
-The IL layer. `WrapperComposer` and `BodyCopier` build wrappers from target IL and ordered `Injection` records. This layer also defines the `At` enum, `InjectAt` positions, control-handle lowering, and the `Operation` family. Rejected patches fail with a `CONCxxx` code. The layer depends on MonoMod.Utils for Cecil.
+### Concord.Runtime
 
-### Concord.Detour
+`Concord.Runtime` is for a host or adapter that loads Concord into a target process. The package contains the merged Concord Assembly, `Concord.dll`:
 
-The detour layer. `IDetourBackend.ApplyComposed` applies injections over a target method. Its handle owns those injections. Disposing it removes them, recomposes the wrapper when others remain, and removes the detour when none do. The default backend uses MonoMod.Core.
-
-### Concord.AttachedData
-
-Weak-reference side storage. `AttachedField<TTarget, TValue>` hangs custom data on target instances without adding real fields to their types, keyed by instance and collected when the target is. Backs the attached-data feature.
-
-### Concord.Orchestration
-
-The author-facing API and declaration scanner. `Patcher.Apply(...)` uses a generated patch registry when one exists and falls back to scanning the assembly. The fluent builder comes from `Patcher.For(...)`. `PatchDeclarationScanner` sends `[Inject]` methods to patch application and plain non-static fields to attached-property registration. Depends on Emit and Detour.
-
-## Not shipped
-
-`bench/` (benchmarks) and `tests/` are development-only. Neither ships in `Concord.dll` or in any package a user consumes.
-
-## How they fit together
-
-```text
-Concord.Emit ─┐
-Concord.Detour ─┤
-Concord.AttachedData ─┼─ ILRepack ─> Concord.dll  (the Concord Assembly)
-Concord.Orchestration ─┘                  ▲
-                                          │ loads
-Concord.Ref  (compile against) ───────────┘
-Concord.Analyzers   (build-time checks)
-Concord.Generators  (registry, shadows, refactorings)
-Runtime adapter  (loads the Concord Assembly into the target runtime)
+```xml
+<ItemGroup>
+  <PackageReference Include="Concord.Runtime" Version="0.7.0" />
+</ItemGroup>
 ```
 
-See [Contributing](contributing.md#how-a-patch-reaches-the-runtime) for the apply and composition path inside the core libraries.
+The package provides `net10.0`, `netstandard2.0`, and `net472` assemblies. It has no NuGet dependencies because the build folds the four runtime libraries and their MonoMod dependencies into each `Concord.dll`.
+
+The package ID is `Concord.Runtime` because the plain `Concord` ID on NuGet belongs to an unrelated package.
+
+## Core contributors
+
+The Core repository builds the runtime from four internal projects:
+
+| Project | Responsibility |
+| --- | --- |
+| `Concord.Emit` | Copies IL, lowers injections, and composes method wrappers |
+| `Concord.Detour` | Installs wrappers and tracks live injections for each target |
+| `Concord.AttachedData` | Stores attached data without changing the target type |
+| `Concord.Orchestration` | Provides `Patcher`, patch discovery, the fluent API, and apply or undo behavior |
+
+The `Concord` project merges those libraries into `Concord.dll` and packs `Concord.Runtime`. The analyzer, generator, and reference packages each have their own project under `src/`.
+
+Tests and benchmarks do not ship in any Concord package. See [Contributing](contributing.md#choose-the-right-project) for the full project map and build instructions.

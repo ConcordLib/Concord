@@ -18,7 +18,7 @@ Add `Concord.Ref` to your project file:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Concord.Ref" Version="0.6.0" />
+  <PackageReference Include="Concord.Ref" Version="0.7.0" />
 </ItemGroup>
 ```
 
@@ -37,8 +37,8 @@ Add the package reference for each tool you want. Keep `PrivateAssets="all"` so 
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Concord.Analyzers" Version="0.6.0" PrivateAssets="all" />
-  <PackageReference Include="Concord.Generators" Version="0.6.0" PrivateAssets="all" />
+  <PackageReference Include="Concord.Analyzers" Version="0.7.0" PrivateAssets="all" />
+  <PackageReference Include="Concord.Generators" Version="0.7.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 
@@ -58,7 +58,7 @@ Disposing the returned patch handle removes its injections. Concord then rebuild
 
 ### Current limits
 
-- Concord changes method behavior, not the shape of a type. It cannot add real fields, interfaces, enum members, or other type metadata.
+- Concord changes method behavior, not the structure of a type. It cannot add real fields, interfaces, enum members, or other type metadata.
 - The public authoring API does not support async methods, iterators, or static constructors yet.
 - Concord rejects generic targets with reference-type arguments because the runtime shares their compiled method bodies. Value-type generic targets can be patched.
 - Concord cannot yet target a local variable, branch, field read or write, or object construction inside a method. It can still patch a constructor's body.

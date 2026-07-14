@@ -304,7 +304,7 @@ public int GetFinalPrice(int basePrice)
 
 #### Wrap a call inside the target
 
-`At.Around` can wrap a whole target method or one call inside it. The invoke form here wraps one matched call. Your injection gets an `Operation` handle shaped to that call: run it where you want, change its arguments, or skip it.
+`At.Around` can wrap a whole target method or one call inside it. The invoke form here wraps one matched call. Your injection gets an `Operation` handle matching that call: run it where you want, change its arguments, or skip it.
 
 ```csharp
 [Patch]
@@ -319,7 +319,7 @@ abstract class PricePatch : ShopItem
 }
 ```
 
-The invoke form takes the call site's declaring type and method name, plus a `shift`. `At.Around` wraps the original call: your injection method gets an `Operation` handle shaped to the call's arguments and return type, and decides whether to call `original.Invoke(...)`. If it does not, the injection replaces the call. `PriceRules.ApplyMarkup` takes one `int` and returns `int`, so the handle here is `Operation<int, int>`; see [How patches work](how-patches-work.md#the-operation-family) for the full family. `At.Head` runs code before the call. To run code after it, use `At.Around` and place that code after `original.Invoke(...)`, as shown next. An optional `by` ordinal picks one matching call, counting from 1; leave it at `0` to match every call site.
+The invoke form takes the call site's declaring type and method name, plus a `shift`. `At.Around` wraps the original call: your injection method gets an `Operation` handle matching the call's arguments and return type, and decides whether to call `original.Invoke(...)`. If it does not, the injection replaces the call. `PriceRules.ApplyMarkup` takes one `int` and returns `int`, so the handle here is `Operation<int, int>`; see [How patches work](how-patches-work.md#the-operation-family) for the full family. `At.Head` runs code before the call. To run code after it, use `At.Around` and place that code after `original.Invoke(...)`, as shown next. An optional `by` ordinal picks one matching call, counting from 1; leave it at `0` to match every call site.
 
 Around invoke supports up to eight arguments for a call that returns a value, and up to eight for a `void` call. Calls on value-type receivers are not supported. Concord reports `CONC039` when a call does not fit those limits.
 
@@ -470,7 +470,7 @@ public int Total()
 }
 ```
 
-A property with one accessor resolves from its property name, so `nameof(Supplier.BasePrice)` and the literal `"get_BasePrice"` reach the same call site in this example. If the property has both a getter and a setter, name the accessor directly (`"get_BasePrice"` or `"set_BasePrice"`) unless the injection's `Operation` shape disambiguates it.
+A property with one accessor resolves from its property name, so `nameof(Supplier.BasePrice)` and the literal `"get_BasePrice"` reach the same call site in this example. If the property has both a getter and a setter, name the accessor directly (`"get_BasePrice"` or `"set_BasePrice"`) unless the injection's `Operation` signature disambiguates it.
 
 ### `At.Argument`
 
@@ -543,7 +543,7 @@ int BumpSecondFive(int original)
 
 `by: 2` matches the second emitted `5` literal and leaves the first alone.
 
-`At.Constant` anchors on compiler output, not source text. A constant match is only as stable as the IL the compiler happens to emit: a later source change can move the literal, fold it into a different constant, or drop it from the method entirely, and the injection stops matching. Treat it the way you'd treat any anchor on generated code, and re-check it after changing the target method.
+`At.Constant` patches based on the compiler output, not source text. A constant match is only as stable as the IL the compiler happens to emit: a later source change can move the literal, fold it into a different constant, or drop it from the method entirely, and the injection stops matching. Treat it the way you'd treat any patch on generated code, and re-check it after changing the target method.
 
 ## Constructor body injections
 

@@ -79,12 +79,21 @@ for (const [background, replacement] of flatGeneratedBackgrounds) {
   out = out.replaceAll(background, replacement)
 }
 
+// DaisyUI also emits unused aura keyframes. Remove them so the generated
+// stylesheet does not carry decorative glow effects that Concord never uses.
+out = out.replace(/@keyframes aura-glow(?:-after)?\{(?:[^{}]|\{[^{}]*\})*\}/g, '')
+out = out.replace(/text-shadow:[^;}]+;?/g, '')
+
 const gradientPattern = /(?:linear|radial|conic)-gradient\(/i
+const glowPattern = /(?:text-shadow\s*:|drop-shadow\(|@keyframes[^{}]*glow|box-shadow\s*:\s*0\s+0\s+(?:[1-9]|\.\d)|box-shadow\s*:[^;]*,\s*0\s+0\s+(?:[1-9]|\.\d))/i
 const mainCss = readFileSync(join(base, 'public', 'main.css'), 'utf8')
 if (gradientPattern.test(out) || gradientPattern.test(mainCss)) {
   const generatedMatches = out.match(/[^{}]{0,180}(?:linear|radial|conic)-gradient\([^;}]+[^{}]{0,220}/gi) ?? []
   const customMatches = mainCss.match(/(?:linear|radial|conic)-gradient\([^;}]+/gi) ?? []
   throw new Error(`Gradient found after building the flat Concord theme: ${[...generatedMatches, ...customMatches].join(' | ')}`)
+}
+if (glowPattern.test(out) || glowPattern.test(mainCss)) {
+  throw new Error('Glow effect found after building the flat Concord theme')
 }
 
 writeFileSync(join(base, 'public', 'concord.css'), out)

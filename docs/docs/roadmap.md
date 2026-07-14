@@ -22,7 +22,7 @@ Concord can patch a constructor body at the head or return of a `.ctor`. See [Pa
 
 ### Limit an Invoke search
 
-Slice and range anchors would limit Invoke matching to the code between two anchors. The `by` value would count matches inside that range. You could add the same call outside the range without changing the selected match.
+Slice and range points would limit Invoke matching to the code between two points. The `by` value would count matches inside that range. You could add the same call outside the range without changing the selected match.
 
 ### Edit raw IL
 

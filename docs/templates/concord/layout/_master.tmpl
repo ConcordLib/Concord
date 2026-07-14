@@ -2,22 +2,22 @@
 {{!include(/^public/.*/)}}
 {{!include(/^assets/.*/)}}
 <!DOCTYPE html>
-<html {{#_lang}}lang="{{_lang}}"{{/_lang}}>
+<html lang="{{#_lang}}{{_lang}}{{/_lang}}{{^_lang}}en{{/_lang}}">
   <head>
     <meta charset="utf-8">
     {{#redirect_url}}
       <meta http-equiv="refresh" content="0;URL='{{redirect_url}}'">
     {{/redirect_url}}
     {{^redirect_url}}
-      <title>{{#title}}{{title}}{{/title}}{{^title}}{{>partials/title}}{{/title}} {{#_appTitle}}| {{_appTitle}} {{/_appTitle}}</title>
+      <title>{{#title}}{{title}}{{#_appTitle}} | {{_appTitle}}{{/_appTitle}}{{/title}}{{^title}}{{#_appTitle}}{{_appTitle}}{{/_appTitle}}{{^_appTitle}}{{>partials/title}}{{/_appTitle}}{{/title}}</title>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <meta name="title" content="{{#title}}{{title}}{{/title}}{{^title}}{{>partials/title}}{{/title}} {{#_appTitle}}| {{_appTitle}} {{/_appTitle}}">
+      <meta name="title" content="{{#title}}{{title}}{{#_appTitle}} | {{_appTitle}}{{/_appTitle}}{{/title}}{{^title}}{{#_appTitle}}{{_appTitle}}{{/_appTitle}}{{^_appTitle}}{{>partials/title}}{{/_appTitle}}{{/title}}">
       {{#_description}}<meta name="description" content="{{_description}}">{{/_description}}
       {{#description}}<meta name="description" content="{{description}}">{{/description}}
       <link rel="icon" href="{{_rel}}assets/favicon.ico" sizes="48x48">
       <link rel="preconnect" href="https://fonts.googleapis.com">
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@200..800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
       <link rel="stylesheet" href="{{_rel}}public/concord.css">
       <link rel="stylesheet" href="{{_rel}}public/main.css">
       <meta name="docfx:navrel" content="{{_navRel}}">
@@ -89,26 +89,26 @@
     {{^_disableNavbar}}
     <header class="fixed inset-x-0 top-0 z-40 h-14 border-b border-base-300/60 bg-base-100/80 backdrop-blur-xl lg:left-72 xl:left-80">
       <div class="flex h-full items-center gap-2 px-4 sm:px-6 lg:px-8">
-        <button type="button" id="cc-nav-open" class="btn btn-ghost btn-sm btn-square lg:hidden" aria-label="Open navigation">
+        <button type="button" id="cc-nav-open" class="cc-toolbar-button btn btn-ghost btn-sm btn-square lg:hidden" aria-label="Open navigation" aria-controls="cc-sidebar" aria-expanded="false" aria-haspopup="dialog">
           <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
         </button>
-        <a class="lg:hidden" href="{{_appLogoUrl}}{{^_appLogoUrl}}{{_rel}}index.html{{/_appLogoUrl}}">
+        <a class="cc-mobile-brand lg:hidden" href="{{_appLogoUrl}}{{^_appLogoUrl}}{{_rel}}index.html{{/_appLogoUrl}}">
           <img src="{{_rel}}assets/logo.png" alt="{{_appName}}" class="h-7 w-auto">
         </a>
         {{#_enableSearch}}
-        <button type="button" id="cc-search-trigger" class="hidden items-center gap-2 rounded-lg border border-base-300/60 bg-base-200/60 px-3 py-1.5 text-sm text-base-content/50 transition hover:bg-base-300/50 hover:text-base-content/70 sm:flex sm:w-72 lg:w-96">
+        <button type="button" id="cc-search-trigger" class="hidden items-center gap-2 rounded-lg border border-base-300/60 bg-base-200/60 px-3 py-1.5 text-sm text-base-content/50 transition hover:bg-base-300/50 hover:text-base-content/70 sm:flex sm:w-72 lg:w-96" aria-controls="cc-cmdk" aria-expanded="false" aria-haspopup="dialog">
           <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
           <span>Search docs…</span>
           <kbd data-cc-kbd class="ml-auto rounded border border-base-300 bg-base-100 px-1.5 py-0.5 text-[0.7rem] font-medium text-base-content/50">⌘K</kbd>
         </button>
-        <button type="button" id="cc-search-trigger-mobile" class="btn btn-ghost btn-sm btn-square sm:hidden" aria-label="Search">
+        <button type="button" id="cc-search-trigger-mobile" class="cc-toolbar-button btn btn-ghost btn-sm btn-square sm:hidden" aria-label="Search" aria-controls="cc-cmdk" aria-expanded="false" aria-haspopup="dialog">
           <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         </button>
         {{/_enableSearch}}
         <div class="flex-1"></div>
         <details class="dropdown dropdown-end" id="cc-version-dropdown"></details>
         <details class="dropdown dropdown-end" id="cc-theme-dropdown">
-          <summary class="btn btn-ghost btn-sm btn-square list-none" id="cc-theme-btn" aria-label="{{__global.changeTheme}}">
+          <summary class="cc-toolbar-button btn btn-ghost btn-sm btn-square list-none" id="cc-theme-btn" aria-label="{{__global.changeTheme}}">
             <svg class="cc-theme-icon cc-theme-icon-light size-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
             <svg class="cc-theme-icon cc-theme-icon-dark size-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
             <svg class="cc-theme-icon cc-theme-icon-auto size-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor" stroke="none"/></svg>
@@ -123,7 +123,7 @@
     </header>
     {{/_disableNavbar}}
 
-    <aside id="cc-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 overflow-y-auto border-r border-base-300/60 bg-base-100 -translate-x-full transition-transform duration-200 lg:translate-x-0 xl:w-80">
+    <aside id="cc-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 overflow-y-auto border-r border-base-300/60 bg-base-100 -translate-x-full transition-transform duration-200 lg:translate-x-0 xl:w-80" tabindex="-1">
       <div class="hidden h-14 items-center px-6 lg:flex">
         <a href="{{_appLogoUrl}}{{^_appLogoUrl}}{{_rel}}index.html{{/_appLogoUrl}}">
           <img src="{{_rel}}assets/logo.png" alt="{{_appName}}" class="h-7 w-auto">
@@ -158,10 +158,10 @@
       <footer class="border-t border-base-300/60 bg-base-100">
         <div class="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
           <div class="flex flex-col items-center gap-6 md:flex-row md:items-center md:justify-between">
-            <a class="flex items-center gap-3" href="{{_appLogoUrl}}{{^_appLogoUrl}}{{_rel}}index.html{{/_appLogoUrl}}">
+            <a class="cc-footer-brand flex items-center gap-3" href="{{_appLogoUrl}}{{^_appLogoUrl}}{{_rel}}index.html{{/_appLogoUrl}}">
               <img src="{{_rel}}assets/logo.png" alt="{{_appName}}" class="h-6 w-auto opacity-80">
             </a>
-            <nav class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-base-content/70">
+            <nav class="cc-footer-nav flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-base-content/70">
               <a class="link link-hover" href="{{_rel}}docs/introduction.html">Docs</a>
               <a class="link link-hover" href="{{_rel}}api/Concord.html">API Reference</a>
               <a class="link link-hover inline-flex items-center gap-1.5" href="https://github.com/ConcordLib/concord" rel="noopener noreferrer">
@@ -177,7 +177,7 @@
     </div>
 
     {{#_enableSearch}}
-    <div id="cc-cmdk" class="fixed inset-0 z-[100] hidden">
+    <div id="cc-cmdk" class="fixed inset-0 z-[100] hidden" role="dialog" aria-modal="true" aria-label="Search documentation">
       <div class="cc-cmdk-backdrop fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
       <div class="cc-cmdk-panel fixed left-1/2 top-[10%] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-hidden rounded-box border border-base-300 bg-base-100 shadow-2xl">
         <div class="flex items-center gap-3 border-b border-base-300/60 px-4">

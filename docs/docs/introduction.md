@@ -26,9 +26,9 @@ Add `Concord.Analyzers` for build checks and `Concord.Generators` for generated 
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Concord.Ref" Version="0.6.0" />
-  <PackageReference Include="Concord.Analyzers" Version="0.6.0" PrivateAssets="all" />
-  <PackageReference Include="Concord.Generators" Version="0.6.0" PrivateAssets="all" />
+  <PackageReference Include="Concord.Ref" Version="0.7.0" />
+  <PackageReference Include="Concord.Analyzers" Version="0.7.0" PrivateAssets="all" />
+  <PackageReference Include="Concord.Generators" Version="0.7.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 

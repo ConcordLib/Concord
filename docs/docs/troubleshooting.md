@@ -18,7 +18,7 @@ When a patch cannot compose, Concord throws a `ConcordEmitException` with a `CON
 | `CONC036` | Property target | The property has both accessors, but nothing selected its getter or setter. Write `get_Name` or `set_Name`. |
 | `CONC037` | Constant | The target body contains no matching literal. |
 | `CONC038` | Constant | The requested 1-based literal occurrence does not exist. |
-| `CONC039` | Invoke or value injection | The declaration has an unsupported or mismatched call shape, operation handle, argument selector, constant type, or value method signature. |
+| `CONC039` | Invoke or value injection | The declaration has an unsupported or mismatched call signature, operation handle, argument selector, constant type, or value method signature. |
 | `CONC051` | Around | More than one whole-method `Around` injection targets the method. Only one is allowed. Head, Return, and Tail injections can still compose alongside it; see `CONC115` for what cannot. |
 | `CONC052` | Patch ordering | `[PatchBefore]` and `[PatchAfter]` rules form a cycle, so Concord cannot choose an order. The message lists the owner loop, such as `A -> B -> A`. Remove or reverse one rule. Concord leaves the installed wrapper unchanged. |
 | `CONC060` | Async / iterator | The target is a state machine (`async`/iterator) whose generated `MoveNext` couldn't be found. |
