@@ -25,13 +25,16 @@ npx wrangler deploy
 
    - `CLOUDFLARE_API_TOKEN` - API token with R2 + Workers permissions
    - `CLOUDFLARE_ACCOUNT_ID` - your Cloudflare account ID
+   - `R2_ACCESS_KEY_ID` - Cloudflare R2 S3 access key ID used by rclone
+   - `R2_SECRET_ACCESS_KEY` - Cloudflare R2 S3 secret access key used by rclone
    - `CORE_CHECKOUT_TOKEN` - token used when the Core repo needs an authenticated checkout
 
 ## How it works
 
 Versions are driven by git branches, not tags. A push to `main` deploys under
 the `unstable/` prefix, and a push to a `vX.Y` branch deploys under `vX.Y/`.
-A deploy of the highest `vX.Y` branch also mirrors that build to `latest/`
+The workflow syncs the built site to that version prefix in R2. A deploy of the
+highest `vX.Y` branch also mirrors that build to `latest/`
 (`scripts/latest-version.py` finds the highest branch).
 
 The Worker maps the first URL segment to an R2 prefix. `/` redirects to

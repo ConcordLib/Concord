@@ -178,7 +178,13 @@
       var href = it.topicHref || it.href;
       var a = document.createElement('a');
       a.className = 'cc-toc-link';
-      if (href) { a.href = new URL(href, base).href; if (samePage(a.href, here)) a.classList.add('active'); }
+      if (href) {
+        a.href = new URL(href, base).href;
+        if (samePage(a.href, here)) {
+          a.classList.add('active');
+          a.setAttribute('aria-current', 'page');
+        }
+      }
       else { a.classList.add('cc-toc-heading'); }
       a.textContent = it.name;
       li.appendChild(a);
@@ -226,12 +232,19 @@
         var secUrl = new URL((sec.tocHref || sec.href).replace(/\.html$/i, '.json'), rootUrl);
         return fetchJson(secUrl.href).then(function (d) { return { name: sec.name, base: secUrl, items: (d && d.items) || [{ name: sec.name, href: sec.topicHref || sec.href }] }; });
       })).then(function (groups) {
-        groups.forEach(function (g) {
+        groups.forEach(function (g, index) {
+          var section = document.createElement('section');
+          section.className = 'cc-toc-section';
           var h = document.createElement('h2');
           h.className = 'cc-toc-group';
+          h.id = 'cc-toc-group-' + index;
           h.textContent = g.name;
-          box.appendChild(h);
-          box.appendChild(buildTocList(g.items, g.base, here, 0));
+          section.setAttribute('aria-labelledby', h.id);
+          var list = buildTocList(g.items, g.base, here, 0);
+          list.classList.add('cc-toc-root');
+          section.appendChild(h);
+          section.appendChild(list);
+          box.appendChild(section);
         });
         // scroll the active link into view in the sidebar
         var active = box.querySelector('.cc-toc-link.active');

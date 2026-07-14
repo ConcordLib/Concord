@@ -17,6 +17,10 @@ on:
         description: 'Core ref to build API docs from (branch/tag/SHA). Leave empty to auto-select.'
         required: false
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -30,6 +34,33 @@ jobs:
     steps:
       - name: Checkout docs
         uses: actions/checkout@v4
+
+      - name: Detect Worker changes
+        id: worker_changes
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            CHANGED=true
+          elif git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$BEFORE_SHA"; then
+            if git diff --quiet "$BEFORE_SHA" "$GITHUB_SHA" -- \
+              worker/src \
+              worker/wrangler.jsonc \
+              worker/package.json \
+              worker/package-lock.json \
+              worker/tsconfig.json; then
+              CHANGED=false
+            else
+              CHANGED=true
+            fi
+          else
+            echo "::warning::Could not load the previous commit; deploying the Worker to be safe."
+            CHANGED=true
+          fi
+
+          echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
+          echo "Worker files changed: $CHANGED"
 
       - name: Determine version
         id: version
@@ -101,9 +132,36 @@ jobs:
       - name: Install DocFX
         run: dotnet tool install -g docfx
 
+      - name: Resolve API metadata cache key
+        id: metadata_cache_key
+        env:
+          DOCFX_CONFIG_HASH: ${{ hashFiles('docfx.json') }}
+        run: |
+          CORE_SHA=$(git -C .core rev-parse HEAD)
+          DOCFX_VERSION=$(docfx --version)
+          echo "key=docfx-api-${RUNNER_OS}-${CORE_SHA}-${DOCFX_VERSION}-${DOCFX_CONFIG_HASH}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore API metadata cache
+        id: api_metadata_cache
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          path: api
+          key: ${{ steps.metadata_cache_key.outputs.key }}
+
       - name: Build API metadata
+        id: api_metadata
+        if: steps.api_metadata_cache.outputs.cache-hit != 'true'
         run: docfx metadata docfx.json
         continue-on-error: true
+
+      - name: Save API metadata cache
+        if: steps.api_metadata_cache.outputs.cache-hit != 'true' && steps.api_metadata.outcome == 'success'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: api
+          key: ${{ steps.metadata_cache_key.outputs.key }}
 
       - name: Build docs
         run: docfx build docfx.json
@@ -118,34 +176,66 @@ jobs:
           echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
           echo "Highest version branch: ${LATEST:-<none>}"
 
-      - name: Install Wrangler
-        run: npm install -g --ignore-scripts wrangler@4.104.0
+      - name: Install rclone
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes rclone
 
-      - name: Upload to R2 and deploy Worker
+      - name: Install Worker dependencies
+        if: steps.worker_changes.outputs.changed == 'true'
+        working-directory: worker
+        run: npm ci --ignore-scripts
+
+      - name: Upload docs to R2
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           VERSION: ${{ steps.version.outputs.version }}
           LATEST: ${{ steps.latest.outputs.latest }}
+          RCLONE_CONFIG_R2_TYPE: s3
+          RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+          RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          RCLONE_CONFIG_R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          RCLONE_CONFIG_R2_REGION: auto
         run: |
-          # Upload all files to R2 under the version prefix (parallel)
-          cd .site
-          find . -type f | sed 's|^\./||' | xargs -P 8 -I {} sh -c '
-            wrangler r2 object put "concord-docs/${VERSION}/{}" --file="{}" --remote 2>&1 | grep -q "Upload complete" || echo "FAILED: ${VERSION}/{}"
-          '
+          RCLONE_FLAGS=(
+            --checksum
+            --fast-list
+            --transfers 16
+            --checkers 16
+            --delete-after
+            --s3-no-check-bucket
+            --stats 30s
+            --stats-one-line
+          )
+
+          rclone sync .site "r2:concord-docs/$VERSION" "${RCLONE_FLAGS[@]}"
 
           # Mirror to `latest` when this deploy IS the highest version branch.
           if [ -n "$LATEST" ] && [ "$VERSION" = "$LATEST" ]; then
-            find . -type f | sed 's|^\./||' | xargs -P 8 -I {} sh -c '
-              wrangler r2 object put "concord-docs/latest/{}" --file="{}" --remote 2>&1 | grep -q "Upload complete" || echo "FAILED: latest/{}"
-            '
+            rclone sync .site "r2:concord-docs/latest" "${RCLONE_FLAGS[@]}"
           fi
 
-          # Rebuild versions.json from the known version set (source of truth: branches).
-          cd ..
-          python3 worker/scripts/build-versions.py || echo "versions.json update skipped"
+      - name: Update version manifest
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          LATEST: ${{ steps.latest.outputs.latest }}
+          RCLONE_CONFIG_R2_TYPE: s3
+          RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+          RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          RCLONE_CONFIG_R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          RCLONE_CONFIG_R2_REGION: auto
+        run: |
+          python3 worker/scripts/build-versions.py --output "$RUNNER_TEMP/versions.json"
 
-          # Deploy the worker
-          cd worker
-          npm ci --ignore-scripts
-          npx --no-install wrangler deploy
+          rclone copyto "$RUNNER_TEMP/versions.json" "r2:concord-docs/versions.json" \
+            --checksum \
+            --s3-no-check-bucket
+
+      - name: Deploy Worker
+        if: steps.worker_changes.outputs.changed == 'true'
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --no-install wrangler deploy
