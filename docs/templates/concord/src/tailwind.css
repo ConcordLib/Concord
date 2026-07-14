@@ -1,0 +1,73 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: concord-dark --default, concord-light --prefersdark;
+}
+
+@theme {
+  --color-teal: #2BB8A8;
+  --color-teal-light: #6FE0D2;
+  --color-violet: #7E5BD6;
+  --color-near-black: #16110B;
+  --font-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+@plugin "daisyui/theme" {
+  name: "concord-dark";
+  default: true;
+  color-scheme: dark;
+  --color-base-100: #0d0f17;
+  --color-base-200: #141823;
+  --color-base-300: #1a1f2e;
+  --color-base-content: #e2e8f0;
+  --color-primary: #2BB8A8;
+  --color-primary-content: #04130f;
+  --color-secondary: #7E5BD6;
+  --color-secondary-content: #ffffff;
+  --color-accent: #6FE0D2;
+  --color-accent-content: #04130f;
+  --color-neutral: #16110B;
+  --color-neutral-content: #e2e8f0;
+  --color-info: #6FE0D2;
+  --color-info-content: #04130f;
+  --color-success: #34d399;
+  --color-success-content: #04130f;
+  --color-warning: #fbbf24;
+  --color-warning-content: #1a1100;
+  --color-error: #fb7185;
+  --color-error-content: #1a0007;
+  --radius-selector: 0.5rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1rem;
+  --border-color: rgba(255, 255, 255, 0.08);
+}
+
+@plugin "daisyui/theme" {
+  name: "concord-light";
+  prefersdark: false;
+  color-scheme: light;
+  --color-base-100: #f8f7fc;
+  --color-base-200: #ffffff;
+  --color-base-300: #f1eff7;
+  --color-base-content: #1e1b2e;
+  --color-primary: #2BB8A8;
+  --color-primary-content: #ffffff;
+  --color-secondary: #7E5BD6;
+  --color-secondary-content: #ffffff;
+  --color-accent: #6FE0D2;
+  --color-accent-content: #04130f;
+  --color-neutral: #16110B;
+  --color-neutral-content: #ffffff;
+  --color-info: #2BB8A8;
+  --color-info-content: #ffffff;
+  --color-success: #34d399;
+  --color-success-content: #04130f;
+  --color-warning: #fbbf24;
+  --color-warning-content: #1a1100;
+  --color-error: #fb7185;
+  --color-error-content: #ffffff;
+  --radius-selector: 0.5rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1rem;
+  --border-color: rgba(15, 15, 30, 0.08);
+}

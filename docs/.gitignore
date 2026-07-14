@@ -1,0 +1,20 @@
+.site/
+api/
+node_modules/
+
+# Cloudflare Worker
+.wrangler
+worker/node_modules/
+versions.json
+
+# Tailwind/DaisyUI build (local only; concord.css is committed)
+templates/concord/node_modules
+
+.idea/
+.vs/
+.vscode/
+*.user
+
+# Python
+__pycache__/
+*.pyc

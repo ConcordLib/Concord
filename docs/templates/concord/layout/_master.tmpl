@@ -1,0 +1,194 @@
+{{!Concord custom master template — Tailwind CSS + DaisyUI shell, DocFX engine for content}}
+{{!include(/^public/.*/)}}
+{{!include(/^assets/.*/)}}
+<!DOCTYPE html>
+<html {{#_lang}}lang="{{_lang}}"{{/_lang}}>
+  <head>
+    <meta charset="utf-8">
+    {{#redirect_url}}
+      <meta http-equiv="refresh" content="0;URL='{{redirect_url}}'">
+    {{/redirect_url}}
+    {{^redirect_url}}
+      <title>{{#title}}{{title}}{{/title}}{{^title}}{{>partials/title}}{{/title}} {{#_appTitle}}| {{_appTitle}} {{/_appTitle}}</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="{{#title}}{{title}}{{/title}}{{^title}}{{>partials/title}}{{/title}} {{#_appTitle}}| {{_appTitle}} {{/_appTitle}}">
+      {{#_description}}<meta name="description" content="{{_description}}">{{/_description}}
+      {{#description}}<meta name="description" content="{{description}}">{{/description}}
+      <link rel="icon" href="{{_rel}}assets/favicon.ico" sizes="48x48">
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+      <link rel="stylesheet" href="{{_rel}}public/concord.css">
+      <link rel="stylesheet" href="{{_rel}}public/main.css">
+      <meta name="docfx:navrel" content="{{_navRel}}">
+      <meta name="docfx:tocrel" content="{{_tocRel}}">
+      <link rel="icon" type="image/png" href="{{_rel}}assets/favicon-96x96.png" sizes="96x96">
+      <link rel="icon" type="image/svg+xml" href="{{_rel}}assets/favicon.svg">
+      <link rel="apple-touch-icon" sizes="180x180" href="{{_rel}}assets/apple-touch-icon.png">
+      <meta name="apple-mobile-web-app-title" content="Concord">
+      <link rel="manifest" href="{{_rel}}assets/site.webmanifest">
+      {{#_noindex}}<meta name="searchOption" content="noindex">{{/_noindex}}
+      {{#_enableSearch}}<meta name="docfx:rel" content="{{_rel}}">{{/_enableSearch}}
+      {{#_disableNewTab}}<meta name="docfx:disablenewtab" content="true">{{/_disableNewTab}}
+      {{#_disableTocFilter}}<meta name="docfx:disabletocfilter" content="true">{{/_disableTocFilter}}
+      {{#docurl}}<meta name="docfx:docurl" content="{{docurl}}">{{/docurl}}
+      <meta name="loc:inThisArticle" content="Table of Contents">
+      <meta name="loc:searchResultsCount" content="{{__global.searchResultsCount}}">
+      <meta name="loc:searchNoResults" content="{{__global.searchNoResults}}">
+      <meta name="loc:tocFilter" content="{{__global.tocFilter}}">
+      <meta name="loc:nextArticle" content="{{__global.nextArticle}}">
+      <meta name="loc:prevArticle" content="{{__global.prevArticle}}">
+      <meta name="loc:themeLight" content="{{__global.themeLight}}">
+      <meta name="loc:themeDark" content="{{__global.themeDark}}">
+      <meta name="loc:themeAuto" content="{{__global.themeAuto}}">
+      <meta name="loc:changeTheme" content="{{__global.changeTheme}}">
+      <meta name="loc:copy" content="{{__global.copy}}">
+      <meta name="loc:downloadPdf" content="{{__global.downloadPdf}}">
+
+      <script type="module" src="./{{_rel}}public/docfx.min.js"></script>
+
+      <script>
+        (function () {
+          var stored = localStorage.getItem('theme') || 'auto';
+          var resolved = stored === 'auto'
+            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : stored;
+          var root = document.documentElement;
+          root.setAttribute('data-bs-theme', resolved);
+          root.setAttribute('data-theme', resolved === 'dark' ? 'concord-dark' : 'concord-light');
+          root.setAttribute('data-theme-pref', stored);
+          root.classList.add(resolved === 'dark' ? 'cc-dark' : 'cc-light');
+        })();
+      </script>
+
+      <script defer src="{{_rel}}public/theme.js"></script>
+
+      <!-- Privacy-friendly analytics by Plausible -->
+      <script async src="https://t.disc.gg/js/pa-l-Lzc3vutzy19E8OtYBus.js"></script>
+      <script>
+        window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
+        plausible.init()
+      </script>
+
+      {{#_googleAnalyticsTagId}}
+      <script async src="https://www.googletagmanager.com/gtag/js?id={{_googleAnalyticsTagId}}"></script>
+      <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', '{{_googleAnalyticsTagId}}');
+      </script>
+      {{/_googleAnalyticsTagId}}
+    {{/redirect_url}}
+  </head>
+
+  {{^redirect_url}}
+  <body class="tex2jax_ignore min-h-screen bg-base-100 text-base-content font-sans antialiased" data-layout="{{_layout}}{{layout}}" data-yaml-mime="{{yamlmime}}">
+    <a href="#cc-main" class="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:left-2 focus:rounded-box focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-content">Skip to content</a>
+
+    {{^_disableNavbar}}
+    <header class="fixed inset-x-0 top-0 z-40 h-14 border-b border-base-300/60 bg-base-100/80 backdrop-blur-xl lg:left-72 xl:left-80">
+      <div class="flex h-full items-center gap-2 px-4 sm:px-6 lg:px-8">
+        <button type="button" id="cc-nav-open" class="btn btn-ghost btn-sm btn-square lg:hidden" aria-label="Open navigation">
+          <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+        </button>
+        <a class="lg:hidden" href="{{_appLogoUrl}}{{^_appLogoUrl}}{{_rel}}index.html{{/_appLogoUrl}}">
+          <img src="{{_rel}}assets/logo.png" alt="{{_appName}}" class="h-7 w-auto">
+        </a>
+        {{#_enableSearch}}
+        <button type="button" id="cc-search-trigger" class="hidden items-center gap-2 rounded-lg border border-base-300/60 bg-base-200/60 px-3 py-1.5 text-sm text-base-content/50 transition hover:bg-base-300/50 hover:text-base-content/70 sm:flex sm:w-72 lg:w-96">
+          <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <span>Search docs…</span>
+          <kbd data-cc-kbd class="ml-auto rounded border border-base-300 bg-base-100 px-1.5 py-0.5 text-[0.7rem] font-medium text-base-content/50">⌘K</kbd>
+        </button>
+        <button type="button" id="cc-search-trigger-mobile" class="btn btn-ghost btn-sm btn-square sm:hidden" aria-label="Search">
+          <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        </button>
+        {{/_enableSearch}}
+        <div class="flex-1"></div>
+        <details class="dropdown dropdown-end" id="cc-version-dropdown"></details>
+        <details class="dropdown dropdown-end" id="cc-theme-dropdown">
+          <summary class="btn btn-ghost btn-sm btn-square list-none" id="cc-theme-btn" aria-label="{{__global.changeTheme}}">
+            <svg class="cc-theme-icon cc-theme-icon-light size-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+            <svg class="cc-theme-icon cc-theme-icon-dark size-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+            <svg class="cc-theme-icon cc-theme-icon-auto size-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor" stroke="none"/></svg>
+          </summary>
+          <ul class="menu dropdown-content z-[60] mt-2 w-44 rounded-box border border-base-300 bg-base-200 p-1 shadow-lg" id="cc-theme-menu" role="menu">
+            <li><button type="button" role="menuitem" data-action="theme" data-theme-value="light"><svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>{{__global.themeLight}}</button></li>
+            <li><button type="button" role="menuitem" data-action="theme" data-theme-value="dark"><svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>{{__global.themeDark}}</button></li>
+            <li><button type="button" role="menuitem" data-action="theme" data-theme-value="auto"><svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor" stroke="none"/></svg>{{__global.themeAuto}}</button></li>
+          </ul>
+        </details>
+      </div>
+    </header>
+    {{/_disableNavbar}}
+
+    <aside id="cc-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 overflow-y-auto border-r border-base-300/60 bg-base-100 -translate-x-full transition-transform duration-200 lg:translate-x-0 xl:w-80">
+      <div class="hidden h-14 items-center px-6 lg:flex">
+        <a href="{{_appLogoUrl}}{{^_appLogoUrl}}{{_rel}}index.html{{/_appLogoUrl}}">
+          <img src="{{_rel}}assets/logo.png" alt="{{_appName}}" class="h-7 w-auto">
+        </a>
+      </div>
+      <nav id="cc-toc" class="px-4 py-6" aria-label="Site navigation"></nav>
+    </aside>
+
+    <div id="cc-nav-backdrop" class="fixed inset-0 z-40 hidden bg-black/50 lg:hidden"></div>
+
+    <div class="pt-14 lg:pl-72 xl:pl-80">
+      <main id="cc-main" class="px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+        <div class="cc-container flex flex-col gap-8 xl:flex-row xl:items-start">
+          <div class="min-w-0 flex-1">
+            <div class="cc-prose mx-auto w-full">
+              {{^_disableBreadcrumb}}
+              <nav id="cc-breadcrumb" class="cc-breadcrumb mb-8 text-xs"></nav>
+              {{/_disableBreadcrumb}}
+              <article data-uid="{{uid}}" class="cc-article">
+                {{!body}}
+              </article>
+            </div>
+          </div>
+          {{^_disableAffix}}
+          <aside class="cc-affix hidden w-60 shrink-0 xl:block xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
+            <nav id="affix" class="cc-affix-nav w-full" aria-label="Table of Contents"></nav>
+          </aside>
+          {{/_disableAffix}}
+        </div>
+      </main>
+
+      <footer class="border-t border-base-300/60 bg-base-100">
+        <div class="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+          <div class="flex flex-col items-center gap-6 md:flex-row md:items-center md:justify-between">
+            <a class="flex items-center gap-3" href="{{_appLogoUrl}}{{^_appLogoUrl}}{{_rel}}index.html{{/_appLogoUrl}}">
+              <img src="{{_rel}}assets/logo.png" alt="{{_appName}}" class="h-6 w-auto opacity-80">
+            </a>
+            <nav class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-base-content/70">
+              <a class="link link-hover" href="{{_rel}}docs/introduction.html">Docs</a>
+              <a class="link link-hover" href="{{_rel}}api/Concord.html">API Reference</a>
+              <a class="link link-hover inline-flex items-center gap-1.5" href="https://github.com/ConcordLib/concord" rel="noopener noreferrer">
+                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12 11.5 11.5 0 0 0 8.5 23c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.3.5-2.4 1.2-3.2 0-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.7.1 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.7-5.5 6 .4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+            </nav>
+          </div>
+          <div class="mt-6 flex flex-col items-center gap-2 border-t border-base-300/60 pt-4 text-xs text-base-content/50 sm:flex-row sm:items-center sm:justify-between">
+            <span>{{{_appFooter}}}{{^_appFooter}}Built with <a class="link link-primary" href="https://dotnet.github.io/docfx">docfx</a>{{/_appFooter}}</span>
+            <span>&copy; {{_appName}} &middot; concordlib.dev</span>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    {{#_enableSearch}}
+    <div id="cc-cmdk" class="fixed inset-0 z-[100] hidden">
+      <div class="cc-cmdk-backdrop fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
+      <div class="cc-cmdk-panel fixed left-1/2 top-[10%] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-hidden rounded-box border border-base-300 bg-base-100 shadow-2xl">
+        <div class="flex items-center gap-3 border-b border-base-300/60 px-4">
+          <svg xmlns="http://www.w3.org/2000/svg" class="size-4 shrink-0 text-base-content/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="cc-search-input" class="flex-1 bg-transparent py-3.5 text-base outline-none placeholder:text-base-content/40" type="search" placeholder="Search the docs…" autocomplete="off" aria-label="Search">
+          <kbd class="kbd kbd-sm shrink-0">Esc</kbd>
+        </div>
+        <div id="search-results" class="search-results cc-cmdk-results max-h-[60vh] overflow-y-auto"></div>
+      </div>
+    </div>
+    {{/_enableSearch}}
+  </body>
+  {{/redirect_url}}
+</html>

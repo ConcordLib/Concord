@@ -1,0 +1,22 @@
+- name: Start Here
+  href: introduction.md
+- name: Getting Started
+  href: getting-started.md
+- name: Your First Patch
+  href: first-patch.md
+- name: Common Tasks
+  href: common-tasks.md
+- name: Migrating from Harmony & Prepatcher
+  href: migration.md
+- name: How Patches Work
+  href: how-patches-work.md
+- name: Attached Data
+  href: attached-data.md
+- name: Packages
+  href: packages.md
+- name: Troubleshooting
+  href: troubleshooting.md
+- name: Roadmap
+  href: roadmap.md
+- name: Contributing
+  href: contributing.md
