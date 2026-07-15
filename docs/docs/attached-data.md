@@ -90,6 +90,8 @@ Each `Get`, `Set`, or `TryGet` performs a table lookup. Store the result in a lo
 | Read or write a real field already declared on the target type | `[InjectField]` |
 | Declare attached-property metadata for a runtime adapter | A plain instance field on the patch declaration |
 
+If the project references `Concord.Generators`, `[Shadow("fieldName")]` can generate the typed `[InjectField]` declaration on a partial patch class, as shown in [Generate private member declarations](common-tasks.md#generate-private-member-declarations).
+
 ### Plain fields on patch declarations
 
 The declaration scanner registers plain instance fields as attached-property metadata:

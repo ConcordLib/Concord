@@ -744,6 +744,8 @@ public void TakeDamage(int amount)
 }
 ```
 
+`Concord.Generators` can generate this `[InjectField]` declaration from `[Shadow("hitPoints")]`, as shown in [Generate private member declarations](#generate-private-member-declarations).
+
 ### Access members on a target you cannot inherit
 
 Use an explicit target plus injected member declarations for a sealed target or any other type the patch declaration cannot extend:
@@ -772,6 +774,8 @@ abstract class FurnacePatch
 
 `[InjectInstance]` exposes the current target object. `[InjectProperty]` and `[InjectMethod]` map the declarations to target members with matching types and signatures. `[InjectField]` does the same for a field, as shown in the previous section.
 
+`Concord.Generators` can generate those field, property, and method declarations. The next section shows the `[Shadow]` form.
+
 ### Generate private member declarations
 
 Projects that reference `Concord.Generators` can use `[Shadow]` instead of writing each injected member declaration. Mark the patch declaration `partial` so the generator can add the members:
@@ -785,12 +789,16 @@ abstract partial class HealthPatch : GameActor
     [Inject(At.Tail, nameof(TakeDamage))]
     void AfterTakeDamage()
     {
-        hitPoints = Recalculate(0);
+        this.hitPoints = this.Recalculate(0);
     }
 }
 ```
 
-The parameter types on a method shadow select its overload. The generator emits typed `[InjectField]`, `[InjectProperty]`, or `[InjectMethod]` members after resolving the target at build time.
+Roslyn runs the generator as part of the build, so you never start it yourself.
+
+`[Shadow("hitPoints")]` adds a private field to the generated part of `HealthPatch`. The field has the same type as `GameActor.hitPoints` and carries `[InjectField("hitPoints")]`, which makes `this.hitPoints` valid C#. Rider can complete the name while the compiler checks its type. When Concord builds the patch, it rewrites the access to the real private field on the current `GameActor`.
+
+`[Shadow("Recalculate", typeof(int))]` adds a typed `[InjectMethod]` member, and the `typeof(int)` argument selects its overload. The compiler checks `this.Recalculate(0)` before Concord calls the private target method. A property shadow adds an `[InjectProperty]` member in the same way.
 
 ### Pick good patch declaration names
 

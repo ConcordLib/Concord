@@ -29,6 +29,8 @@ abstract class PricePatch : ShopItem
 
 When you apply the patch, Concord finds `ShopItem.GetPrice()` and copies its body into a new wrapper. It places `AfterGetPrice` before the method's last `return`, then installs a detour from `GetPrice` to the wrapper.
 
+For declarative patches, `Patcher.Apply` reads the patch registry built by `Concord.Generators`; without the generator, Concord finds the same `[Patch]` classes through reflection.
+
 The wrapper behaves like this:
 
 ```csharp
@@ -130,6 +132,8 @@ abstract class SealedEntityPatch
 ```
 
 `[InjectInstance]` supplies the current target object. The other attributes map each declaration to a real field, property, or method on the target. The declared types and signatures must match.
+
+`Concord.Generators` can write the `[InjectField]`, `[InjectProperty]`, and `[InjectMethod]` declarations from `[Shadow]` attributes on an abstract partial patch class. The generated members use the target member's type or signature. Patch code can use them through normal C# expressions such as `this.fuel`, `this.Mood`, and `this.Recalculate(5)`. See [Generate private member declarations](common-tasks.md#generate-private-member-declarations).
 
 Concord reports `CONC071` when it cannot find an injected member. It reports `CONC072` when the declaration has the wrong type, static form, return type, or signature.
 

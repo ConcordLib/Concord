@@ -60,7 +60,7 @@ harmony.PatchAll();
 IPatchHandle handle = Patcher.Apply(typeof(PricePatch).Assembly);
 ```
 
-`Patcher.Apply` reads the generated patch registry and applies every `[Patch]` declaration together. If the assembly has no generated registry, Concord falls back to a reflection scan. The imperative builder applies only the injections added to that builder. Both forms return an `IPatchHandle`.
+When the project references `Concord.Generators`, `Patcher.Apply` reads its generated patch registry and applies every `[Patch]` declaration together. If the assembly has no generated registry, Concord falls back to a reflection scan. The imperative builder applies only the injections added to that builder. Both forms return an `IPatchHandle`.
 
 Choose one registration form for each injection. Do not scan a declarative patch with `Patcher.Apply` and register the same method through `Patcher.For`. The shorter imperative examples below point at the declaration method shown above them. In imperative-only code, remove `[Inject]`. The `[Patch]` marker is optional, but keeping it lets the analyzers check the target and its member mappings. Attributes such as `[InjectField]` stay on the helper type.
 
@@ -291,6 +291,8 @@ Each Harmony convention has a direct counterpart:
 | `___fuel` | `[InjectField("fuel")]` on a typed declaration field |
 | `Traverse.Create(__instance).Property("Mood")` | `[InjectProperty("Mood")]` on an abstract property with the accessors you need |
 | `AccessTools.Method(typeof(T), "Recalculate").Invoke(...)` | `[InjectMethod("Recalculate")]` on an abstract method with the target's exact signature |
+
+For a declarative patch, `Concord.Generators` can generate the field, property, and method declarations in this table. Add `[Shadow("memberName")]` to an abstract partial patch class, then use the generated member through `this`. The [private member generation example](common-tasks.md#generate-private-member-declarations) shows the full form.
 
 A few rules carry the weight Harmony's runtime lookups used to. The declaration's type and signature must match the target member exactly; a mismatch fails with `CONC072`, a missing member with `CONC071`, and an ambiguous one with `CONC073`. Unlike `___`-prefixed parameters, the declared name doesn't have to mirror the target's: `[InjectField("_fuel")] private int fuel;` maps a clean local name onto an ugly private one. For declarative patches, `Concord.Analyzers` checks these mappings at build time when it can resolve the target type. Imperative-only helpers get the same mapping checks when the patch is applied.
 

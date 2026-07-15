@@ -51,9 +51,13 @@ It also suppresses field-use warnings for valid `[InjectField]` declarations and
 
 #### Concord.Generators
 
-`Concord.Generators` creates a patch registry for the assembly. `Patcher.Apply` uses that registry instead of scanning every type through reflection.
+Roslyn runs source generators while it compiles your project. Once you reference `Concord.Generators`, build the mod as usual; the compiler adds the generated C# to the mod assembly.
 
-The package can also generate typed `[InjectField]`, `[InjectProperty]`, and `[InjectMethod]` members from `[Shadow]` declarations. Its IDE refactorings can create patches, injections, and shadow members.
+The patch registry generator writes an assembly-level list of every `[Patch]` class. `Patcher.Apply` reads that registry instead of searching every type through reflection, but falls back to reflection when no registry exists.
+
+The shadow-member generator handles `[Shadow]` on partial patch classes. `[Shadow("hitPoints")]` adds a typed member to the generated part of the class, so patch code can use `this.hitPoints` as a normal C# field. When Concord builds the patch, it rewrites that access to the real `hitPoints` field on the current target object. It can also generate declarations for private properties and methods; see [Generate private member declarations](common-tasks.md#generate-private-member-declarations) for an example.
+
+The package also has IDE actions that can create patches, injections, and shadow members. Those editor actions are separate from the source generators.
 
 ### Use a local Core checkout
 

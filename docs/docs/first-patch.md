@@ -116,6 +116,8 @@ abstract class CampfireFuelPatch : Campfire
 
 The declared type and static form must match the target field. A missing field fails with `CONC071`; a mismatched declaration fails with `CONC072`.
 
+`Concord.Generators` can write this `[InjectField]` declaration for you. Mark the patch class `partial`, add `[Shadow("fuel")]`, and use `this.fuel` inside the injection. See [Generate private member declarations](common-tasks.md#generate-private-member-declarations) for the full form.
+
 At runtime:
 
 ```csharp
@@ -137,5 +139,7 @@ Patcher.Apply(typeof(CampfireWarmthPatch).Assembly);
 ```
 
 That applies `CampfireWarmthPatch`, `CampfireBurnPatch`, and `CampfireFuelPatch` together. The call returns an `IPatchHandle`; keep it if the mod needs to remove its patches later. Call `Patcher.Apply` once when the mod starts.
+
+If the project references `Concord.Generators`, the compiler builds a registry of its `[Patch]` classes and `Patcher.Apply` reads it. Without that registry, Concord finds the same classes through reflection; you never start the generator or call its generated code.
 
 To store new per-instance state instead of accessing a target field, see [Attached Data](attached-data.md).
