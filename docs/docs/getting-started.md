@@ -61,7 +61,7 @@ Disposing the returned patch handle removes its injections. Concord then rebuild
 - Concord changes method behavior, not the structure of a type. It cannot add real fields, interfaces, enum members, or other type metadata.
 - The public authoring API does not support async methods, iterators, or static constructors yet.
 - Concord rejects generic targets with reference-type arguments because the runtime shares their compiled method bodies. Value-type generic targets can be patched.
-- Concord cannot yet target a local variable, branch, field read or write, or object construction inside a method. It can still patch a constructor's body.
+- Concord cannot yet target a local variable, branch, field write, or object construction inside a method. Head and Tail invoke injections can target field reads. Concord can also patch a constructor's body.
 
 See the [Roadmap](roadmap.md) for planned injection targets and other work that has not shipped yet.
 

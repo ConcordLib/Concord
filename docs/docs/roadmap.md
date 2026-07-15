@@ -14,9 +14,9 @@ A `Head` Invoke injection uses the target method's normal context. An `Around` I
 
 Current Invoke forms do not expose other locals that the target computed earlier. Read-side capture would trace a matched call argument back to the local that produced it instead of requiring a slot number. The compiler can change slot numbers after a small source edit, so you would need the low-level IL API to change that local.
 
-### Match a field or constructor call
+### Match a constructor call
 
-Concord plans matchers for a field access or `newobj` instruction inside a method. Source changes can move both instructions because the matchers depend on compiler output.
+Concord plans a matcher for a `newobj` instruction inside a method. Source changes can move this instruction because the matcher depends on compiler output. Head and Tail invoke injections already match field reads.
 
 Concord can patch a constructor body at the head or return of a `.ctor`. See [Patch a constructor](common-tasks.md#patch-a-constructor).
 

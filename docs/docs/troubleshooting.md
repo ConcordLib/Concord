@@ -11,8 +11,8 @@ When a patch cannot compose, Concord throws a `ConcordEmitException` with a `CON
 | `CONC013` | Control or operation handle | The injection stores, captures, or passes a `ControlHandle` or `Operation` family parameter instead of using its supported calls directly. |
 | `CONC014` | Invoke-Around splice | The call-site Invoke splice uses a computed expression instead of plain injection-parameter loads. Whole-method Around does not use this splice form; its `Operation.Invoke(...)` accepts computed arguments (see `CONC107` for its own placement rule). |
 | `CONC015` | Any position | An injection method returns `Control` somewhere other than a Head injection. Return `void` at other positions. A generic `ControlHandle<T>` may still expose the target's return value at Return or Tail. |
-| `CONC031` | Invoke | The call site you named doesn't occur in the target body. Check the declaring type and method name against the actual call. |
-| `CONC033` | Invoke | You asked for the `by`-th occurrence of a call site (`by` counts from 1), but fewer than `by` matches exist in the body. |
+| `CONC031` | Invoke | The method/property call or field read you named doesn't occur in the target body. Check the declaring type and member name against the actual access. |
+| `CONC033` | Invoke | You asked for the `by`-th occurrence of an invoke site (`by` counts from 1), but fewer than `by` matches exist in the body. |
 | `CONC034` | Return | A `Return` injection found no `return` in the target body to attach to. |
 | `CONC035` | Return | You asked for the `by`-th `return` (`by` counts from 1), but the method has fewer returns than that. |
 | `CONC036` | Property target | The property has both accessors, but nothing selected its getter or setter. Write `get_Name` or `set_Name`. |

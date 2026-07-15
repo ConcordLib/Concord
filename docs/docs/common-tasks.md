@@ -269,7 +269,7 @@ Only one whole-method Around can target a method; a second fails with `CONC051`.
 
 ## Call-site injections
 
-The invoke form matches a method or property call inside the target method. Its final `At.*` argument controls what happens at that call.
+The invoke form matches a method or property call inside the target method. With `At.Head` or `At.Tail`, it can also match a field read. Its final `At.*` argument controls what happens at that access.
 
 ### `At.Head`
 
@@ -299,6 +299,68 @@ public int GetFinalPrice(int basePrice)
     return markedUp + ShippingCost;
 }
 ```
+
+### `At.Tail`
+
+#### Run code after a call inside the target
+
+Use the invoke form with `At.Tail` to run code after a matched call:
+
+```csharp
+[Patch]
+abstract class PricePatch : ShopItem
+{
+    [Inject(nameof(GetFinalPrice), typeof(PriceRules), nameof(PriceRules.ApplyMarkup), At.Tail)]
+    void AfterApplyMarkup()
+    {
+        Logger.Info("Markup applied.");
+    }
+}
+```
+
+At runtime:
+
+```csharp
+public int GetFinalPrice(int basePrice)
+{
+    int markedUp = PriceRules.ApplyMarkup(basePrice);
+    Logger.Info("Markup applied.");
+    return markedUp + ShippingCost;
+}
+```
+
+`At.Tail` runs only after `ApplyMarkup` returns. It does not expose the returned value. Use `At.Around` when the injection needs to read or replace that value.
+
+#### Run code after a field read
+
+Head and Tail invoke injections can target static or instance field reads:
+
+```csharp
+public static class PriceDefaults
+{
+    public static readonly int BasePrice = 10;
+}
+
+public class ShopItem
+{
+    public int GetFinalPrice(int quantity)
+    {
+        return PriceDefaults.BasePrice * quantity;
+    }
+}
+
+[Patch]
+abstract class PricePatch : ShopItem
+{
+    [Inject(nameof(GetFinalPrice), typeof(PriceDefaults), nameof(PriceDefaults.BasePrice), At.Tail)]
+    void AfterBasePriceRead()
+    {
+        Logger.Info("Base price read.");
+    }
+}
+```
+
+`At.Head` runs immediately before the field read. `At.Tail` runs immediately after it. Field writes, `At.Around`, and `At.Argument` are not field targets. Leave `invokeParameterTypes` unset when targeting a field.
 
 ### `At.Around`
 

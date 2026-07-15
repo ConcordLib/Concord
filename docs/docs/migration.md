@@ -586,7 +586,7 @@ IPatchHandle handle = Patcher.PatchInjection(
 
 The replacement method must take and return the literal's type. See [Replace a constant](common-tasks.md#replace-a-constant) for the declarative form.
 
-Concord has no instruction stream for other IL edits because opcode positions can move when the target changes. Keep a patch on Harmony if it redirects a field load, rewrites branches, or makes another edit that Concord's positions cannot express. Ordinary C# locals inside an injection work. See the [roadmap](roadmap.md#more-injection-positions) for planned field matchers and lower-level IL editing.
+Concord has no instruction stream for other IL edits because opcode positions can move when the target changes. Head and Tail invoke injections can run before or after a field read, but they cannot replace that value. Keep a patch on Harmony if it redirects a field load, writes a field, rewrites branches, or makes another edit that Concord's positions cannot express. Ordinary C# locals inside an injection work. See the [roadmap](roadmap.md#more-injection-positions) for lower-level IL editing.
 
 ### Call the unpatched original
 
