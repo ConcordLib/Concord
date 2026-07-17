@@ -8,6 +8,8 @@
   href: common-tasks.md
 - name: Migrating from Harmony & Prepatcher
   href: migration.md
+- name: Harmony Compatibility
+  href: harmony-compatibility.md
 - name: How Patches Work
   href: how-patches-work.md
 - name: Attached Data
