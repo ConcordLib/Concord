@@ -1,84 +1,88 @@
 # Harmony compatibility
 
-RimWorld's Concord mod can run alongside Harmony patches on the same method. This page explains when that kicks in, what you have to configure (nothing), and what happens when a patch shape can't be composed.
+Concord's RimWorld adapter can share a method with Harmony patches without extra setup. If Concord can't combine the patches, it logs a warning and uses its normal detour.
 
-This feature is specific to the RimWorld adapter. Concord Core has no Harmony awareness at all.
+The RimWorld adapter provides this support. Concord Core doesn't know about Harmony.
 
-## The problem this solves
+## Why Concord needs a bridge
 
-Say two mods both want to change `Pawn.TakeDamage`. One mod patches it with Harmony. Another patches it with Concord.
+Two mods can target the same method: one mod may patch `Pawn.TakeDamage` with Harmony while another patches it with Concord.
 
-Harmony and Concord each work by installing a detour: they redirect the method to a wrapper that runs their code, then (usually) calls the original. If both mods redirect the same method, only one detour wins. Whichever library installed second either overwrites the other's redirect or gets overwritten by it, and one mod's change silently stops running. Nobody gets an error. The method just doesn't do what one of the mods expects anymore.
+Harmony and Concord both install a detour. A detour sends calls through a wrapper, which runs the patch code and can call the original method. Two separate detours can't control the same entry point, and the second library may replace the first detour. One mod's patch stops running while the game shows no error.
 
-This is not a hypothetical. Most RimWorld mods use Harmony, and a modder adopting Concord for a new mod will often end up patching a method that some other, unrelated mod has already patched with Harmony.
+Most RimWorld mods use Harmony, so a Concord mod may target a method that an unrelated Harmony mod has patched.
 
-## What Concord does about it
+## How the bridge works
 
-Concord checks each method it's about to patch. If nothing else has touched that method, Concord installs its normal detour and moves on. That path is unchanged and has no extra cost.
+Before Concord patches a method, it checks Harmony. If Harmony hasn't patched the method, Concord installs its normal detour. The normal detour adds no bridge cost.
 
-If Harmony already has a patch on that method, or gets one later, Concord treats the method as **contested**. Instead of installing its own detour, Concord asks Harmony for a single transpiler slot on that method, at the lowest priority Harmony supports. Every time Harmony rebuilds that method, whether because your mod's Concord patches changed or because some other mod added or removed a Harmony patch, Concord's transpiler runs again and re-applies its own injections onto whatever instruction stream Harmony hands it at that point.
+If Harmony has patched the method, Concord marks it as **contested**. Concord gives Harmony one transpiler at the lowest priority Harmony supports. Each time Harmony rebuilds the method, Concord applies its injections to the instruction stream that Harmony produced.
 
-The result: both mods' changes run on the same method. Harmony's prefixes and postfixes do what they always do, and Concord's injections get woven into the method body Harmony produces, instead of getting bulldozed by it.
-
-Here's the short version:
+Harmony keeps control of the entry point while its prefixes and postfixes run. Concord adds its injections to the method body.
 
 | Situation | What Concord does |
 | --- | --- |
-| No Harmony patch on the method | Installs its normal fast detour |
-| Harmony already patches the method | Registers one low-priority transpiler and recomposes on every Harmony rebuild |
-| Harmony patches the method later | Detects it and reports the conflict; that method's Concord injections stop running until it's resolved |
+| Harmony hasn't patched the method | Installs the normal Concord detour |
+| Harmony patched the method before Concord applies | Adds one low-priority transpiler and recomposes after each Harmony rebuild |
+| Harmony patches the method after Concord applies | Reports late contention; Concord's injections stop running on that method |
 
-That last row matters: coexistence only works when Concord knows about the Harmony patch *before* it installs its own detour. If Concord's raw detour is already in place and Harmony patches the same method afterward, Concord doesn't retroactively convert to the bridge path. It reports the conflict loudly instead, through a periodic watchdog check, so you find out rather than silently losing your patch.
+The bridge must see the Harmony patch before Concord installs its normal detour, so Concord waits until mod constructors and static constructors finish. This delay lets Concord see the Harmony patches that mods register during startup.
 
-## Nothing to configure
+A Harmony patch can arrive after Concord installs its detour, but Concord doesn't switch that method to the bridge during the same game run. A watchdog checks for this case and logs the conflict.
 
-You don't opt in to any of this. It's automatic.
+## Setup
 
-The bridge itself lives in a separate, small DLL that ships next to Concord but sits outside the folder RimWorld scans for mod assemblies. Concord loads it itself, and only after confirming a supported Harmony is actually present in the game. If Harmony isn't loaded, that DLL never loads either, and nothing about your mod's behavior changes.
+Concord enables the bridge when it finds Harmony, so you don't need to set it up.
 
-Load order between your Harmony mod and your Concord mod doesn't matter. Harmony can patch the method first and Concord can show up later, or the other way around. Either order gets detected and routed the same way.
+The bridge lives in a small DLL beside Concord. RimWorld doesn't scan its folder for mod assemblies. Concord loads the DLL after it finds a supported Harmony version in the game. If Harmony isn't present, Concord leaves the bridge unloaded.
 
-Most Concord patches also wait to apply until after every mod's constructor and static constructor has finished running, so by the time Concord decides whether a method is contested, it's looking at the fullest possible picture of what every other mod's Harmony patches have already done. A small set of patches that Concord itself needs during mod loading can't wait that long and apply immediately instead, but that's Concord's own load-machinery, not something a mod author needs to think about.
+You don't need to arrange the two mods in a special order. Concord finds Harmony's startup patches when its delayed patch queue runs. The late-contention rule applies if a mod adds a Harmony patch after Concord has installed its detour.
 
-## When it can't compose cleanly
+A small group of Concord's own patches must run during mod loading, before the delayed queue. Concord manages those patches for you.
 
-A few patch shapes can't be safely woven into a Harmony transpiler stream, and Concord rejects them rather than risk corrupting the method:
+## Cases Concord rejects
 
-- **Constructor `Around` injections.** A whole-method `Around` on a constructor needs the object fully constructed before it can safely wrap the call, and Harmony's constructor patching doesn't guarantee that.
-- **Methods with Harmony 2.4 inner patches.** Inner prefixes and postfixes (patches that target code *inside* another patch's replacement) aren't something Concord's composition step can reason about.
-- **Async and iterator methods, targeted at the wrong entry point.** Concord needs to work against the actual state-machine method, not the method you see in source. If the target it's handed isn't that canonical method, it backs off.
-- **Shared reference-type generic instantiations.** Patching `Box<string>.Get` compiles to one shared method body for every reference-type `Box<T>`, so a wrapper built for one would silently apply to all of them. Concord rejects this at patch time. Value-type instantiations like `Box<int>.Get` are fine, since those get their own compiled body.
-- **Injection code that calls `Assembly.GetExecutingAssembly()`.** Harmony rewrites that call to point at the target's assembly instead of yours, which breaks any injection that relies on it.
+Concord rejects a few patch patterns because combining them with Harmony could break the method:
 
-When Concord hits one of these, it falls back to its normal raw detour on that method and logs a warning explaining why, rather than trying to force a composition that could break the game.
+- **Constructor `Around` injections.** A whole-method `Around` needs a complete object before it can wrap the constructor call. Harmony's constructor patch doesn't promise that state.
+- **Methods with Harmony 2.4 inner patches.** Inner prefixes and postfixes target code inside another patch's replacement. Concord can't combine those patches with its own injections.
+- **Async and iterator methods with the wrong entry method.** Concord must patch the generated state-machine method instead of the method you see in source, and it stops if it receives the wrong one.
+- **Shared reference-type generic methods.** `Box<string>.Get` may share one compiled method body with every reference-type `Box<T>`. A wrapper for one type could affect the others. Concord rejects that patch. Value-type cases such as `Box<int>.Get` have their own compiled bodies and work.
+- **Injection code that calls `Assembly.GetExecutingAssembly()`.** Harmony changes that call to return the target's assembly, so code that expects the injection assembly would get the wrong result.
 
-There's also a separate case Concord can't catch at patch time: if some other mod adds a Harmony inner patch to a method *after* Concord already routed it through the bridge, and Concord itself never re-applies to that method again, there's no compose-time moment for Concord to notice. That gets caught later, if at all, by the same periodic watchdog check mentioned above, not immediately.
+Concord uses its normal detour and logs a warning in these cases because bridge code may break the game.
+
+Another mod can add a Harmony inner patch after Concord sends the method through the bridge. Concord checks for inner patches during composition, so the watchdog may be the first code to find the problem if no other composition step runs.
 
 ## Settings
 
-Two toggles live in Concord's in-game mod settings, both under `ConcordSettings`:
+You can find two switches in Concord's in-game mod settings under `ConcordSettings`:
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| Bridge Routing Enabled | On | Kill switch. Turn it off and Concord never hands routing to Harmony, even on a contested method. Concord's raw-detour conflict reporting still works, since that path doesn't depend on the bridge. |
-| Route Everything When Harmony Present | Off | Compat mode. Turn it on and Concord routes every method through the bridge whenever Harmony is loaded, not just methods that are actually contested. |
+| Bridge Routing Enabled | On | Turns bridge routing on or off. When off, Concord keeps methods on its normal detour path. Raw-detour conflict reporting works without the bridge. |
+| Route Everything When Harmony Present | Off | Sends every method that Concord patches through the bridge when Concord finds Harmony, including methods with no Harmony patches. |
 
-Both take effect on the next game launch, not immediately.
+Both settings take effect after you restart the game.
 
-## Checking that it's working
+## Check the log
 
-The bridge writes a small set of log markers you can grep for in the RimWorld log if you want to confirm coexistence is actually happening:
+Search the RimWorld log for these markers:
 
 | Marker | Meaning |
 | --- | --- |
-| `[Concord.Coex] bridge-active` | The bridge DLL loaded and found a supported Harmony. |
-| `[Concord.Coex] routed-contested` | Concord routed a specific method through Harmony instead of its own detour. |
-| `[Concord.Coex] flush-complete` | Concord's deferred patch queue finished applying after mod load. |
-| `[Concord.Coex] late-contention` | A method Concord raw-detoured got a foreign Harmony patch afterward; that method's Concord injections aren't running. |
-| `[Concord.Coex] stream-rejected` | Concord's transpiler couldn't safely convert Harmony's instruction stream for a method and left it untouched. |
+| `[Concord.Coex] bridge-active` | The bridge loaded and found a supported Harmony version. |
+| `[Concord.Coex] routed-contested` | Concord sent a contested method through Harmony. |
+| `[Concord.Coex] flush-complete` | Concord finished its delayed patch queue after mod loading. |
+| `[Concord.Coex] late-contention` | Harmony patched a method after Concord installed its detour. Concord's injections aren't running on that method. |
+| `[Concord.Coex] stream-rejected` | Concord couldn't convert Harmony's instruction stream without risk, so it left the stream unchanged. |
 
-If you never see `bridge-active`, either Harmony wasn't loaded or the bridge didn't detect a supported version. Concord validates against the Harmony 2.4.x line; that's the only line it's been checked against a real Harmony binary for.
+If you don't see `bridge-active`, Harmony may be absent or use an unsupported version. Concord's real-binary tests cover Harmony 2.4.x, with no coverage for other lines.
 
-## Where to go next
+## Related pages
 
-[How patches work](how-patches-work.md) covers the wrapper Concord builds when there's no contention. [Migrating from Harmony and Prepatcher](migration.md) is the place to start if you're moving an existing Harmony patch to Concord's own API rather than running both side by side. [Troubleshooting](troubleshooting.md) lists the `CONCxxx` diagnostic codes you might see if a patch fails to apply.
+[How patches work](how-patches-work.md) explains the wrapper Concord builds for a method with no Harmony patches.
+
+[Migrating from Harmony and Prepatcher](migration.md) shows how to move an existing patch to Concord's API.
+
+[Troubleshooting](troubleshooting.md) lists the `CONCxxx` codes that Concord reports when a patch fails.
