@@ -24,11 +24,17 @@ Harmony keeps control of the entry point while its prefixes and postfixes run. C
 | --- | --- |
 | Harmony hasn't patched the method | Installs the normal Concord detour |
 | Harmony patched the method before Concord applies | Adds one low-priority transpiler and recomposes after each Harmony rebuild |
-| Harmony patches the method after Concord applies | Reports late contention; Concord's injections stop running on that method |
+| Harmony patches the method after Concord applies | Moves the method onto the bridge before Harmony finishes, so both keep running |
 
-The bridge must see the Harmony patch before Concord installs its normal detour, so Concord waits until mod constructors and static constructors finish. This delay lets Concord see the Harmony patches that mods register during startup.
+## Patches that arrive late
 
-A Harmony patch can arrive after Concord installs its detour, but Concord doesn't switch that method to the bridge during the same game run. A watchdog checks for this case and logs the conflict.
+Concord hooks the one method every Harmony patch and unpatch runs through. Harmony calls Concord just before it rebuilds a method, and Concord adds its transpiler to that rebuild. Both mods end up in the finished method.
+
+This works no matter when the Harmony patch shows up. A mod can patch a method during startup, or hours into a game from a settings toggle, and Concord still hears about it first.
+
+Concord applies its patches as soon as a mod asks for them. Earlier versions held them in a queue until mod loading finished, because that was the only way to see Harmony's startup patches in time. The hook replaced that, so the queue is gone.
+
+If Concord can't combine the two patches, it says so and stops before it touches anything. Harmony takes the method and Concord's injections don't run on it. Concord reports each method this happens to.
 
 ## Setup
 
@@ -36,9 +42,9 @@ Concord enables the bridge when it finds Harmony, so you don't need to set it up
 
 The bridge lives in a small DLL beside Concord. RimWorld doesn't scan its folder for mod assemblies. Concord loads the DLL after it finds a supported Harmony version in the game. If Harmony isn't present, Concord leaves the bridge unloaded.
 
-You don't need to arrange the two mods in a special order. Concord finds Harmony's startup patches when its delayed patch queue runs. The late-contention rule applies if a mod adds a Harmony patch after Concord has installed its detour.
+You don't need to arrange the two mods in a special order. Concord finds Harmony's startup patches when it applies, and hears about later ones through the hook. If Harmony loads after Concord, Concord waits for it and installs the hook then, before any Harmony patch can run.
 
-A small group of Concord's own patches must run during mod loading, before the delayed queue. Concord manages those patches for you.
+If the hook can't install, Concord falls back to how it worked before: it checks for conflicts twice during startup and reports what it finds, but can't move a method onto the bridge after the fact. The log says which of the two you're in.
 
 ## Cases Concord rejects
 
@@ -65,6 +71,8 @@ You can find two switches in Concord's in-game mod settings under `ConcordSettin
 
 Both settings take effect after you restart the game.
 
+`Route Everything When Harmony Present` does less than it used to. Concord now patches as soon as a mod asks, which is often before Harmony has loaded, so there's frequently nothing to route against yet. Leave it off unless you're chasing a specific conflict.
+
 ## Check the log
 
 Search the RimWorld log for these markers:
@@ -72,12 +80,18 @@ Search the RimWorld log for these markers:
 | Marker | Meaning |
 | --- | --- |
 | `[Concord.Coex] bridge-active` | The bridge loaded and found a supported Harmony version. |
+| `[Concord.Coex] hook-installed` | Concord will hear about Harmony patches before they land. This is the healthy state. |
+| `[Concord.Coex] hook-unavailable` | Concord couldn't install the hook and can't recover a method after Harmony takes it. The message says why. |
 | `[Concord.Coex] routed-contested` | Concord sent a contested method through Harmony. |
-| `[Concord.Coex] flush-complete` | Concord finished its delayed patch queue after mod loading. |
-| `[Concord.Coex] late-contention` | Harmony patched a method after Concord installed its detour. Concord's injections aren't running on that method. |
+| `[Concord.Coex] promoted` | A Harmony patch arrived late and Concord moved that method onto the bridge. Both mods still run. |
+| `[Concord.Coex] promote-rejected` | Concord refused to combine the patches. Nothing was changed before it stopped. |
+| `[Concord.Coex] promote-failed` | Concord tried to hand the method over and couldn't finish. |
+| `[Concord.Coex] late-contention` | Concord's injections aren't running on a method, with the reason it lost it. |
 | `[Concord.Coex] stream-rejected` | Concord couldn't convert Harmony's instruction stream without risk, so it left the stream unchanged. |
 
 If you don't see `bridge-active`, Harmony may be absent or use an unsupported version. Concord's real-binary tests cover Harmony 2.4.x, with no coverage for other lines.
+
+Seeing `hook-installed` and no `promote-` or `late-contention` lines means everything shared a method cleanly.
 
 ## Related pages
 
