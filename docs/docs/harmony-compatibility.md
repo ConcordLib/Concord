@@ -71,7 +71,7 @@ You can find two switches in Concord's in-game mod settings under `ConcordSettin
 
 Both settings take effect after you restart the game.
 
-`Route Everything When Harmony Present` does less than it used to. Concord now patches as soon as a mod asks, which is often before Harmony has loaded, so there's frequently nothing to route against yet. Leave it off unless you're chasing a specific conflict.
+Leave `Route Everything When Harmony Present` off unless you're chasing a specific conflict. Routing a method Harmony never touched is slower than Concord's own detour, and it buys you nothing.
 
 ## Check the log
 
