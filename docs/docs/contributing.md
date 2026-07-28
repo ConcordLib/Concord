@@ -58,7 +58,7 @@ For a runtime bug, find the last correct value in that sequence and follow the n
 
 The composer returns a `ComposeResult`. Its `Wrapper` becomes the detour target. Its `OriginalBody` is an unpatched copy of the target body.
 
-`WrapperComposer` throws `ConcordEmitException` with a stable `CONCxxx` code when composition fails. `PatchDeclarationScanner` throws `ConcordDeclarationException` when it cannot resolve a patch. If the compiler can detect the same mistake, add or update an analyzer rule as part of the change.
+`WrapperComposer` throws `ConcordEmitException` with a stable `CONCxxx` code when composition fails. `PatchDeclarationScanner` throws `ConcordDeclarationException` when it cannot resolve a patch. Add or update an analyzer rule as part of the change if the compiler can detect the same mistake.
 
 ### Public API changes
 

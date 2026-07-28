@@ -62,7 +62,7 @@ IPatchHandle handle = Patcher.Apply(typeof(PricePatch).Assembly);
 
 When the project references `Concord.Generators`, `Patcher.Apply` reads its generated patch registry and applies every `[Patch]` declaration together. If the assembly has no generated registry, Concord falls back to a reflection scan. The imperative builder applies only the injections added to that builder. Both forms return an `IPatchHandle`.
 
-Choose one registration form for each injection. Do not scan a declarative patch with `Patcher.Apply` and register the same method through `Patcher.For`. The shorter imperative examples below point at the declaration method shown above them. In imperative-only code, remove `[Inject]`. The `[Patch]` marker is optional, but keeping it lets the analyzers check the target and its member mappings. Attributes such as `[InjectField]` stay on the helper type.
+Choose one registration form for each injection. Do not scan a declarative patch with `Patcher.Apply` and register the same method through `Patcher.For`. The shorter imperative examples below point at the preceding declaration method. In imperative-only code, remove `[Inject]`. The `[Patch]` marker is optional, but keeping it lets the analyzers check the target and its member mappings. Attributes such as `[InjectField]` stay on the helper type.
 
 Harmony unpatches by id (`harmony.UnpatchAll("me.mymod")`). Concord unpatches either form by disposing its handle: `handle.Dispose()`.
 
@@ -230,7 +230,7 @@ Both of these forms lean on the declaration extending the target. When it can't,
 
 ### When the declaration can't extend the target
 
-Harmony never subclasses anything, so sealed targets cost it nothing. The extending form above stops working, though, when the target is `sealed`, `static`, has no constructor you can reach, or is a type you can only name by string. Harmony code on a sealed target looks like every other Harmony patch, usually with `Traverse` or `AccessTools` filling the private-member gaps:
+Harmony never subclasses anything, so sealed targets cost it nothing. The preceding extending form stops working, though, when the target is `sealed` or `static`. It also stops working when the target has no constructor you can reach, or is a type you can only name by string. Harmony code on a sealed target looks like every other Harmony patch, usually with `Traverse` or `AccessTools` filling the private-member gaps:
 
 ```csharp
 [HarmonyPatch(typeof(SealedFurnace), nameof(SealedFurnace.Tick))]
@@ -294,9 +294,9 @@ Each Harmony convention has a direct counterpart:
 
 For a declarative patch, `Concord.Generators` can generate the field, property, and method declarations in this table. Add `[Shadow("memberName")]` to an abstract partial patch class, then use the generated member through `this`. The [private member generation example](common-tasks.md#generate-private-member-declarations) shows the full form.
 
-A few rules carry the weight Harmony's runtime lookups used to. The declaration's type and signature must match the target member exactly; a mismatch fails with `CONC072`, a missing member with `CONC071`, and an ambiguous one with `CONC073`. Unlike `___`-prefixed parameters, the declared name doesn't have to mirror the target's: `[InjectField("_fuel")] private int fuel;` maps a clean local name onto an ugly private one. For declarative patches, `Concord.Analyzers` checks these mappings at build time when it can resolve the target type. Imperative-only helpers get the same mapping checks when the patch is applied.
+A few rules carry the weight Harmony's runtime lookups used to. The declaration's type and signature must match the target member exactly; a mismatch fails with `CONC072`, a missing member with `CONC071`, and an ambiguous one with `CONC073`. Unlike `___`-prefixed parameters, the declared name doesn't have to mirror the target's: `[InjectField("_fuel")] private int fuel;` maps a clean local name onto an ugly private one. For declarative patches, `Concord.Analyzers` checks these mappings at build time when it can resolve the target type. Imperative-only helpers get the same mapping checks when you apply the patch.
 
-The same pattern covers the other non-extendable cases. A `static` target class takes a `static` declaration class with static injection methods, minus `[InjectInstance]`, since there's no instance to inject (asking for one on a static target fails with `CONC074`). A type you can't reference at compile time takes `[Patch("Some.Internal.TypeName")]` with the members declared the same way. [How patches work](how-patches-work.md#sealed-and-non-subclassable-targets) covers the mechanics.
+The same pattern covers the other non-extendable cases. A `static` target class takes a `static` declaration class with static injection methods, minus `[InjectInstance]`, since there's no instance to inject. Asking for one on a static target fails with `CONC074`. A type you can't reference at compile time takes `[Patch("Some.Internal.TypeName")]` with the members declared the same way. [How patches work](how-patches-work.md#sealed-and-non-subclassable-targets) covers the mechanics.
 
 ### Rewrite an argument
 
@@ -396,7 +396,7 @@ Harmony selects accessors with `MethodType`:
 [HarmonyPatch(typeof(ShopItem), nameof(ShopItem.Price), MethodType.Getter)]
 ```
 
-Concord accepts the property name when it has only one accessor. If `ShopItem.Price` is read-only, this targets its getter:
+Concord accepts the property name when it has only one accessor. If `ShopItem.Price` has no setter, this targets its getter:
 
 ```csharp
 [Patch]
@@ -482,7 +482,7 @@ IPatchHandle handle = Patcher.ForConstructor<GameActor>([typeof(FactionId)])
     .Apply();
 ```
 
-Static constructors are the exception. Harmony can target a `.cctor`, though it has often run before the patch is applied. Concord's author API has no static-constructor target form. Details are in [Common Tasks](common-tasks.md#patch-a-constructor).
+Static constructors are the exception. Harmony can target a `.cctor`, though it has often run before you apply the patch. Concord's author API has no static-constructor target form. Details are in [Common Tasks](common-tasks.md#patch-a-constructor).
 
 ### Pick an overload
 
@@ -505,7 +505,7 @@ IPatchHandle handle = Patcher.For<ItemStack>(nameof(ItemStack.Add), [typeof(int)
     .Apply();
 ```
 
-An ambiguous target name is rejected during the patch scan. Concord reports the declaration error and skips that declaration. Pass the parameter types to select one overload.
+Concord rejects an ambiguous target name during the patch scan. Concord reports the declaration error and skips that declaration. Pass the parameter types to select one overload.
 
 ### Transpilers
 
@@ -588,7 +588,7 @@ IPatchHandle handle = Patcher.PatchInjection(
 
 The replacement method must take and return the literal's type. See [Replace a constant](common-tasks.md#replace-a-constant) for the declarative form.
 
-Concord has no instruction stream for other IL edits because opcode positions can move when the target changes. Head and Tail invoke injections can run before or after a field read, but they cannot replace that value. Keep a patch on Harmony if it redirects a field load, writes a field, rewrites branches, or makes another edit that Concord's positions cannot express. Ordinary C# locals inside an injection work. See the [roadmap](roadmap.md#more-injection-positions) for lower-level IL editing.
+Concord has no instruction stream for other IL edits because opcode positions can move when the target changes. Head and Tail invoke injections can run before or after a field read, but they cannot replace that value. Keep a patch on Harmony if it redirects a field load, writes a field, or rewrites branches. Also keep it on Harmony for any other edit that Concord's positions cannot express. Ordinary C# locals inside an injection work. See the [roadmap](roadmap.md#more-injection-positions) for lower-level IL editing.
 
 ### Call the unpatched original
 
@@ -654,7 +654,7 @@ IPatchHandle handle = Patcher.PatchInjection(
     injection);
 ```
 
-A higher number runs later and further out in a tail chain: a `+3` patch at priority 1 and a `*2` patch at priority 2 on a method returning 4 compose to `(4 + 3) * 2`.
+A higher number runs later and further out in a tail chain. For example, a `+3` patch at priority 1 and a `*2` patch at priority 2 on a method returning 4 compose to `(4 + 3) * 2`.
 
 Do not copy a Harmony priority value directly. Harmony orders its patch types by different rules. Pick Concord values from the order you want.
 
@@ -747,7 +747,7 @@ The same table also works outside an injection:
 MyCounter.Set(actor, MyCounter.Get(actor) + 1);
 ```
 
-`Get` returns `default(TValue)` when nothing was stored. `TryGet` tells you whether an entry exists.
+`Get` returns `default(TValue)` when you haven't stored anything. `TryGet` tells you whether an entry exists.
 
 ### A real field versus a side table
 

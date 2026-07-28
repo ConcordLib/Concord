@@ -45,7 +45,7 @@ abstract class ShopPatch : Shop
 
 The method must be `static`. A `[Patch]` declaration is abstract and Concord never creates an instance of it, so an instance transpiler cannot run.
 
-Concord calls your transpiler at patch time. It does not copy it into the target the way it copies other injections. So your transpiler cannot touch the declaration's `[Shadow]`, `[InjectField]`, `[InjectProperty]` or `[InjectMethod]` members. Those members are stubs that exist only as IL for Concord to copy. The analyzer rejects this at compile time.
+Concord calls your transpiler at patch time. It does not copy it into the target the way it copies other injections. So your transpiler cannot access the declaration's `[Shadow]`, `[InjectField]`, `[InjectProperty]` or `[InjectMethod]` members. Those members are stubs that exist only as IL for Concord to copy. The analyzer rejects this at compile time.
 
 ## CodeInstruction
 
@@ -84,7 +84,7 @@ static IEnumerable<CodeInstruction> DoublePrice(IEnumerable<CodeInstruction> ins
 }
 ```
 
-A failed match sets `Pos` to `-1` and leaves the list alone. Edits on an invalid matcher do nothing, so the chain above will not throw before it reaches `ThrowIfInvalid`. Always call `ThrowIfInvalid` with a message naming what you looked for. Without it a missed match fails silently and your patch does nothing.
+A failed match sets `Pos` to `-1` and leaves the list alone. Edits on an invalid matcher do nothing, so the preceding chain will not throw before it reaches `ThrowIfInvalid`. Always call `ThrowIfInvalid` with a message naming what you looked for. Without it a missed match fails silently and your patch does nothing.
 
 `MatchStartForward` searches from the cursor onward and stops on the first instruction of the match. `MatchStartBackwards` searches the other way. Both take several `CodeMatch` values to match a run of instructions.
 
@@ -130,7 +130,7 @@ Use `At.Transpiler` unless you need to see the finished wrapper.
 
 **Expect other mods.** Other mods count occurrences with `At.Return(By:)`, `At.Constant(By:)` or an invoke injection's `By:`. If you add or remove a `ret`, a literal or a call, you shift what they count. Concord does not detect this and reports nothing. The other author sees a patch that worked yesterday and no clue why it stopped.
 
-**Set a priority if order matters.** When two mods transpile the same method, the order they run in is not currently stable. Set `Priority` on your `[Inject]` when your edit depends on running before or after someone else's.
+**Set a priority if order matters.** When two mods transpile the same method, the order they run in is not currently stable. Set `Priority` on your `[Inject]` when your edit depends on running before or after another mod's transpiler.
 
 ## Errors
 

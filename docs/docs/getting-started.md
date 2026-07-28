@@ -48,7 +48,7 @@ If you only want one tool, include only its line; the [Packages](packages.md) pa
 
 Runtime patching changes what an existing method does after the game or app starts. It leaves the source file and target DLL unchanged, and other code still calls the same method.
 
-A patch can run at the start or end of a method, change arguments or return values, skip the original body, or wrap a call made inside it. For example, if `GetPrice()` normally returns `10`, a patch can make it return `15` while the mod is loaded.
+A patch can run at the start or end of a method, change arguments or return values, or skip the original body. It can also wrap a call made inside it. For example, if `GetPrice()` normally returns `10`, a patch can make it return `15` while the mod is loaded.
 
 ## How Concord works
 
@@ -60,7 +60,7 @@ Disposing the returned patch handle removes its injections. Concord then rebuild
 
 - Concord changes method behavior, not the structure of a type. It cannot add real fields, interfaces, enum members, or other type metadata.
 - The public authoring API does not support async methods, iterators, or static constructors yet.
-- Concord rejects generic targets with reference-type arguments because the runtime shares their compiled method bodies. Value-type generic targets can be patched.
+- Concord rejects generic targets with reference-type arguments because the runtime shares their compiled method bodies. Concord can patch value-type generic targets.
 - Concord cannot yet target a local variable, branch, field write, or object construction inside a method. Head and Tail invoke injections can target field reads. Concord can also patch a constructor's body.
 
 See the [Roadmap](roadmap.md) for planned injection targets and other work that has not shipped yet.
@@ -103,7 +103,7 @@ abstract class PricePatch : ShopItem
 
 `[Inject(At.Tail, nameof(GetPrice))]` selects `GetPrice()` and runs the injection before its last `return`. The `ControlHandle<int>` parameter gives the injection access to the returned `int`, so the last line adds 5 to the price.
 
-After the patch is applied, `GetPrice()` returns `15`, but Concord doesn't change the source file or the assembly on disk. It creates the new behavior in memory while the target process runs.
+After you apply the patch, `GetPrice()` returns `15`, but Concord doesn't change the source file or the assembly on disk. It creates the new behavior in memory while the target process runs.
 
 ### Apply the patch
 

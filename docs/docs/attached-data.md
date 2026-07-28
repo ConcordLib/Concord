@@ -1,6 +1,6 @@
 # Attached Data
 
-Use attached data when a patch needs to store state for a target object, but that state is not a real field on the target type. Concord stores the value beside the object instead of changing its type.
+Use attached data when a patch needs to store state for a target object. That state is not a real field on the target type. Concord stores the value beside the object instead of changing its type.
 
 `AttachedField<TTarget, TValue>` provides that storage. Each `AttachedField` instance owns a separate table keyed by target object.
 

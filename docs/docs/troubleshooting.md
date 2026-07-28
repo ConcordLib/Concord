@@ -27,15 +27,15 @@ When a patch cannot compose, Concord throws a `ConcordEmitException` with a `CON
 | `CONC071` | Injected member declaration | An `[InjectField]`, `[InjectProperty]`, or `[InjectMethod]` declaration could not find the named target member or required accessor. |
 | `CONC072` | Injected member declaration | An injected member has the wrong type, static form, return type, or signature. This code also covers an `[InjectInstance]` property that cannot receive the target type. |
 | `CONC073` | Injected member declaration | An injected member declaration resolves ambiguously. Rename the declaration target or use a more specific signature. |
-| `CONC074` | Injected instance | `[InjectInstance]` cannot be used on this target, such as a static method or value-type target. |
+| `CONC074` | Injected instance | `[InjectInstance]` does not support this target, such as a static method or value-type target. |
 | `CONC106` | Tail | A Tail injection found no return in the target body. |
-| `CONC107` | Whole-method Around | The `Operation` handle's `Invoke(...)` call is used mid-expression on a target with exception handlers. Splicing the original body clears the evaluation stack on any protected-region exit, so `Invoke(...)` must appear only as a statement, a direct assignment, or a direct return. |
+| `CONC107` | Whole-method Around | The `Operation` handle's `Invoke(...)` call sits mid-expression on a target with exception handlers. Splicing the original body clears the evaluation stack on any protected-region exit, so `Invoke(...)` must appear only as a statement, a direct assignment, or a direct return. |
 | `CONC108` | Whole-method Around | The target has a `ref`/`out`/`in` (byref) parameter. Byref parameters are not supported by the `Operation` handle. |
 | `CONC109` | Whole-method Around | The target has a pointer, function pointer, or byref-like parameter or return type (or returns by reference). These are not supported by the `Operation` handle. |
 | `CONC110` | Whole-method Around | The target is an `async` method or an iterator whose body compiles to a state machine. State-machine methods are not supported by the `Operation` handle; patch at Head instead. |
 | `CONC111` | Whole-method Around | The injection method must declare exactly one `Operation` family parameter and no `ControlHandle` parameters. Whole-method Around is Operation-only. |
 | `CONC112` | Whole-method Around (constructor) | A constructor Around injection never calls `Invoke(...)`. A constructor Around must invoke the original constructor exactly once. |
-| `CONC113` | Whole-method Around | The `Operation` handle's `Invoke(...)` call sits inside a loop. The original body can only be spliced once, so a loop that could re-enter the call is rejected. |
+| `CONC113` | Whole-method Around | The `Operation` handle's `Invoke(...)` call sits inside a loop. The original body can only be spliced once, so Concord rejects a loop that could re-enter the call. |
 | `CONC114` | Whole-method Around | The target is a static type initializer (`.cctor`). Type initializers have no coherent Around contract and are not supported. |
 | `CONC115` | Whole-method Around | A whole-method `Around` injection is combined with a call-site Invoke, Argument, or Constant injection on the same target. Call-site positions mutate the pre-Around spine, which does not compose with the per-copy splicing a whole-method Around performs. |
 

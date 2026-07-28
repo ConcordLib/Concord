@@ -265,7 +265,7 @@ public object Load(string path)
 }
 ```
 
-Only one whole-method Around can target a method; a second fails with `CONC051`. Head, Return, and Tail injections can compose alongside it; call-site Invoke, Argument, and Constant injections on that target are rejected (`CONC115`). For the full treatment, including `try`/`finally` and multiple returns, see [How patches work](how-patches-work.md#around-in-detail).
+Only one whole-method Around can target a method; a second fails with `CONC051`. Head, Return, and Tail injections can compose alongside it; Concord rejects call-site Invoke, Argument, and Constant injections on that target (`CONC115`). For the full treatment, including `try`/`finally` and multiple returns, see [How patches work](how-patches-work.md#around-in-detail).
 
 ## Call-site injections
 
@@ -552,7 +552,7 @@ abstract class PricePatch : ShopItem
 }
 ```
 
-`arg: 1` is 1-based and picks the first argument of the matched call. Leave `arg` at its default of `0` and Concord infers the argument by type, as long as exactly one parameter on the call site matches the injection method's parameter type:
+`arg: 1` is 1-based and picks the first argument of the matched call. Leave `arg` at its default of `0`, and Concord infers the argument by type. This works as long as exactly one parameter on the call site matches the injection method's parameter type:
 
 ```csharp
 [Inject(nameof(GetFinalPrice), typeof(PriceRules), nameof(PriceRules.ApplyMarkup), At.Argument)]
@@ -593,7 +593,7 @@ abstract class AgeGatePatch : AgeGate
 }
 ```
 
-This finds the literal `18f` inside `Allows` and replaces every occurrence with the injection's return value. Use `by` to narrow that down: `0` (the default) matches every occurrence, and a 1-based value picks a single one when the constant appears more than once:
+This finds the literal `18f` inside `Allows` and replaces every occurrence with the injection's return value. Use `by` to narrow that down. `0` (the default) matches every occurrence. A 1-based value picks a single one when the constant appears more than once:
 
 ```csharp
 [Inject(nameof(AddTen), 5, At.Constant, by: 2)]
@@ -605,7 +605,7 @@ int BumpSecondFive(int original)
 
 `by: 2` matches the second emitted `5` literal and leaves the first alone.
 
-`At.Constant` patches based on the compiler output, not source text. A constant match is only as stable as the IL the compiler happens to emit: a later source change can move the literal, fold it into a different constant, or drop it from the method entirely, and the injection stops matching. Treat it the way you'd treat any patch on generated code, and re-check it after changing the target method.
+`At.Constant` patches based on the compiler output, not source text. A constant match is only as stable as the IL the compiler happens to emit. A later source change can move the literal, fold it into a different constant, or drop it from the method entirely. Any of these changes stops the injection from matching. Treat it the way you'd treat any patch on generated code, and re-check it after changing the target method.
 
 ## Constructor body injections
 
@@ -808,7 +808,7 @@ Patch declaration names should say what they change. `FreeStarterItemsPatch` is 
 
 ### Call the unpatched original
 
-To run the original from *inside a wrap*, you don't need this section: both a whole-method Around and an invoke Around call `original.Invoke(...)` on their `Operation` handle (see [Wrap the whole method](#wrap-the-whole-method)). Use a reverse patch when you need a standalone delegate to the original body from anywhere, bypassing *every* patch on the method. Use `ReversePatchFactory.Bind`:
+To run the original from *inside a wrap*, you don't need this section. Both a whole-method Around and an invoke Around call `original.Invoke(...)` on their `Operation` handle (see [Wrap the whole method](#wrap-the-whole-method)). Use a reverse patch when you need a standalone delegate to the original body from anywhere, bypassing *every* patch on the method. Use `ReversePatchFactory.Bind`:
 
 ```csharp
 MethodBase getPrice = typeof(ShopItem).GetMethod(nameof(ShopItem.GetPrice))!;

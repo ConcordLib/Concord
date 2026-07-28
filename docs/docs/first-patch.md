@@ -58,7 +58,7 @@ public int GetWarmth()
 }
 ```
 
-Concord doesn't touch the `Campfire` source.
+Concord doesn't modify the `Campfire` source.
 
 ### Stop the original method
 

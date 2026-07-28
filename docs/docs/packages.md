@@ -45,7 +45,7 @@ Patches compile and run without the analyzer or generator packages. Add either t
 
 #### Concord.Analyzers
 
-`Concord.Analyzers` reports patch mistakes in the compiler and IDE. It checks target names, injection signatures, injected members, control and operation handles, and patch ordering when it can resolve the target from the project.
+`Concord.Analyzers` reports patch mistakes in the compiler and IDE. It checks control and operation handles, target names, injection signatures, injected members, and patch ordering when it can resolve the target from the project.
 
 It also suppresses field-use warnings for valid `[InjectField]` declarations and suggests compiler-checked forms such as `typeof` and `nameof` when they are available.
 

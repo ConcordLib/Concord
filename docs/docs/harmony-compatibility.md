@@ -44,7 +44,7 @@ The bridge lives in a small DLL beside Concord. RimWorld doesn't scan its folder
 
 You don't need to arrange the two mods in a special order. Concord finds Harmony's startup patches when it applies, and hears about later ones through the hook. If Harmony loads after Concord, Concord waits for it and installs the hook then, before any Harmony patch can run.
 
-If the hook can't install, Concord falls back to how it worked before: it checks for conflicts twice during startup and reports what it finds, but can't move a method onto the bridge after the fact. The log says which of the two you're in.
+If the hook can't install, Concord falls back to how it worked before. It checks for conflicts twice during startup and reports what it finds, but it can't move a method onto the bridge after the fact. The log says which of the two you're in.
 
 ## Cases Concord rejects
 
@@ -84,7 +84,7 @@ Search the RimWorld log for these markers:
 | `[Concord.Coex] hook-unavailable` | Concord couldn't install the hook and can't recover a method after Harmony takes it. The message says why. |
 | `[Concord.Coex] routed-contested` | Concord sent a contested method through Harmony. |
 | `[Concord.Coex] promoted` | A Harmony patch arrived late and Concord moved that method onto the bridge. Both mods still run. |
-| `[Concord.Coex] promote-rejected` | Concord refused to combine the patches. Nothing was changed before it stopped. |
+| `[Concord.Coex] promote-rejected` | Concord refused to combine the patches and changed nothing before it stopped. |
 | `[Concord.Coex] promote-failed` | Concord tried to hand the method over and couldn't finish. |
 | `[Concord.Coex] late-contention` | Concord's injections aren't running on a method, with the reason it lost it. |
 | `[Concord.Coex] stream-rejected` | Concord couldn't convert Harmony's instruction stream without risk, so it left the stream unchanged. |

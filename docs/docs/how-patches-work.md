@@ -196,7 +196,7 @@ abstract class LoadPatch : SaveSystem
 
 Whole-method Around targets one method with one handle: it does not accept a `ControlHandle`. It rejects targets with `ref`/`out`/pointer parameters or a `ref` return, and async or iterator methods.
 
-One whole-method Around injection can target a method. A second one fails with `CONC051`. Head, Return, and Tail injections can compose with a whole-method Around on the same target; only call-site Invoke, Argument, and Constant injections on that target are rejected (`CONC115`), because there is no longer a single call site to match against.
+One whole-method Around injection can target a method. A second one fails with `CONC051`. Head, Return, and Tail injections can compose with a whole-method Around on the same target. Concord rejects only call-site Invoke, Argument, and Constant injections on that target (`CONC115`), because there is no longer a single call site to match against.
 
 ## Invoke in detail
 
@@ -323,7 +323,7 @@ Owner names are case-sensitive. A missing owner adds no ordering edge. Concord k
 
 You can add more than one `[PatchBefore]` or `[PatchAfter]` attribute. Repeating the same rule has no extra effect. An explicit rule wins over `Priority`. A cycle fails with `CONC052`, and Concord leaves the installed wrapper unchanged.
 
-Before and after describe the order in which injection code starts. If Around injections nest at one site, the patch marked before runs on the outside. Its code before the nested call runs first, and its code after the call runs last. A whole-method Around still targets its method alone; only one can be applied at a time, though Head, Return, and Tail injections can compose alongside it.
+Before and after describe the order in which injection code starts. If Around injections nest at one site, the patch marked before runs on the outside. Its code before the nested call runs first, and its code after the call runs last. A whole-method Around still targets its method alone. You can apply only one at a time, though Head, Return, and Tail injections can compose alongside it.
 
 ## Calling the original body
 

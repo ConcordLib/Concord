@@ -68,7 +68,7 @@ abstract class PricePatch : ShopItem
 
 Use `At.Return` when a method has several exits and each returned value needs inspection or replacement. For a single-exit method like this one, `Tail` and `Return` do the same thing.
 
-Calls then behave as if the method had been written like this:
+Calls then behave as if the method were:
 
 ```csharp
 public int GetPrice()
