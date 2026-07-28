@@ -115,6 +115,34 @@ npm run build:css
 
 Write docs for the current API. Leave upgrade notes and old-versus-new comparisons to pages that cover a migration.
 
+## Writing documentation
+
+The site follows the [Google developer documentation style guide](https://developers.google.com/style)
+for vocabulary and structure. On top of that it applies the mechanical rules of ASD-STE100:
+
+- Keep sentences to 25 words or fewer.
+- Use active voice. Name who does the action, usually Concord or the reader.
+- Give one instruction per sentence.
+- Use no em dashes or en dashes.
+
+Vale checks all of this. Run it before you open a pull request:
+
+```bash
+vale sync
+vale docs/*.md
+```
+
+The first command downloads the Google package. You only need it once.
+
+`.vale.ini` turns off four rules that misfire on this content, such as the one that reads
+`Concord.Ref` as two sentences. Each entry says why. Turn off a rule only when you can show it
+produces a false positive.
+
+Put domain terms in `styles/config/vocabularies/Concord/accept.txt`. ASD-STE100 allows technical
+names outside its approved word list, and that file records the ones this site uses.
+
+The `lint-prose` job gates the deploy, so prose that fails Vale does not reach the site.
+
 ## Pull requests
 
 Open Core pull requests against `main` and use the [Core pull request template](https://github.com/ConcordLib/Core/blob/main/.github/PULL_REQUEST_TEMPLATE.md). Explain why the change is needed, list the tests you ran, and name any public API breaks.
