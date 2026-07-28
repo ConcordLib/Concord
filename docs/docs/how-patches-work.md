@@ -275,7 +275,7 @@ The wrapper evaluates `basePrice - discount` once and stores the value in a loca
 | One argument of a matched call | Use `At.Argument` |
 | Field read or write | Concord has no instruction matcher yet. Use `[InjectField]` to access the field from another injection. |
 | Object construction | The roadmap lists a constructor-call matcher. Patching the body of a constructor works now. |
-| Local, branch, or raw return instruction | Use `At.Transpiler` to edit the instruction stream directly. |
+| Local, branch, or raw return instruction | Use `At.Transpiler` to edit the instruction stream directly. See [Raw IL with transpilers](transpilers.md). |
 
 `At.Constant` matches compiler output, as do the planned field and constructor-call matchers and any `At.Transpiler` edit. A source change can move a literal, renumber locals, or rewrite branch instructions. Check these patches again after the target changes. See the [Roadmap](roadmap.md#more-injection-positions) for the planned matchers.
 

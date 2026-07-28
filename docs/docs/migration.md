@@ -83,7 +83,7 @@ One habit carries over unchanged: several injection methods can live in one decl
 | `ref` argument rewriting in a prefix | declare the parameter and assign it |
 | Transpiler that wraps a call, changes its arguments, or replaces it | invoke injection with the `Operation` family |
 | Transpiler that edits a constant | `At.Constant` |
-| Transpiler that edits fields or branches | `At.Transpiler` |
+| Transpiler that edits fields or branches | `At.Transpiler` ([raw IL](transpilers.md)) |
 | Finalizer | `try`/`catch` around the splice call in an `At.Around` injection |
 | `[HarmonyReversePatch]` | `ReversePatchFactory.Bind` |
 | `AccessTools` / `Traverse` | shadow fields, `[InjectField]`, `[InjectProperty]`, `[InjectMethod]` |

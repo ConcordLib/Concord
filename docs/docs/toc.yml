@@ -12,6 +12,8 @@
   href: harmony-compatibility.md
 - name: How Patches Work
   href: how-patches-work.md
+- name: Raw IL with Transpilers
+  href: transpilers.md
 - name: Attached Data
   href: attached-data.md
 - name: Packages
