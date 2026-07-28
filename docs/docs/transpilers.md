@@ -45,7 +45,7 @@ abstract class ShopPatch : Shop
 
 The method must be `static`. A `[Patch]` declaration is abstract and Concord never creates an instance of it, so an instance transpiler cannot run.
 
-Your transpiler also runs at patch time rather than being copied into the target, which means it cannot touch the declaration's `[Shadow]`, `[InjectField]`, `[InjectProperty]` or `[InjectMethod]` members. Those are stubs that only exist for Concord to copy IL from. The analyzer rejects this at compile time.
+Concord calls your transpiler at patch time. It does not copy it into the target the way it copies other injections. So your transpiler cannot touch the declaration's `[Shadow]`, `[InjectField]`, `[InjectProperty]` or `[InjectMethod]` members. Those members are stubs that exist only as IL for Concord to copy. The analyzer rejects this at compile time.
 
 ## CodeInstruction
 
@@ -112,13 +112,13 @@ static IEnumerable<CodeInstruction> SkipWhenZero(
 }
 ```
 
-`DefineLabel` gives you a branch target. Attach it to an instruction's `labels` to fix where it points. `DeclareLocal` adds a local to the method body. `Original` gives you the method being patched.
+`DefineLabel` gives you a branch target. Attach it to an instruction's `labels` to fix where it points. `DeclareLocal` adds a local to the method body. `Original` gives you the method that Concord patches.
 
 A new label that no instruction carries is an error, and so is a branch to a label that nothing declares.
 
 ## Rewrite the composed method with At.TranspilerFinal
 
-`At.Transpiler` rewrites the target's original body before Concord adds any other injection. `At.TranspilerFinal` runs at the other end, after every injection is spliced in.
+`At.Transpiler` rewrites the target's original body before Concord adds any other injection. `At.TranspilerFinal` runs at the other end, after Concord splices in every injection.
 
 `At.TranspilerFinal` has no stability guarantee. The composed body is a Concord implementation detail and can change in any release, including a patch release. You will see Concord's own locals, its rewritten returns, and a cancel gate that no source file contains.
 
@@ -126,9 +126,9 @@ Use `At.Transpiler` unless you need to see the finished wrapper.
 
 ## Rules your transpiler must follow
 
-**Be a pure function of the stream.** Concord recomposes a target from its original IL every time a patch is added or removed, including when an unrelated mod unpatches it. Your transpiler runs an unpredictable number of times. Do not count calls, write to static state, or assume you run once.
+**Be a pure function of the stream.** Concord recomposes a target from its original IL every time a mod adds or removes a patch. That includes patches from mods you never heard of. Your transpiler runs an unpredictable number of times. Do not count calls, write to static state, or assume you run once.
 
-**Expect other mods.** Adding or removing a `ret`, a literal or a call shifts the occurrences that other mods select with `At.Return(By:)`, `At.Constant(By:)` or an invoke injection's `By:`. Concord does not detect this and reports nothing. The other author sees a patch that worked yesterday and no clue why it stopped.
+**Expect other mods.** Other mods count occurrences with `At.Return(By:)`, `At.Constant(By:)` or an invoke injection's `By:`. If you add or remove a `ret`, a literal or a call, you shift what they count. Concord does not detect this and reports nothing. The other author sees a patch that worked yesterday and no clue why it stopped.
 
 **Set a priority if order matters.** When two mods transpile the same method, the order they run in is not currently stable. Set `Priority` on your `[Inject]` when your edit depends on running before or after someone else's.
 
@@ -144,7 +144,7 @@ Transpiler failures raise `ConcordEmitException`. The code is at the front of th
 | `CONC119` | The rewritten body is not valid IL |
 | `CONC120` | A `CodeMatcher` pattern found no match |
 
-A failing transpiler is dropped and the target is recomposed without it. Other mods keep their patches on that method.
+Concord drops a failing transpiler and recomposes the target without it. Other mods keep their patches on that method.
 
 ## Compile-time checks
 
