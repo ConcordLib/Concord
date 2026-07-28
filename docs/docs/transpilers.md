@@ -114,7 +114,25 @@ static IEnumerable<CodeInstruction> SkipWhenZero(
 
 `DefineLabel` gives you a branch target. Attach it to an instruction's `labels` to fix where it points. `DeclareLocal` adds a local to the method body. `Original` gives you the method that Concord patches.
 
+`GetLocal(index)` returns a handle to a local the target already declares. Use it where a Harmony transpiler would write a bare slot number such as `Ldloc_S, 4`. Locals you declare follow the body's own, so slot `0` is the target's first local, not yours. An index past the end raises `CONC121`.
+
 A new label that no instruction carries is an error, and so is a branch to a label that nothing declares.
+
+## Async and iterator targets
+
+The C# compiler splits an `async` or iterator method into two methods. The one you declared becomes a stub that builds a state machine and returns the `Task` or `IEnumerable`. The body you wrote moves into the state machine's `MoveNext`.
+
+An injection patches the declared method by default, and that stub holds none of the code you want to rewrite. Set `Body` to reach the real one:
+
+```csharp
+[Inject(At.Transpiler, nameof(LoadItems), Body = PatchBody.StateMachine)]
+static IEnumerable<CodeInstruction> Rewrite(IEnumerable<CodeInstruction> instructions)
+{
+    ...
+}
+```
+
+`MoveNext` returns `bool` and runs once per step, not once per call. Concord ignores `Body` when the target is neither async nor an iterator.
 
 ## Rewrite the composed method with At.TranspilerFinal
 
@@ -143,6 +161,7 @@ Transpiler failures raise `ConcordEmitException`. The code is at the front of th
 | `CONC118` | The stream has a bad label, local, opcode or exception block |
 | `CONC119` | The rewritten body is not valid IL |
 | `CONC120` | A `CodeMatcher` pattern found no match |
+| `CONC121` | `GetLocal` got a slot index past the end of the locals |
 
 Concord drops a failing transpiler and recomposes the target without it. Other mods keep their patches on that method.
 
