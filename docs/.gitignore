@@ -18,3 +18,7 @@ templates/concord/node_modules
 # Python
 __pycache__/
 *.pyc
+
+# Vale downloads the Google style package with `vale sync`; only our own
+# rules and vocabulary are committed.
+styles/Google/

@@ -29,7 +29,22 @@ env:
   CORE_DEFAULT_REF: main
 
 jobs:
+  lint-prose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout docs
+        uses: actions/checkout@v4
+
+      - name: Install Vale
+        uses: errata-ai/vale-action@reviewdog
+        with:
+          version: 3.15.1
+          files: docs
+          fail_on_error: true
+          reporter: github-check
+
   build-and-deploy:
+    needs: lint-prose
     runs-on: ubuntu-latest
     steps:
       - name: Checkout docs
