@@ -12,7 +12,7 @@ Concord plans to add a custom `state` slot to `ControlHandle`. Each target call 
 
 A `Head` Invoke injection uses the target method's normal context. An `Around` Invoke receives the matched call's arguments as leading parameters, and `Operation.Invoke` returns the call result. `At.Argument` receives one selected argument.
 
-Current Invoke forms do not expose other locals that the target computed earlier. Read-side capture would trace a matched call argument back to the local that produced it instead of requiring a slot number. The compiler can change slot numbers after a small source edit, so you would need the low-level IL API to change that local.
+Current Invoke forms do not expose other locals that the target computed earlier. Read-side capture would trace a matched call argument back to the local that produced it instead of requiring a slot number. The compiler can change slot numbers after a small source edit, so changing that local means dropping to `At.Transpiler` and editing the instruction stream directly.
 
 ### Match a constructor call
 
@@ -23,10 +23,6 @@ Concord can patch a constructor body at the head or return of a `.ctor`. See [Pa
 ### Limit an Invoke search
 
 Slice and range points would limit Invoke matching to the code between two points. The `by` value would count matches inside that range. You could add the same call outside the range without changing the selected match.
-
-### Edit raw IL
-
-A separate low-level IL API would handle raw return instructions, local writes, and branches. The compiler can renumber locals or rewrite branches after a small source change.
 
 ## Enum patching
 
