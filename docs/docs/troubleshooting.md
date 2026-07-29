@@ -45,7 +45,7 @@ When a patch cannot compose, Concord throws a `ConcordEmitException` with a `CON
 | `CONC131` | Slice | The target body has no opening anchor at the requested occurrence. An anchor has to be a call or a field read, so a construction cannot serve as one. |
 | `CONC132` | Slice | The target body has no closing anchor at the requested occurrence. |
 | `CONC133` | Slice | The range is empty or inverted, so it closes at or before it opens. Check the two anchor occurrences against the body order. |
-| `CONC134` | Slice | `[Slice]` sits on a whole-method position. A range bounds a search, so it applies to invoke and construction positions only. |
+| `CONC134` | Slice | `[Slice]` sits on a position that matches no call site. A range bounds a search, so it applies to invoke and construction positions only. |
 
 Each code identifies the condition Concord rejected. Read the exception message for the target and declaration details.
 

@@ -126,17 +126,17 @@ Concord runs on .NET 10 through CoreCLR and on .NET Framework 4.7.2. The `net472
 
 ### Concord cannot patch a function-pointer method on Mono
 
-On a Mono host, Concord cannot patch a method whose body declares a `delegate*` local. The attempt kills the process.
+On a Mono host, Concord cannot patch a method whose body declares a `delegate*` local. The attempt kills the process. The same applies to an injection method that declares one, so a mod can trip this on its own code.
 
-Mono 6.12 reads `Type.IsValueType` on a function-pointer type and recurses until the native stack overflows. Concord opens every target through MonoMod's `DynamicMethodDefinition`, whose constructor reads that property for each local. So the crash reaches any target that declares such a local, at the moment Concord composes the wrapper.
+Mono 6.12 reads `Type.IsValueType` on a function-pointer type and recurses until the native stack overflows. Concord opens each target and each injection method through MonoMod's `DynamicMethodDefinition`, whose constructor reads that property for every local. So the crash reaches any method Concord opens that declares such a local.
 
 Treat this as a hard limitation rather than an error you can handle:
 
 * The overflow happens in unmanaged code. It is not a `ConcordEmitException`, and a `try`/`catch` cannot contain it.
-* Concord reports no diagnostic first. The process dies during `Patcher.Apply`.
+* Concord reports no diagnostic first. The process dies while Concord composes the wrapper, which happens on apply and on any later recompose.
 * A mod cannot test for the condition ahead of time through Concord.
 
-Function-pointer locals are rare in game and mod code, so most patches never reach this. When a target does declare one, leave that method unpatched on a Mono host. CoreCLR reads the same local without trouble, so a .NET 10 host patches that target normally.
+Function-pointer locals are rare in game and mod code, so most patches never reach this. When a target does declare one, leave that method unpatched on a Mono host, and keep `delegate*` locals out of your own injection methods there. CoreCLR reads the same local without trouble, so a .NET 10 host patches that target normally.
 
 ## Core contributors
 

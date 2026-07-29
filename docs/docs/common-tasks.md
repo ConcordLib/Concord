@@ -637,9 +637,9 @@ public int GetFinalPrice(int basePrice)
 }
 ```
 
-`[Capture]` works at `At.Head` and `At.Tail` of an invoke or construction injection. `At.Around` already passes the call's arguments, and `At.Argument` passes the one it rewrites, so `[Capture]` at either reports `CONC128`. A whole-method position reports `CONC128` too, because it matches no call.
+`[Capture]` works at `At.Head` and `At.Tail` of an invoke or construction injection. `At.Around` already passes the call's arguments, and `At.Argument` passes the one it rewrites, so `[Capture]` at either reports `CONC128`. Any other position reports `CONC128` too, because it matches no call site.
 
-The parameter must declare the argument's own type. A mismatch reports `CONC130`, and so does an ordinal past the last argument. A field read supplies no arguments, so `[Capture]` on one also reports `CONC130`.
+The parameter must declare the argument's own type, or its element type when the argument is by-ref. A mismatch reports `CONC130`, and so does an ordinal past the last argument. A field read supplies no arguments, so `[Capture]` on one also reports `CONC130`.
 
 Concord reports `CONC129` when it cannot tell where an argument finished pushing. A conditional expression in a call argument causes this, including `?:`, `??`, `?.`, `&&`, and `||`. A conditional in the last argument blocks every argument of that call, not only the conditional one. Move the conditional into a local before the call, then capture the argument from there.
 
@@ -718,11 +718,13 @@ Coin coin = new Coin(seed);
 return coin.Value;
 ```
 
-A struct emits `newobj` only when the surrounding code consumes the constructor result as an expression:
+A struct emits `newobj` only when the surrounding code consumes the constructor result as an expression. Either of these forms does that:
 
 ```csharp
-return new Coin(seed).Value;   // newobj
-Save(new Coin(seed));          // newobj
+return new Coin(seed).Value;
+
+// or, passing the result straight to a call:
+Save(new Coin(seed));
 ```
 
 Constructor complexity makes no difference here. The rule is unconditional for a struct local. A class always emits `newobj`, so reference types never hit this. When `[InjectNew]` finds nothing in code that plainly constructs a struct, this is the reason, and Concord reports `CONC031`.
@@ -786,7 +788,7 @@ An anchor has to be a method call, a property accessor call, or a field read. A 
 | `CONC131` | The body has no opening anchor at that occurrence |
 | `CONC132` | The body has no closing anchor at that occurrence |
 | `CONC133` | The range is empty or inverted, so it closes at or before it opens |
-| `CONC134` | `[Slice]` sits on a whole-method position, which matches no call |
+| `CONC134` | `[Slice]` sits on a position that matches no call site |
 
 Two things can move a range out from under you. Another mod's transpiler can add or remove an anchor; see [Rules your transpiler must follow](transpilers.md#rules-your-transpiler-must-follow). Concord also resolves anchors against a body that earlier injections have already spliced into. An injection body that calls an anchor member therefore shifts the anchor count.
 
