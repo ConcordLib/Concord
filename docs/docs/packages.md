@@ -120,6 +120,24 @@ The package provides `net10.0`, `netstandard2.0`, and `net472` assemblies. It ha
 
 The package ID is `Concord.Runtime` because the plain `Concord` ID on NuGet belongs to an unrelated package.
 
+## Platform support
+
+Concord runs on .NET 10 through CoreCLR and on .NET Framework 4.7.2. The `net472` assembly also runs on Mono, which is what Unity games and older game runtimes use.
+
+### Concord cannot patch a function-pointer method on Mono
+
+On a Mono host, Concord cannot patch a method whose body declares a `delegate*` local. The attempt kills the process.
+
+Mono 6.12 reads `Type.IsValueType` on a function-pointer type and recurses until the native stack overflows. Concord opens every target through MonoMod's `DynamicMethodDefinition`, whose constructor reads that property for each local. So the crash reaches any target that declares such a local, at the moment Concord composes the wrapper.
+
+Treat this as a hard limitation rather than an error you can handle:
+
+* The overflow happens in unmanaged code. It is not a `ConcordEmitException`, and a `try`/`catch` cannot contain it.
+* Concord reports no diagnostic first. The process dies during `Patcher.Apply`.
+* A mod cannot test for the condition ahead of time through Concord.
+
+Function-pointer locals are rare in game and mod code, so most patches never reach this. When a target does declare one, leave that method unpatched on a Mono host. CoreCLR reads the same local without trouble, so a .NET 10 host patches that target normally.
+
 ## Core contributors
 
 The Core repository builds the runtime from four internal projects:

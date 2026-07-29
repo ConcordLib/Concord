@@ -57,7 +57,7 @@ original target body
   Tail before the last return
 ```
 
-Invoke patches a call inside the body. Argument and Constant handle narrower targets.
+Invoke patches a call inside the body, and construction patches a `new` in it. Argument and Constant handle narrower targets.
 
 | Position | Runs at | Common use |
 | --- | --- | --- |
@@ -66,6 +66,7 @@ Invoke patches a call inside the body. Argument and Constant handle narrower tar
 | Tail | Before the last `return` | Change the final result on the main exit |
 | Around | Around the whole target body | Choose if and when the body runs |
 | Invoke | Before, after, or around a matched call | Change one call inside the target |
+| Construction | Before, after, or around a matched `newobj` | Change what the target builds |
 | Argument | At one argument of a matched call | Replace that argument |
 | Constant | At a matched literal | Replace a compiled constant |
 
@@ -171,6 +172,52 @@ private void AfterGetPrice(ControlHandle<int> ch)
 
 The generic type must match the target's return type. Return and Tail injections can read or replace `ReturnValue`. Concord lowers each control handle into wrapper locals, so a target call does not allocate a handle object.
 
+## State slots
+
+`ControlHandle` and `ControlHandle<T>` both carry a state slot. One injection writes it with `SetState<T>(value)`, and another reads it with `GetState<T>()`:
+
+```csharp
+[Patch]
+abstract class PricePatch : ShopItem
+{
+    [Inject(At.Head, nameof(GetPrice))]
+    private void BeforeGetPrice(ControlHandle<int> ch)
+    {
+        ch.SetState(ShippingCost);
+    }
+
+    [Inject(At.Tail, nameof(GetPrice))]
+    private void AfterGetPrice(ControlHandle<int> ch)
+    {
+        ch.ReturnValue += ch.GetState<int>();
+    }
+}
+```
+
+Concord lowers both calls into a wrapper local, the same way it lowers `Cancel()` and `ReturnValue`. The slot allocates nothing on the patched call path.
+
+### Scope
+
+One patch declaration gets one slot per target. Concord keys the slot on the injection method's declaring type. Two injection methods on the same class share a slot. Two classes get two slots, even when one mod owns both.
+
+Two mods that patch the same method cannot see each other's slot. Concord gives each declaration its own wrapper local.
+
+Every injection in a declaration must agree on the slot type. Concord reports `CONC127` when one declaration puts two types in its slot. `Concord.Analyzers` catches the same conflict at compile time as `CONCORD026`.
+
+A `GetState<T>()` call that nothing wrote returns `default(T)`. That is legal and well defined. `Concord.Analyzers` warns with `CONCORD027` when no injection in the declaration writes the slot a `GetState<T>()` call reads.
+
+### Lifetime
+
+The slot lives for one wrapper frame. Every call to the patched method starts at the type default, and the value does not survive into the next call.
+
+A whole-method `At.Around` does not change that. A Head write still reaches a Tail spliced into the body copy that an Around makes, because both use the same wrapper local.
+
+### Async and iterator targets
+
+`PatchBody.StateMachine` changes what one frame means. The wrapper then wraps the compiler's generated `MoveNext`, which runs once per resumption rather than once per call. So the slot lives for one resumption.
+
+A value written before an `await` does not reach the code after it. The next resumption enters a fresh `MoveNext` frame and reads the slot's default.
+
 ## Around in detail
 
 A whole-method Around injection wraps the entire target body. The injection method declares an `Operation` family parameter and calls `original.Invoke(...)` to run the target body:
@@ -265,6 +312,50 @@ PriceRules.ApplyMarkup(basePrice - discount)
 
 The wrapper evaluates `basePrice - discount` once and stores the value in a local before the injection runs. The injection can receive that value as its first parameter. Skipping `Invoke` skips `ApplyMarkup` and its side effects, but the argument expression has run by that point.
 
+### Capture an argument
+
+`[Capture(n)]` binds an injection parameter to argument `n` of the matched call, counting from 1:
+
+```csharp
+[Inject(nameof(GetFinalPrice), typeof(PriceRules), nameof(PriceRules.ApplyMarkup), At.Tail)]
+private void AfterApplyMarkup([Capture(1)] int basePrice)
+{
+    Logger.Info($"Marked up {basePrice}.");
+}
+```
+
+Concord finds the point where that argument finished pushing, then spills a copy into a wrapper local there. The spill sits ahead of the call, so the local holds the value the call took.
+
+That timing matters at `At.Tail`. The injection body runs after the call, but it still sees the pushed value. A callee that writes back through a `ref` parameter does not change it. Neither does a later assignment to the local the argument came from.
+
+Concord reports `CONC129` when it cannot find that push boundary. A conditional expression compiles to a branch. A branch target between the boundary and the call would let control reach the call without passing the spill. `?:`, `??`, `?.`, `&&`, and `||` all produce one. A conditional in the last argument blocks every argument of that call.
+
+#### By-value and by-ref capture
+
+A `ref` argument can go either way, and one injection may take both shapes:
+
+```csharp
+public void Restock(int amount)
+{
+    Inventory.Clamp(ref amount);
+    count += amount;
+}
+
+[Inject(nameof(Restock), typeof(Inventory), nameof(Inventory.Clamp), At.Tail)]
+private void AfterClamp([Capture(1)] int passed, [Capture(1)] ref int live)
+{
+    Logger.Info($"Clamp received {passed} and left {live}.");
+}
+```
+
+`passed` is a snapshot. It holds the value at the moment the call took it. `live` aliases the same storage, so it shows whatever `Clamp` wrote there, and the injection can write through it.
+
+The parameter's declared type picks between the two. Declare `ref int` and you get the alias. Declare `int` and you get the snapshot. A type that is neither reports `CONC130`.
+
+### Where Capture is allowed
+
+`[Capture]` needs a matched call whose arguments still sit on the stack. That means `At.Head` or `At.Tail` of an invoke or construction injection. `At.Around` already receives the call's arguments as ordinary parameters, and `At.Argument` receives the one it rewrites. A whole-method position matches no call at all. Concord reports `CONC128` for every other case, and `Concord.Analyzers` reports `CONCORD028` at compile time.
+
 ## Other targets inside a method
 
 | Target | Concord support |
@@ -274,10 +365,10 @@ The wrapper evaluates `basePrice - discount` once and stores the value in a loca
 | Inlined `int`, `long`, `float`, `double`, or `string` literal | Use `At.Constant` |
 | One argument of a matched call | Use `At.Argument` |
 | Field read or write | Concord has no instruction matcher yet. Use `[InjectField]` to access the field from another injection. |
-| Object construction | The roadmap lists a constructor-call matcher. Patching the body of a constructor works now. |
+| Object construction | Use `[InjectNew]` with `At.Head`, `At.Tail`, `At.Around`, or `At.Argument`. Patching the body of a constructor also works. |
 | Local, branch, or raw return instruction | Use `At.Transpiler` to edit the instruction stream directly. See [Raw IL with transpilers](transpilers.md). |
 
-`At.Constant` matches compiler output, as do the planned field and constructor-call matchers and any `At.Transpiler` edit. A source change can move a literal, renumber locals, or rewrite branch instructions. Check these patches again after the target changes. See the [Roadmap](roadmap.md#more-injection-positions) for the planned matchers.
+`At.Constant`, `[InjectNew]`, `[Slice]`, and any `At.Transpiler` edit all match compiler output. A source change can move a literal, change a construction, renumber locals, or rewrite branch instructions. Check these patches again after the target changes.
 
 ## Ordering patches on one target
 

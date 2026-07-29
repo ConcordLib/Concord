@@ -19,6 +19,9 @@ unpatches
 recompose
 recomposes
 recompile
+recurses
+runtimes
+unmanaged
 mod
 mods
 accessor
@@ -27,6 +30,7 @@ APIs
 async
 bool
 byref
+callee
 declaratively
 disambiguates
 enum

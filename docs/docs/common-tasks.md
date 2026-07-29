@@ -12,6 +12,7 @@ The form of `[Inject]` decides what Concord matches. `At.*` decides where the in
 | --- | --- | --- |
 | Target method | `[Inject(At.Head, nameof(Method))]` | `.Head(...)`, `.Tail(...)`, `.Return(...)`, or `.Around(...)` |
 | Call site | `[Inject(nameof(Method), typeof(Owner), nameof(Owner.Call), At.Around)]` | `.Invoke(...)` |
+| Construction | `[InjectNew(nameof(Method), typeof(Built), At.Around)]` | `.NewObj(...)` |
 | Constant | `[Inject(nameof(Method), 5, At.Constant)]` | No high-level fluent form |
 | Constructor body | `[Inject(At.Head)]` | `Patcher.ForConstructor(...)` |
 
@@ -266,6 +267,48 @@ public object Load(string path)
 ```
 
 Only one whole-method Around can target a method; a second fails with `CONC051`. Head, Return, and Tail injections can compose alongside it; Concord rejects call-site Invoke, Argument, and Constant injections on that target (`CONC115`). For the full treatment, including `try`/`finally` and multiple returns, see [How patches work](how-patches-work.md#around-in-detail).
+
+### State slots
+
+#### Share state across injections
+
+`ControlHandle` and `ControlHandle<T>` both carry a state slot. Write it from one injection, then read it from another in the same patch declaration:
+
+```csharp
+[Patch]
+abstract class PricePatch : ShopItem
+{
+    [Inject(At.Head, nameof(GetPrice))]
+    void BeforeGetPrice(ControlHandle<int> ch)
+    {
+        ch.SetState(IsFree ? 0 : ShippingCost);
+    }
+
+    [Inject(At.Tail, nameof(GetPrice))]
+    void AfterGetPrice(ControlHandle<int> ch)
+    {
+        ch.ReturnValue += ch.GetState<int>();
+    }
+}
+```
+
+At runtime:
+
+```csharp
+public int GetPrice()
+{
+    int state = IsFree ? 0 : ShippingCost;
+    int result = BasePrice;
+    result += state;
+    return result;
+}
+```
+
+The slot belongs to one patch declaration and one target call. Concord keys it on the injection method's declaring type, so every injection in `PricePatch` shares one slot. A second mod that patches `GetPrice` gets its own slot and cannot read yours.
+
+Every injection in the declaration must agree on the slot type. Two types in one declaration fail with `CONC127`. A `GetState<T>()` call that nothing wrote returns `default(T)`.
+
+For the scoping and lifetime rules, including what happens on an async target, see [State slots](how-patches-work.md#state-slots).
 
 ## Call-site injections
 
@@ -563,6 +606,189 @@ int RaiseMinimum(int original)
 ```
 
 If more than one argument shares that type, inference is ambiguous and composition fails with an error naming `arg:` so you know to pass it explicitly.
+
+### `[Capture]`
+
+#### Read an argument of a matched call
+
+Mark an injection parameter with `[Capture(n)]` to bind it to argument `n` of the matched call. The ordinal counts from 1:
+
+```csharp
+[Patch]
+abstract class PricePatch : ShopItem
+{
+    [Inject(nameof(GetFinalPrice), typeof(PriceRules), nameof(PriceRules.ApplyMarkup), At.Tail)]
+    void AfterApplyMarkup([Capture(1)] int basePrice)
+    {
+        Logger.Info($"Marked up {basePrice}.");
+    }
+}
+```
+
+At runtime:
+
+```csharp
+public int GetFinalPrice(int basePrice)
+{
+    int captured = basePrice;
+    int markedUp = PriceRules.ApplyMarkup(captured);
+    Logger.Info($"Marked up {captured}.");
+    return markedUp + ShippingCost;
+}
+```
+
+`[Capture]` works at `At.Head` and `At.Tail` of an invoke or construction injection. `At.Around` already passes the call's arguments, and `At.Argument` passes the one it rewrites, so `[Capture]` at either reports `CONC128`. A whole-method position reports `CONC128` too, because it matches no call.
+
+The parameter must declare the argument's own type. A mismatch reports `CONC130`, and so does an ordinal past the last argument. A field read supplies no arguments, so `[Capture]` on one also reports `CONC130`.
+
+Concord reports `CONC129` when it cannot tell where an argument finished pushing. A conditional expression in a call argument causes this, including `?:`, `??`, `?.`, `&&`, and `||`. A conditional in the last argument blocks every argument of that call, not only the conditional one. Move the conditional into a local before the call, then capture the argument from there.
+
+A capture reports what the call received, even when the callee writes back through a `ref` parameter. See [Capture an argument](how-patches-work.md#capture-an-argument) for the by-ref rules.
+
+### `[InjectNew]`
+
+#### Patch an object construction
+
+`[InjectNew]` matches a `newobj` instruction inside the target method. It takes the same shifts as the invoke form. Say `ShopItem.Checkout` builds a `Receipt`:
+
+```csharp
+public int Checkout(int orderId)
+{
+    Receipt receipt = new Receipt(orderId);
+    return receipt.Total;
+}
+```
+
+`At.Around` wraps the construction. The injection gets an `Operation` handle shaped from the constructor's arguments and the constructed type. Whatever the injection returns becomes the object the target body uses:
+
+```csharp
+[Patch]
+abstract class ReceiptPatch : ShopItem
+{
+    [InjectNew(nameof(Checkout), typeof(Receipt), At.Around)]
+    Receipt SwapReceipt(int orderId, Operation<int, Receipt> original)
+    {
+        Receipt built = original.Invoke(orderId);
+        return TaxEnabled ? new TaxedReceipt(orderId) : built;
+    }
+}
+```
+
+`TaxedReceipt` has to derive from `Receipt`, because the rest of the target body still expects that type. At runtime:
+
+```csharp
+public int Checkout(int orderId)
+{
+    Receipt built = new Receipt(orderId);
+    Receipt receipt = TaxEnabled ? new TaxedReceipt(orderId) : built;
+    return receipt.Total;
+}
+```
+
+`At.Argument` rewrites one constructor argument and leaves the construction alone:
+
+```csharp
+[InjectNew(nameof(Checkout), typeof(Receipt), At.Argument, arg: 1)]
+int ShiftOrderId(int original)
+{
+    return original + 1;
+}
+```
+
+At runtime:
+
+```csharp
+public int Checkout(int orderId)
+{
+    Receipt receipt = new Receipt(orderId + 1);
+    return receipt.Total;
+}
+```
+
+`At.Head` and `At.Tail` run code before and after the construction. Pass `invokeParameterTypes:` to pick one constructor overload. Pass `by:` to pick one construction when the body builds the type more than once.
+
+A construction patch does not change what `new Receipt(...)` means everywhere. It changes the one `newobj` instruction the injection matched.
+
+#### Why a struct construction may not match
+
+`[InjectNew]` matches `newobj`, and a struct does not always produce one. The C# compiler initializes a struct local in place, so this pair of lines emits no `newobj`:
+
+```csharp
+Coin coin = new Coin(seed);
+return coin.Value;
+```
+
+A struct emits `newobj` only when the surrounding code consumes the constructor result as an expression:
+
+```csharp
+return new Coin(seed).Value;   // newobj
+Save(new Coin(seed));          // newobj
+```
+
+Constructor complexity makes no difference here. The rule is unconditional for a struct local. A class always emits `newobj`, so reference types never hit this. When `[InjectNew]` finds nothing in code that plainly constructs a struct, this is the reason, and Concord reports `CONC031`.
+
+### `[Slice]`
+
+#### Bound a call-site search to a range
+
+`[Slice]` limits an invoke or construction search to the code between two anchors. The injection's `by` then counts inside that range. Say `Checkout` calls `PriceRules.Total` three times:
+
+```csharp
+public int Checkout(int seed)
+{
+    int subtotal = PriceRules.Total(seed);
+    Audit.Begin();
+    int discounted = PriceRules.Total(subtotal);
+    Audit.End();
+    return PriceRules.Total(discounted);
+}
+```
+
+Anchor the range on `Audit.Begin` and `Audit.End` to reach the middle call:
+
+```csharp
+[Patch]
+abstract class PricePatch : ShopItem
+{
+    [Inject(nameof(Checkout), typeof(PriceRules), nameof(PriceRules.Total), At.Head, by: 1)]
+    [Slice(typeof(Audit), nameof(Audit.Begin), 1, typeof(Audit), nameof(Audit.End), 1)]
+    void BeforeAuditedTotal([Capture(1)] int seed)
+    {
+        Logger.Info($"Audited total for {seed}.");
+    }
+}
+```
+
+At runtime:
+
+```csharp
+public int Checkout(int seed)
+{
+    int subtotal = PriceRules.Total(seed);
+    Audit.Begin();
+    Logger.Info($"Audited total for {subtotal}.");
+    int discounted = PriceRules.Total(subtotal);
+    Audit.End();
+    return PriceRules.Total(discounted);
+}
+```
+
+The range opens just after the opening anchor and closes just before the closing anchor. Neither anchor sits inside the range.
+
+The two ordinals count over different regions. `fromBy` and `toBy` count anchors across the whole body. The injection's own `by` counts matches inside the range. That asymmetry is the point of the feature. Here `by: 1` picks the first match in the range, which is the second `PriceRules.Total` call in the method.
+
+Leave `fromType` null to open the range at the body head. Leave `toType` null to close it at the body tail.
+
+An anchor has to be a method call, a property accessor call, or a field read. A construction cannot serve as an anchor. Concord then reports `CONC131` or `CONC132` and says the method body does not contain the member.
+
+| Code | Means |
+| --- | --- |
+| `CONC131` | The body has no opening anchor at that occurrence |
+| `CONC132` | The body has no closing anchor at that occurrence |
+| `CONC133` | The range is empty or inverted, so it closes at or before it opens |
+| `CONC134` | `[Slice]` sits on a whole-method position, which matches no call |
+
+Two things can move a range out from under you. Another mod's transpiler can add or remove an anchor; see [Rules your transpiler must follow](transpilers.md#rules-your-transpiler-must-follow). Concord also resolves anchors against a body that earlier injections have already spliced into. An injection body that calls an anchor member therefore shifts the anchor count.
 
 ## Constant injections
 

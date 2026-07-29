@@ -79,7 +79,7 @@ One habit carries over unchanged: several injection methods can live in one decl
 | `ref int __result` | `ControlHandle<int>` and `ch.ReturnValue` |
 | `__instance` | `this`, when the declaration extends the target; `[InjectInstance]` when it can't |
 | `___privateField` | `[InjectField("privateField")]` on a typed declaration field |
-| `__state` between prefix and postfix | no direct equivalent; see [Migrate Harmony `__state`](#migrate-harmony-__state) |
+| `__state` between prefix and postfix | `ch.SetState(value)` in the Head injection, `ch.GetState<T>()` in the Tail or Return injection |
 | `ref` argument rewriting in a prefix | declare the parameter and assign it |
 | Transpiler that wraps a call, changes its arguments, or replaces it | invoke injection with the `Operation` family |
 | Transpiler that edits a constant | `At.Constant` |
@@ -358,7 +358,31 @@ static class LoadPatch
 }
 ```
 
-Concord has no direct `__state` equivalent. There is no per-call state channel between a `Head` injection and a `Tail` or `Return` injection. Combine the prefix and postfix into one whole-method `At.Around` injection and keep the state in a local variable:
+Concord's state slot maps onto `__state` closely. A Head injection writes it with `ch.SetState(value)`, and a Tail or Return injection reads it with `ch.GetState<T>()`. Concord scopes the slot by declaring type, the same way Harmony matches `__state`:
+
+```csharp
+[Patch]
+abstract class LoadPatch : SaveSystem
+{
+    [Inject(At.Head, nameof(Load))]
+    void BeforeLoad(ControlHandle<object> ch)
+    {
+        ch.SetState(Stopwatch.StartNew());
+    }
+
+    [Inject(At.Tail, nameof(Load))]
+    void AfterLoad(ControlHandle<object> ch)
+    {
+        Stopwatch timer = ch.GetState<Stopwatch>();
+        timer.Stop();
+        Logger.Info($"Load took {timer.Elapsed}");
+    }
+}
+```
+
+Every injection in the declaration must agree on one slot type. A patch that carries several values stores them in one object, as the Harmony version does. See [State slots](how-patches-work.md#state-slots) for the scoping and lifetime rules.
+
+A whole-method `At.Around` injection is the other option. It keeps the state in a plain local, which reads more naturally when the prefix and postfix are really one measurement:
 
 ```csharp
 [Patch]
@@ -588,7 +612,7 @@ IPatchHandle handle = Patcher.PatchInjection(
 
 The replacement method must take and return the literal's type. See [Replace a constant](common-tasks.md#replace-a-constant) for the declarative form.
 
-Concord has no instruction stream for other IL edits because opcode positions can move when the target changes. Head and Tail invoke injections can run before or after a field read, but they cannot replace that value. Keep a patch on Harmony if it redirects a field load, writes a field, or rewrites branches. Also keep it on Harmony for any other edit that Concord's positions cannot express. Ordinary C# locals inside an injection work. See the [roadmap](roadmap.md#more-injection-positions) for lower-level IL editing.
+Concord has no instruction stream for other IL edits because opcode positions can move when the target changes. Head and Tail invoke injections can run before or after a field read, but they cannot replace that value. Keep a patch on Harmony if it redirects a field load, writes a field, or rewrites branches. Also keep it on Harmony for any other edit that Concord's positions cannot express. Ordinary C# locals inside an injection work. See [Raw IL with transpilers](transpilers.md) for lower-level IL editing.
 
 ### Call the unpatched original
 

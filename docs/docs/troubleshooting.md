@@ -11,8 +11,8 @@ When a patch cannot compose, Concord throws a `ConcordEmitException` with a `CON
 | `CONC013` | Control or operation handle | The injection stores, captures, or passes a `ControlHandle` or `Operation` family parameter instead of using its supported calls directly. |
 | `CONC014` | Invoke-Around splice | The call-site Invoke splice uses a computed expression instead of plain injection-parameter loads. Whole-method Around does not use this splice form; its `Operation.Invoke(...)` accepts computed arguments (see `CONC107` for its own placement rule). |
 | `CONC015` | Any position | An injection method returns `Control` somewhere other than a Head injection. Return `void` at other positions. A generic `ControlHandle<T>` may still expose the target's return value at Return or Tail. |
-| `CONC031` | Invoke | The method/property call or field read you named doesn't occur in the target body. Check the declaring type and member name against the actual access. |
-| `CONC033` | Invoke | You asked for the `by`-th occurrence of an invoke site (`by` counts from 1), but fewer than `by` matches exist in the body. |
+| `CONC031` | Invoke or construction | The call, field read, or construction you named doesn't occur in the target body. Check the declaring type and member name against the actual access. A `[Slice]` narrows the search, and the message then says the declared range instead of the method body. |
+| `CONC033` | Invoke or construction | You asked for the `by`-th occurrence of a call site (`by` counts from 1), but fewer than `by` matches exist. A `[Slice]` narrows the count to the declared range, and the message says so. |
 | `CONC034` | Return | A `Return` injection found no `return` in the target body to attach to. |
 | `CONC035` | Return | You asked for the `by`-th `return` (`by` counts from 1), but the method has fewer returns than that. |
 | `CONC036` | Property target | The property has both accessors, but nothing selected its getter or setter. Write `get_Name` or `set_Name`. |
@@ -38,6 +38,14 @@ When a patch cannot compose, Concord throws a `ConcordEmitException` with a `CON
 | `CONC113` | Whole-method Around | The `Operation` handle's `Invoke(...)` call sits inside a loop. The original body can only be spliced once, so Concord rejects a loop that could re-enter the call. |
 | `CONC114` | Whole-method Around | The target is a static type initializer (`.cctor`). Type initializers have no coherent Around contract and are not supported. |
 | `CONC115` | Whole-method Around | A whole-method `Around` injection is combined with a call-site Invoke, Argument, or Constant injection on the same target. Call-site positions mutate the pre-Around spine, which does not compose with the per-copy splicing a whole-method Around performs. |
+| `CONC127` | State slot | One patch declaration puts two types in its state slot on one target. Every `SetState` and `GetState<T>` in the declaration must agree on one type. |
+| `CONC128` | Capture | A `[Capture]` parameter sits at a position that matches no call, or at `At.Around` or `At.Argument`, which already receive the call's arguments. Move it to `At.Head` or `At.Tail` of an invoke or construction injection. |
+| `CONC129` | Capture | Concord cannot tell where the captured argument finished pushing. A conditional expression in a call argument causes this. Rewrite the argument into a local before the call. |
+| `CONC130` | Capture | The capture ordinal runs past the last argument, the parameter type does not match the argument, or the matched site is a field read, which supplies no arguments. |
+| `CONC131` | Slice | The target body has no opening anchor at the requested occurrence. An anchor has to be a call or a field read, so a construction cannot serve as one. |
+| `CONC132` | Slice | The target body has no closing anchor at the requested occurrence. |
+| `CONC133` | Slice | The range is empty or inverted, so it closes at or before it opens. Check the two anchor occurrences against the body order. |
+| `CONC134` | Slice | `[Slice]` sits on a whole-method position. A range bounds a search, so it applies to invoke and construction positions only. |
 
 Each code identifies the condition Concord rejected. Read the exception message for the target and declaration details.
 

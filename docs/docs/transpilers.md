@@ -148,6 +148,8 @@ Use `At.Transpiler` unless you need to see the finished wrapper.
 
 **Expect other mods.** Other mods count occurrences with `At.Return(By:)`, `At.Constant(By:)` or an invoke injection's `By:`. If you add or remove a `ret`, a literal or a call, you shift what they count. Concord does not detect this and reports nothing. The other author sees a patch that worked yesterday and no clue why it stopped.
 
+**A `[Slice]` raises those stakes.** A slice anchors a range on two member accesses, so adding or removing one of those calls or field reads moves the whole range. Every match inside the range moves with it. Concord does not detect that either. The failure surfaces in the other mod, not in yours. Check what a new call or a deleted one does to a range before you ship the edit.
+
 **Set a priority if order matters.** When two mods transpile the same method, the order they run in is not currently stable. Set `Priority` on your `[Inject]` when your edit depends on running before or after another mod's transpiler.
 
 ## Errors
