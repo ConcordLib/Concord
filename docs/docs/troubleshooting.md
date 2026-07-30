@@ -1,8 +1,66 @@
 # Troubleshooting
 
-When a patch cannot compose, Concord throws a `ConcordEmitException` with a `CONCxxx` code. The code identifies the condition that Concord rejected. This page lists the runtime composition codes and shows how to inspect the wrapper.
+Concord reports problems at two moments, and each moment has its own code prefix.
 
-## Error codes
+The analyzer package checks your patch declarations while you build. It reports a `CONCORDxxx`
+diagnostic. The runtime checks the target method while it composes a wrapper. It throws a
+`ConcordEmitException` with a `CONCxxx` code.
+
+A build-time diagnostic is the better one to get. It names the line in your source. Fix those first.
+
+## Analyzer diagnostics
+
+Add the `Concord.Analyzers` package to get these. See [Packages](packages.md) for the reference.
+
+An error stops the build. A warning does not, but each one names a patch that behaves in a way you
+probably did not intend.
+
+| Code | Severity | What it means |
+| --- | --- | --- |
+| `CONCORD001` | Error | A bootstrap assembly hard-references Concord, the runtime adapter, MonoMod, or Mono.Cecil. A bootstrap runs before those assemblies load. Use reflection, or move the code into the runtime adapter. |
+| `CONCORD002` | Error | An `[InjectField]`, `[InjectProperty]`, or `[InjectMethod]` declaration names a member the target type does not have. |
+| `CONCORD003` | Error | An injected member declaration found its target, but the type, static form, return type, or signature differs. |
+| `CONCORD004` | Warning | The analyzer cannot resolve a string patch target, so it cannot check the declaration. Reference the target's project or assembly. |
+| `CONCORD005` | Error | An `[Inject]` names a method or constructor the target type does not have. |
+| `CONCORD006` | Error | The injection target name matches more than one overload. Pass `parameterTypes` to pick one. |
+| `CONCORD007` | Error | An injection parameter does not bind to a target parameter by name and type, or a `ControlHandle<T>` does not match the target's return type. |
+| `CONCORD008` | Error | A static target cannot use an instance declaration member or an injected target instance. |
+| `CONCORD009` | Warning | A plain field on the declaration has the same name as a target field. Plain fields become attached data. Add `[InjectField]` if you meant to reach the target's field. |
+| `CONCORD010` | Warning | Two injections declare the same target and position. |
+| `CONCORD011` | Error | The declaration member uses a form Concord does not support. |
+| `CONCORD012` | Warning | The patch target type is available at compile time. Write `typeof(Target)` instead of a string. |
+| `CONCORD013` | Warning | The target member is available at compile time. Write `nameof(Member)` instead of a string. |
+| `CONCORD014` | Warning | The declaration can inherit the target type. Derive from it and use a bare `[Patch]`, which lets C# bind the target's members for you. |
+| `CONCORD015` | Error | An injection returns `Control` at a position other than `At.Head`. Only a Head injection can decide whether the original method runs. |
+| `CONCORD016` | Error | An around-invoke `Operation` parameter does not match the shape of the matched call. |
+| `CONCORD017` | Error | An `At.Constant` or `At.Argument` injection changes the shape of the value it receives. Take and return the matched type. |
+| `CONCORD018` | Error | A constant or argument injection uses the wrong `[Inject]` constructor for its position. |
+| `CONCORD019` | Error | `At.Argument` with `arg: 0` infers the argument from the parameter type, but more than one call parameter shares that type. Pass `arg:`. |
+| `CONCORD020` | Error | The name resolves to a property that has both accessors. Write `get_Name` or `set_Name`. |
+| `CONCORD021` | Error | A `[PatchBefore]` or `[PatchAfter]` sits somewhere invalid, names an unknown owner, or conflicts with another rule. |
+| `CONCORD022` | Error | A transpiler is not `static`. A `[Patch]` declaration is abstract, so Concord can never call an instance transpiler. |
+| `CONCORD023` | Error | A transpiler has the wrong signature. It takes and returns `IEnumerable<CodeInstruction>`, with an optional second `ITranspilerContext` parameter. |
+| `CONCORD024` | Error | A transpiler reads a `[Shadow]` or injected member. Concord calls a transpiler instead of copying it, so those members are never rewritten for it. |
+| `CONCORD025` | Error | A helper, constructor, or ordinary property reads a `[Shadow]` or injected member. Concord rewrites those reads only inside the bodies it copies, so the helper reads the declaration's own member and gets `null` or a default. Pass the value in as a parameter. |
+| `CONCORD026` | Error | One declaration stores two different state types in one slot on one target. Every `SetState` and `GetState<T>` for a target must agree. |
+| `CONCORD027` | Warning | A `GetState<T>` has no matching `SetState<T>` anywhere in the declaration, so it reads back `default(T)`. |
+| `CONCORD028` | Error | A `[Capture]` parameter sits at a position that matches no call, or at `At.Around` or `At.Argument`, which already hand you the call's arguments. Move it to the `At.Head` or `At.Tail` of an invoke or construction injection. |
+| `CONCORD029` | Error | `[Slice]` sits on a position other than an invoke or a construction. A slice bounds a call search, so nothing else can use one. |
+| `CONCORD030` | Error | A `[Capture]` ordinal falls outside the matched call's arguments. The ordinal counts from 1. |
+| `CONCORD031` | Error | A declaration that extends an enum also declares an `[Inject]` or `[InjectNew]` method. Move the injections to their own `[Patch]` class. |
+| `CONCORD032` | Error | An `[EnumMember]` field is not static, or is not typed as the extended enum. Concord assigns members to static fields of that one type. |
+| `CONCORD033` | Warning | An extended enum member has an initializer Concord cannot read and overwrites at apply time. Declare the member `const` to pin its value. |
+| `CONCORD034` | Error | Two extended enum members in one assembly resolve to the same id. The id is the key Concord stores the value under, so each member needs its own. |
+| `CONCORD035` | Warning | A static constructor reads an extended enum member. That constructor can run before `Patcher.Apply` assigns the field, which reads back a zero. |
+
+Concord also ships a diagnostic suppressor. It turns off `CS0649`, `CS0169`, and `CS0414` on an
+`[InjectField]` declaration. Those warnings say the field is never assigned or never used, which is
+true of the declaration you wrote. Concord assigns and reads the real field at patch time.
+
+## Runtime error codes
+
+When a patch cannot compose, Concord throws a `ConcordEmitException` with a `CONCxxx` code. The code
+identifies the condition that Concord rejected.
 
 | Code | Where | What it means |
 | --- | --- | --- |
@@ -42,10 +100,17 @@ When a patch cannot compose, Concord throws a `ConcordEmitException` with a `CON
 | `CONC128` | Capture | A `[Capture]` parameter sits at a position that matches no call, or at `At.Around` or `At.Argument`, which already receive the call's arguments. Move it to `At.Head` or `At.Tail` of an invoke or construction injection. |
 | `CONC129` | Capture | Concord cannot tell where the captured argument finished pushing. A conditional expression in a call argument causes this. Rewrite the argument into a local before the call. |
 | `CONC130` | Capture | The capture ordinal runs past the last argument, the parameter type does not match the argument, or the matched site is a field read, which supplies no arguments. |
-| `CONC131` | Slice | The target body has no opening anchor at the requested occurrence. An anchor has to be a call or a field read, so a construction cannot serve as one. |
-| `CONC132` | Slice | The target body has no closing anchor at the requested occurrence. |
+| `CONC131` | Slice | The target body has no opening anchor at the requested occurrence, or the range names `fromType` without `fromMember` (or the reverse). An anchor is the pair. An anchor also has to be a call or a field read, so a construction cannot serve as one. |
+| `CONC132` | Slice | The target body has no closing anchor at the requested occurrence, or the range names `toType` without `toMember` (or the reverse). |
 | `CONC133` | Slice | The range is empty or inverted, so it closes at or before it opens. Check the two anchor occurrences against the body order. |
 | `CONC134` | Slice | `[Slice]` sits on a position that matches no call site. A range bounds a search, so it applies to invoke and construction positions only. |
+| `CONC135` | Extended enum | A member pins a value that is already taken on that enum. |
+| `CONC136` | Extended enum | The enum has no free value left in its underlying type. A `[Flags]` enum runs out of bits sooner, because every removed mod keeps the one it used. |
+| `CONC137` | Extended enum | A consumer method fits none of the four supported shapes. See [Extended Enums](extended-enums.md#adapter-consumers) for the table. |
+| `CONC138` | Extended enum | A declaration that extends an enum also carries an `[Inject]` or `[InjectNew]` method. |
+| `CONC139` | Extended enum | A member field is not static, or is not typed as the extended enum. |
+| `CONC140` | Extended enum | Two members resolve to the same id. |
+| `CONC141` | Extended enum | Concord could not detour one `Enum` method. It logs this and leaves the rest of the set installed. |
 
 Each code identifies the condition Concord rejected. Read the exception message for the target and declaration details.
 

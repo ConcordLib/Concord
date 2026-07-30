@@ -16,6 +16,8 @@
   href: transpilers.md
 - name: Attached Data
   href: attached-data.md
+- name: Extended Enums
+  href: extended-enums.md
 - name: Packages
   href: packages.md
 - name: Troubleshooting

@@ -842,7 +842,7 @@ A `[FreePatch]` hands you the assembly as a Cecil `ModuleDefinition` to mutate f
 
 Behavior edits migrate when they fit a supported Concord position. Head, Tail, Return, Around, Invoke, Constant, and Argument cover many common changes. Arbitrary method-body edits do not.
 
-Structural edits do not migrate. A detour cannot add real fields, implement another interface on an existing type, or change type metadata. [Enum patching](roadmap.md#enum-patching) is planned, but the other structural edits have no Concord equivalent.
+Structural edits do not migrate. A detour cannot add real fields, implement another interface on an existing type, or change type metadata. [Extended enums](extended-enums.md) cover adding members to an enum, within the limits that page lists. The other structural edits have no Concord equivalent.
 
 ## Where to go next
 
