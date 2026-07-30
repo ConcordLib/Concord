@@ -133,7 +133,15 @@ CoreLibEnumDetours.Install();
 
 It covers `Enum.GetValues`, `Enum.GetNames`, `Enum.GetName`, `Enum.IsDefined`, `Enum.Parse`, `Enum.TryParse`, and `Enum.Format`. Each detour starts with one dictionary lookup and returns at once for an enum no declaration extends.
 
-Concord measured that lookup on an enum no declaration extends. `Enum.GetName` and `Enum.IsDefined` showed no cost beyond measurement noise. `Enum.Format` added about 7 nanoseconds per call. Pass `Install(includeFormat: false)` to leave `Enum.Format` alone.
+Concord measured each detour on an enum no declaration extends, which is what an unaffected call pays:
+
+| Method | No detours | Detours installed |
+| --- | --- | --- |
+| `Enum.GetName` | 14 nanoseconds, 24 bytes | 23 nanoseconds, 56 bytes |
+| `Enum.IsDefined` | 12 nanoseconds, 24 bytes | 19 nanoseconds, 56 bytes |
+| `Enum.Format` | 9 nanoseconds, 24 bytes | 15 nanoseconds, 24 bytes |
+
+The wrapper Concord composes accounts for most of that cost, not the registry lookup. Install the set when a game reads enums through these methods. Skip it when your adapter registers a consumer for every enum in play. Pass `Install(includeFormat: false)` to leave `Enum.Format` alone.
 
 A method Concord cannot detour logs `CONC141` and leaves the rest of the set installed. `Enum.TryParse(Type, string, out object)` does not exist on .NET Framework 4.7.2, so that one always logs there.
 
