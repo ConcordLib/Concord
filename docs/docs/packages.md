@@ -1,15 +1,15 @@
 # Packages
 
-Concord publishes four NuGet packages. The package you need depends on what you are building.
+Concord publishes five NuGet packages. The package you need depends on what you are building.
 
-Use the same version for every Concord package in a project. The examples on this page use `0.7.0`.
+Use the same version for every Concord package in a project. The examples on this page use `0.14.0`.
 
 ## Choose what to reference
 
 | Project | Required | Optional |
 | --- | --- | --- |
 | A mod for a runtime that already loads Concord | `Concord.Ref` | `Concord.Analyzers` and `Concord.Generators` |
-| A runtime adapter or host | `Concord.Runtime` | None |
+| A runtime adapter or host | `Concord.Runtime` | `Concord.Harmony`, when the game ships Harmony |
 | Concord itself | The projects in the Core repository | Analyzer and generator projects as needed |
 
 Mods compile against `Concord.Ref`. The target runtime loads the implementation from `Concord.dll`, so a mod should not reference or ship `Concord.Runtime`.
@@ -24,7 +24,7 @@ Add it to the mod project:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Concord.Ref" Version="0.7.0" />
+  <PackageReference Include="Concord.Ref" Version="0.14.0" />
 </ItemGroup>
 ```
 
@@ -38,14 +38,14 @@ Patches compile and run without the analyzer or generator packages. Add either t
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Concord.Analyzers" Version="0.7.0" PrivateAssets="all" />
-  <PackageReference Include="Concord.Generators" Version="0.7.0" PrivateAssets="all" />
+  <PackageReference Include="Concord.Analyzers" Version="0.14.0" PrivateAssets="all" />
+  <PackageReference Include="Concord.Generators" Version="0.14.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 
 #### Concord.Analyzers
 
-`Concord.Analyzers` reports patch mistakes in the compiler and IDE. It checks control and operation handles, target names, injection signatures, injected members, and patch ordering when it can resolve the target from the project.
+`Concord.Analyzers` reports patch mistakes in the compiler and IDE. It checks control and operation handles, target names, injection signatures, and injected members. It also checks transpiler shape, state slots, captures, slices, and patch ordering. Each check runs when the analyzer can resolve the target from the project. [Troubleshooting](troubleshooting.md#analyzer-diagnostics) lists every diagnostic it reports.
 
 It also suppresses field-use warnings for valid `[InjectField]` declarations and suggests compiler-checked forms such as `typeof` and `nameof` when they are available.
 
@@ -112,13 +112,34 @@ If Rider still marks `using Concord;` or `[Patch]` as unresolved, reload the pro
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Concord.Runtime" Version="0.7.0" />
+  <PackageReference Include="Concord.Runtime" Version="0.14.0" />
 </ItemGroup>
 ```
 
 The package provides `net10.0`, `netstandard2.0`, and `net472` assemblies. It has no NuGet dependencies because the build folds the four runtime libraries and their MonoMod dependencies into each `Concord.dll`.
 
 The package ID is `Concord.Runtime` because the plain `Concord` ID on NuGet belongs to an unrelated package.
+
+### Concord.Harmony
+
+`Concord.Harmony` lets Concord patches share a method with Harmony patches. Add it to an adapter for
+a game that ships Harmony. A mod does not reference it.
+
+```xml
+<ItemGroup>
+  <PackageReference Include="Concord.Harmony" Version="0.14.0" />
+</ItemGroup>
+```
+
+The package holds one small assembly for `net10.0`, `netstandard2.0`, and `net472`. Concord does not
+merge it into `Concord.dll`, because it needs a `0Harmony` reference and the Concord Assembly keeps
+third-party types out of its public metadata.
+
+The package declares no NuGet dependencies. The host supplies both at run time: the target runtime
+loads `Concord.dll`, and the game loads `0Harmony`. Your adapter loads this assembly only after it
+finds a supported Harmony version. Concord's tests cover the Harmony 2.4 line.
+
+[Harmony compatibility](harmony-compatibility.md) describes what the bridge does once it loads.
 
 ## Platform support
 
@@ -149,6 +170,6 @@ The Core repository builds the runtime from four internal projects:
 | `Concord.AttachedData` | Stores attached data without changing the target type |
 | `Concord.Orchestration` | Provides `Patcher`, patch discovery, the fluent API, and apply or undo behavior |
 
-The `Concord` project merges those libraries into `Concord.dll` and packs `Concord.Runtime`. The analyzer, generator, and reference packages each have their own project under `src/`.
+The `Concord` project merges those libraries into `Concord.dll` and packs `Concord.Runtime`. The analyzer, generator, and reference packages each have their own project under `src/`. `Concord.Harmony` also lives under `src/` and packs on its own, because a host side-loads it rather than getting it from `Concord.dll`.
 
 Tests and benchmarks do not ship in any Concord package. See [Contributing](contributing.md#choose-the-right-project) for the full project map and build instructions.

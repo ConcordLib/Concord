@@ -18,7 +18,7 @@ Add `Concord.Ref` to your project file:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Concord.Ref" Version="0.7.0" />
+  <PackageReference Include="Concord.Ref" Version="0.14.0" />
 </ItemGroup>
 ```
 
@@ -37,8 +37,8 @@ Add the package reference for each tool you want. Keep `PrivateAssets="all"` so 
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Concord.Analyzers" Version="0.7.0" PrivateAssets="all" />
-  <PackageReference Include="Concord.Generators" Version="0.7.0" PrivateAssets="all" />
+  <PackageReference Include="Concord.Analyzers" Version="0.14.0" PrivateAssets="all" />
+  <PackageReference Include="Concord.Generators" Version="0.14.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 

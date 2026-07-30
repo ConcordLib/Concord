@@ -779,14 +779,14 @@ The range opens just after the opening anchor and closes just before the closing
 
 The two ordinals count over different regions. `fromBy` and `toBy` count anchors across the whole body. The injection's own `by` counts matches inside the range. That asymmetry is the point of the feature. Here `by: 1` picks the first match in the range, which is the second `PriceRules.Total` call in the method.
 
-Leave `fromType` null to open the range at the body head. Leave `toType` null to close it at the body tail.
+Leave both `fromType` and `fromMember` null to open the range at the body head. Leave both `toType` and `toMember` null to close it at the body tail. An anchor is the pair, so naming one half without the other is an error. A `fromType` with no `fromMember` reports `CONC131`, and a `toType` with no `toMember` reports `CONC132`.
 
 An anchor has to be a method call, a property accessor call, or a field read. A construction cannot serve as an anchor. Concord then reports `CONC131` or `CONC132` and says the method body does not contain the member.
 
 | Code | Means |
 | --- | --- |
-| `CONC131` | The body has no opening anchor at that occurrence |
-| `CONC132` | The body has no closing anchor at that occurrence |
+| `CONC131` | The body has no opening anchor at that occurrence, or only one half of the opening anchor was named |
+| `CONC132` | The body has no closing anchor at that occurrence, or only one half of the closing anchor was named |
 | `CONC133` | The range is empty or inverted, so it closes at or before it opens |
 | `CONC134` | `[Slice]` sits on a position that matches no call site |
 
