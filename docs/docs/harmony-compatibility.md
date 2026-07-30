@@ -1,6 +1,6 @@
 # Harmony compatibility
 
-Concord's RimWorld adapter can share a method with Harmony patches without extra setup. If Concord can't combine the patches, it logs a warning and uses its normal detour.
+Concord's RimWorld adapter can share a method with Harmony patches without extra setup. If Concord can't combine the patches, it logs a warning. It then falls back to its normal detour.
 
 The RimWorld adapter provides this support. Concord Core doesn't know about Harmony.
 
@@ -34,7 +34,7 @@ This works no matter when the Harmony patch shows up. A mod can patch a method d
 
 Concord applies its patches as soon as a mod asks for them. Earlier versions held them in a queue until mod loading finished, because that was the only way to see Harmony's startup patches in time. The hook replaced that, so the queue is gone.
 
-If Concord can't combine the two patches, it says so and stops before it touches anything. Harmony takes the method and Concord's injections don't run on it. Concord reports each method this happens to.
+If Concord can't combine the two patches, it says so. It stops before it touches anything. Harmony takes the method, so Concord's injections don't run on it. Concord reports each method this happens to.
 
 ## Setup
 
@@ -100,3 +100,5 @@ Seeing `hook-installed` and no `promote-` or `late-contention` lines means every
 [Migrating from Harmony and Prepatcher](migration.md) shows how to move an existing patch to Concord's API.
 
 [Troubleshooting](troubleshooting.md) lists the `CONCxxx` codes that Concord reports when a patch fails.
+
+[Packages](packages.md#concordharmony) covers the `Concord.Harmony` package, which an adapter for another game references to get the same bridge.

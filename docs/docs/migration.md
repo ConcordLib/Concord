@@ -1,6 +1,6 @@
 # Migrating from Harmony and Prepatcher
 
-If you already write Harmony patches or Prepatcher fields, you know what you want to do. This page shows the Harmony or Prepatcher form first, followed by Concord's declarative and imperative forms. Where Concord has no match yet, the page says so and points at the [roadmap](roadmap.md).
+If you already write Harmony patches or Prepatcher fields, you know what you want to do. This page shows the Harmony or Prepatcher form first, followed by Concord's declarative and imperative forms. Where Concord has no match yet, the page says so. It points you at the [roadmap](roadmap.md).
 
 ## From Harmony
 

@@ -56,7 +56,7 @@ Concord calls your transpiler at patch time. It does not copy it into the target
 | `opcode` | The `System.Reflection.Emit.OpCode` |
 | `operand` | The operand, or `null` |
 | `labels` | Branch targets that land on this instruction |
-| `blocks` | Exception region markers that open or close here |
+| `blocks` | Exception region markers that open or close here. See [Exception blocks](#exception-blocks) |
 
 `Is(opcode, operand)` tests both at once. Pass `null` as the operand to match any:
 
@@ -118,6 +118,58 @@ static IEnumerable<CodeInstruction> SkipWhenZero(
 
 A new label that no instruction carries is an error, and so is a branch to a label that nothing declares.
 
+## Exception blocks
+
+A `try`, `catch`, `filter`, `fault` or `finally` region is not an instruction. Concord marks each
+boundary with an `ExceptionBlock` attached to the instruction where the region opens or closes. Read
+those markers from `CodeInstruction.blocks`.
+
+| `ExceptionBlockType` | Marks |
+| --- | --- |
+| `BeginExceptionBlock` | The start of a protected region, the `try` |
+| `BeginCatchBlock` | The start of a catch handler. `catchType` holds the caught type |
+| `BeginExceptFilterBlock` | The start of a filter |
+| `BeginFaultBlock` | The start of a fault handler |
+| `BeginFinallyBlock` | The start of a finally handler |
+| `EndExceptionBlock` | The end of the innermost open region |
+
+The markers read in the order an `ILGenerator` caller writes them. Each `Begin*` marker after the
+first also closes the handler before it, so one `try/catch/finally` produces four markers.
+
+A filter takes two markers. `BeginExceptFilterBlock` opens the filter code. The `BeginCatchBlock`
+after it marks where the handler itself starts.
+
+This transpiler logs inside an existing catch handler:
+
+```csharp
+[Inject(At.Transpiler, nameof(Save))]
+static IEnumerable<CodeInstruction> LogFailure(IEnumerable<CodeInstruction> instructions)
+{
+    return new CodeMatcher(instructions)
+        .MatchStartForward(new CodeMatch(
+            i => i.blocks.Exists(b => b.blockType == ExceptionBlockType.BeginCatchBlock)))
+        .ThrowIfInvalid("catch handler")
+        .Advance(1)
+        .Insert(new CodeInstruction(OpCodes.Call, LogMethod))
+        .InstructionEnumeration();
+}
+```
+
+The match lands on the handler's first instruction, which is the one that stores the exception. The
+`Advance(1)` steps past that store, so the call runs with an empty stack.
+
+Three rules keep a rewritten region valid:
+
+**Close every region you open.** An unbalanced stream raises `CONC118` at compose time. Concord
+reports how many regions stayed open.
+
+**Watch the copy constructor.** `new CodeInstruction(other)` copies the markers too. Copying an
+instruction that carries a boundary gives you a second boundary you did not ask for.
+
+**Know where a removal sends a marker.** `RemoveInstruction` moves a marker onto the next surviving
+instruction, never onto an earlier one. Removing the last instruction in the list drops its markers,
+which surfaces as `CONC118` rather than a broken region.
+
 ## Async and iterator targets
 
 The C# compiler splits an `async` or iterator method into two methods. The one you declared becomes a stub that builds a state machine and returns the `Task` or `IEnumerable`. The body you wrote moves into the state machine's `MoveNext`.
@@ -176,6 +228,8 @@ The analyzer catches three mistakes before you run:
 | `CONCORD022` | A transpiler that is not `static` |
 | `CONCORD023` | A signature other than `IEnumerable<CodeInstruction>` in and out, with an optional `ITranspilerContext` |
 | `CONCORD024` | A transpiler body that reads a shadow field or an injected member |
+
+[Troubleshooting](troubleshooting.md#analyzer-diagnostics) lists every analyzer diagnostic.
 
 ## Migrating a Harmony transpiler
 
