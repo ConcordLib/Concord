@@ -107,3 +107,15 @@ abstract class ActorData : GameActor
 Core does not rewrite reads or writes of `BonusArmor` into `AttachedField` calls. A runtime adapter may use the registered name and type for its own integration.
 
 Use `AttachedField` when the patch needs live side storage. Use `[InjectField]` when `BonusArmor` already exists on `GameActor`. `PatchDeclarationScanner` skips static fields and fields marked `[InjectField]` when it registers attached-property metadata.
+
+### Receive declarations in an adapter
+
+`Patcher.Apply` registers every plain field it finds. A host installs its own registry to see them:
+
+```csharp
+Patcher.UseAttachedPropertyRegistry(new MyRegistry());
+```
+
+`MyRegistry` implements `IAttachedPropertyRegistry`. Concord calls `RegisterAttachedProperty(baseType, name, valueType)` once per declared field, for every assembly passed to `Patcher.Apply`.
+
+Install the registry before the first `Patcher.Apply` call. Declarations registered before it is installed go to the default store, which nothing reads, and are lost.
