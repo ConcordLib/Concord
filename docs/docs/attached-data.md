@@ -39,6 +39,12 @@ if (!BonusArmor.TryGet(actor, out int armor))
 }
 ```
 
+Use `GetOrAddRef` when the value is updated in place. It creates the entry with `default(TValue)` when the target has no entry, then returns a reference to it:
+
+```csharp
+BonusArmor.GetOrAddRef(actor) += 5;
+```
+
 Calling `Set(actor, 0)` keeps an entry in the table. `TryGet` then returns `true` with the value `0`. `AttachedField` has no method that removes one entry by hand.
 
 ### Use it inside a patch
@@ -74,7 +80,9 @@ Disposing a patch handle removes its injections. It does not clear a static `Att
 
 ### Persistence
 
-Core keeps attached values in memory. It does not write them to a save file or restore them after a reload. A runtime adapter may provide save support for its own object model, but `AttachedField` has no persistence API.
+Core keeps attached values in memory. It does not write them to a save file or restore them after a reload. `AttachedField` has no persistence API.
+
+An `[Attached]` field is different: Core hands its storage to the runtime adapter, and an adapter that supports save files persists it. See [Attached fields on patch declarations](#attached-fields-on-patch-declarations).
 
 ### Cost and concurrency
 
@@ -86,36 +94,51 @@ Each `Get`, `Set`, or `TryGet` performs a table lookup. Store the result in a lo
 
 | You need to | Use |
 | --- | --- |
-| Store new state for each target instance | `AttachedField<TTarget, TValue>` |
+| Store new state for each target instance, written as a normal field | `[Attached]` on a field of the patch declaration |
+| Store new state from code that is not a patch | `AttachedField<TTarget, TValue>` |
 | Read or write a real field already declared on the target type | `[InjectField]` |
-| Declare attached-property metadata for a runtime adapter | A plain instance field on the patch declaration |
 
 If the project references `Concord.Generators`, `[Shadow("fieldName")]` can generate the typed `[InjectField]` declaration on a partial patch class, as shown in [Generate private member declarations](common-tasks.md#generate-private-member-declarations).
 
-### Plain fields on patch declarations
+### Attached fields on patch declarations
 
-The declaration scanner registers plain instance fields as attached-property metadata:
+Mark a field `[Attached]` to give every target instance its own copy of that field. The target type does not declare it, so Concord stores it in a side table and rewrites each access:
 
 ```csharp
 [Patch]
-abstract class ActorData : GameActor
+abstract class ActorArmor : GameActor
 {
+    [Attached]
     public int BonusArmor;
+
+    [Inject(At.Tail, nameof(TakeDamage))]
+    private void AfterTakeDamage(int amount)
+    {
+        BonusArmor += amount;
+    }
 }
 ```
 
-Core does not rewrite reads or writes of `BonusArmor` into `AttachedField` calls. A runtime adapter may use the registered name and type for its own integration.
+`BonusArmor += amount` compiles to a normal field access. At patch time Concord lowers the read to `AttachedStorage.Get`, the write to `AttachedStorage.Set`, and a `ref` to `AttachedStorage.GetOrAddRef`. The value starts at `default(TValue)` for each instance, and it goes away when that instance is collected.
 
-Use `AttachedField` when the patch needs live side storage. Use `[InjectField]` when `BonusArmor` already exists on `GameActor`. `PatchDeclarationScanner` skips static fields and fields marked `[InjectField]` when it registers attached-property metadata.
+Rules for an `[Attached]` field:
+
+- It must be an instance field. A static field on a declaration is just a static field; leave it unmarked.
+- The target type must be a reference type. Attached state is keyed by instance identity.
+- The target type must not already declare a field of that name. That case is a shadow field, so drop the attribute.
+
+A field that matches nothing on the target and carries no attribute is an error, `CONC003`. Concord cannot tell whether you meant to shadow a field, attach a new one, or misspelled a name, so it asks.
+
+Persistence is the adapter's call. A runtime adapter that supports save files writes the field into the save and reads it back; a runtime with no save support keeps it in memory. An adapter decides which target types it can reach, so check its documentation before you rely on a field being saved. It warns at startup when it cannot save one.
 
 ### Receive declarations in an adapter
 
-`Patcher.Apply` registers every plain field it finds. A host installs its own registry to see them:
+`Patcher.Apply` registers every `[Attached]` field it finds. A host installs its own registry to see them:
 
 ```csharp
 Patcher.UseAttachedPropertyRegistry(new MyRegistry());
 ```
 
-`MyRegistry` implements `IAttachedPropertyRegistry`. Concord calls `RegisterAttachedProperty(baseType, name, valueType)` once per declared field, for every assembly passed to `Patcher.Apply`.
+`MyRegistry` implements `IAttachedPropertyRegistry`. Concord calls `RegisterAttachedProperty(baseType, name, valueType, slot)` once per declared field, for every assembly passed to `Patcher.Apply`. The `slot` is the same storage the patched code reads and writes, so an adapter that saves the value writes back through it on load.
 
 Install the registry before the first `Patcher.Apply` call. Declarations registered before it is installed go to the default store, which nothing reads, and are lost.

@@ -740,7 +740,7 @@ Runtime composition errors include a `CONCxxx` code listed in [Troubleshooting](
 
 Prepatcher can add real fields by rewriting a target assembly before normal game code runs. Concord changes live method behavior and does not change a type's layout. Code that used `[PrepatcherField]` therefore needs side storage instead of another real field.
 
-### Injected fields become attached data
+### Injected fields become attached fields
 
 The Prepatcher accessor:
 
@@ -749,29 +749,34 @@ The Prepatcher accessor:
 public static extern ref int MyCounter(this GameActor target);
 ```
 
-becomes an `AttachedField` keyed by the target instance. Add `using Concord.AttachedData;`:
+becomes a field on the patch declaration, marked `[Attached]`:
 
 ```csharp
 [Patch]
 abstract class ActorExtensions : GameActor
 {
-    private static readonly AttachedField<GameActor, int> MyCounter = new();
+    [Attached]
+    private int myCounter;
 
     [Inject(At.Tail, nameof(TakeDamage))]
     private void AfterTakeDamage()
     {
-        MyCounter.Set(this, MyCounter.Get(this) + 1);
+        myCounter += 1;
     }
 }
 ```
 
-The same table also works outside an injection:
+`myCounter` reads and writes like an ordinary field. Concord rewrites each access into a lookup in a table keyed by the instance, so `GameActor` itself never changes.
+
+Outside a patch, where there is no declaration to hang the attribute on, use `AttachedField<TTarget, TValue>` directly. Add `using Concord.AttachedData;`:
 
 ```csharp
-MyCounter.Set(actor, MyCounter.Get(actor) + 1);
+private static readonly AttachedField<GameActor, int> MyCounter = new();
+
+MyCounter.GetOrAddRef(actor) += 1;
 ```
 
-`Get` returns `default(TValue)` when you haven't stored anything. `TryGet` tells you whether an entry exists.
+`Get` returns `default(TValue)` when you haven't stored anything. `TryGet` tells you whether an entry exists. `GetOrAddRef` returns a `ref`, which is the closest match for Prepatcher's `ref` accessor.
 
 ### A real field versus a side table
 
@@ -780,15 +785,15 @@ Don't treat the swap as one-to-one. The two models differ in ways that can matte
 | | Prepatcher injected field | Concord attached data |
 | --- | --- | --- |
 | Storage | a real field, added by assembly rewrite | a weak table keyed by instance |
-| Access cost | plain field access | table lookup |
+| Access cost | plain field access | table lookup per read or write |
 | Lifetime | collected with the instance | collected with the instance |
-| Visible to | discoverable through target metadata and reflection | only code that can reach the `AttachedField` instance |
+| Visible to | discoverable through target metadata and reflection | the declaring patch, and any host the adapter exposes it to |
 | Patch disposal | field remains on the rewritten type | stored entries are not cleared when a patch handle is disposed |
-| Persistence | depends on the target runtime | memory-only in Core; a runtime adapter may add persistence |
+| Persistence | depends on the target runtime | memory-only in Core; an adapter may save `[Attached]` fields |
 
-An attached value needs a table lookup. Cache it in a local when one injection reads it several times. Concord cannot provide real-field access speed without changing the target type.
+An attached value needs a table lookup on every read and write, even though the source reads like a field. Cache it in a local when one injection touches it several times. Concord cannot match real-field speed without changing the target type.
 
-A Prepatcher field is visible through reflection on the target type. Attached data is visible only to code that can reach the table object.
+A Prepatcher field is visible through reflection on the target type. An attached field is not on the type at all, so reflection over `GameActor` will never show it.
 
 ### Default values and initializers
 

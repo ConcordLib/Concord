@@ -1050,25 +1050,40 @@ Useful when an injection needs to compare patched behavior against the target's 
 
 ## Attached data
 
-### Use attached data from a patch
+### Add per-instance state to a target
 
-Add `using Concord.AttachedData;`, then use `AttachedField<TTarget, TValue>` when a patch needs per-instance data that is not a real field on the target type:
+Mark a field on the declaration `[Attached]`. The target type does not declare it, so Concord stores it beside each instance and rewrites every read and write for you:
 
 ```csharp
 [Patch]
 abstract class ActorExtensions : GameActor
 {
-    private static readonly AttachedField<GameActor, int> CustomHealth = new();
+    [Attached]
+    private int customHealth;
 
     [Inject(At.Tail, nameof(TakeDamage))]
     private void AfterTakeDamage()
     {
-        if (CustomHealth.Get(this) < 0)
+        if (customHealth < 0)
         {
-            CustomHealth.Set(this, 0);
+            customHealth = 0;
         }
     }
 }
 ```
 
-The static `AttachedField` owns a weak table keyed by each `GameActor`. Its values stay in memory while their target objects are alive. Core does not save them. See [Attached Data](attached-data.md) for `Get`, `Set`, `TryGet`, and persistence details.
+Each `GameActor` gets its own `customHealth`, starting at `default(int)`. The value goes away when the actor does. A runtime adapter that supports save files may persist it.
+
+### Use attached data from outside a patch
+
+`AttachedField<TTarget, TValue>` is the same storage without the declaration. Add `using Concord.AttachedData;` and keep it in a static field:
+
+```csharp
+private static readonly AttachedField<GameActor, int> CustomHealth = new();
+
+CustomHealth.Set(actor, 0);
+int health = CustomHealth.Get(actor);
+CustomHealth.GetOrAddRef(actor) += 1;
+```
+
+The table is weak-keyed, so values stay in memory while their target objects are alive and Core never saves them. See [Attached Data](attached-data.md) for `Get`, `Set`, `TryGet`, `GetOrAddRef`, and persistence details.

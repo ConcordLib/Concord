@@ -138,7 +138,7 @@ abstract class SealedEntityPatch
 
 Concord reports `CONC071` when it cannot find an injected member. It reports `CONC072` when the declaration has the wrong type, static form, return type, or signature.
 
-The declaration scanner records plain instance fields without `[InjectField]` as attached-property metadata. Concord Core does not turn reads and writes of those fields into side-table access. Use `AttachedField<TTarget, TValue>` for live [side storage](attached-data.md).
+The declaration scanner records every `[Attached]` instance field and reports it to the runtime adapter. Concord rewrites each read and write of one into side-table access, so the field reads like a normal field and stores per instance. See [Attached Data](attached-data.md). A field that is neither `[Attached]` nor `[InjectField]` and matches nothing on the target is rejected with `CONC003`.
 
 `Concord.Analyzers` checks patch declarations when it can resolve the target type. It catches missing members and bad signatures before runtime. It also checks overloads, control handles, static targets, and duplicate injections. Assembly-qualified string targets work when a project reference exposes the target assembly.
 
