@@ -129,7 +129,7 @@ Rules for an `[Attached]` field:
 
 A field that matches nothing on the target and carries no attribute is an error, `CONC003`. Concord cannot tell whether you meant to shadow a field, attach a new one, or misspelled a name, so it asks.
 
-Persistence is the adapter's call. A runtime adapter that supports save files writes the field into the save and reads it back; a runtime with no save support keeps it in memory. An adapter decides which target types it can reach, so check its documentation before you rely on a field being saved. It warns at startup when it cannot save one.
+Persistence is the adapter's call. An adapter that supports save files writes the field into the save and reads it back. One with no save support keeps the value in memory. Each adapter also decides which target types it can reach. Check its documentation before you rely on a field being saved. It warns at startup when it cannot save one.
 
 ### Receive declarations in an adapter
 

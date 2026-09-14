@@ -65,7 +65,7 @@ identifies the condition that Concord rejected.
 | Code | Where | What it means |
 | --- | --- | --- |
 | `CONC002` | Implicit field mapping | A declaration field collides by name with a target field, but its type or static form differs. Match the target field exactly, or rename the declaration field. |
-| `CONC003` | Declaration field | A declaration field matches nothing on the target and Concord cannot tell what you meant. Mark it `[Attached]` for new per-instance state, or `[InjectField("name")]` when it shadows a target field under another name. Also raised when `[Attached]` sits on a static field, on a field the target already declares, on an open generic type, or when the target is a value type. |
+| `CONC003` | Declaration field | A declaration field matches nothing on the target. Mark it `[Attached]` for new per-instance state. Use `[InjectField("name")]` when it shadows a target field under another name. Concord also raises this code when `[Attached]` sits on a static field, on a field the target already declares, or on an open generic type. The same goes for a value-type target. |
 | `CONC004` | Attached field | An `[Attached]` field was accessed in a form Concord cannot rewrite, such as a static load. Attached state is per instance. |
 | `CONC012` | Head | A non-`void` Head injection can cancel the target but never assigns `ReturnValue`. A skipped method still needs a result. |
 | `CONC013` | Control or operation handle | The injection stores, captures, or passes a `ControlHandle` or `Operation` family parameter instead of using its supported calls directly. |
@@ -89,7 +89,7 @@ identifies the condition that Concord rejected.
 | `CONC073` | Injected member declaration | An injected member declaration resolves ambiguously. Rename the declaration target or use a more specific signature. |
 | `CONC074` | Injected instance | `[InjectInstance]` does not support this target, such as a static method or value-type target. |
 | `CONC106` | Tail | A Tail injection found no return in the target body. |
-| `CONC107` | Whole-method Around | The `Operation` handle's `Invoke(...)` call sits mid-expression on a target with exception handlers. Splicing the original body clears the evaluation stack on any protected-region exit, so `Invoke(...)` must appear only as a statement, a direct assignment, or a direct return. |
+| `CONC107` | Whole-method Around | The `Operation` handle's `Invoke(...)` call sits mid-expression on a target with exception handlers. Splicing the original body clears the evaluation stack on any protected-region exit. Write `Invoke(...)` as a statement, a direct assignment, or a direct return. |
 | `CONC108` | Whole-method Around | The target has a `ref`/`out`/`in` (byref) parameter. Byref parameters are not supported by the `Operation` handle. |
 | `CONC109` | Whole-method Around | The target has a pointer, function pointer, or byref-like parameter or return type (or returns by reference). These are not supported by the `Operation` handle. |
 | `CONC110` | Whole-method Around | The target is an `async` method or an iterator whose body compiles to a state machine. State-machine methods are not supported by the `Operation` handle; patch at Head instead. |
@@ -101,7 +101,7 @@ identifies the condition that Concord rejected.
 | `CONC127` | State slot | One patch declaration puts two types in its state slot on one target. Every `SetState` and `GetState<T>` in the declaration must agree on one type. |
 | `CONC128` | Capture | A `[Capture]` parameter sits at a position that matches no call, or at `At.Around` or `At.Argument`, which already receive the call's arguments. Move it to `At.Head` or `At.Tail` of an invoke or construction injection. |
 | `CONC129` | Capture | Concord cannot tell where the captured argument finished pushing. A conditional expression in a call argument causes this. Rewrite the argument into a local before the call. |
-| `CONC130` | Capture | The capture ordinal runs past the last argument, the parameter type does not match the argument, or the matched site is a field read, which supplies no arguments. |
+| `CONC130` | Capture | The capture ordinal runs past the last argument, or the parameter type does not match the argument. The matched site can also be a field read, which supplies no arguments. |
 | `CONC131` | Slice | The target body has no opening anchor at the requested occurrence, or the range names `fromType` without `fromMember` (or the reverse). An anchor is the pair. An anchor also has to be a call or a field read, so a construction cannot serve as one. |
 | `CONC132` | Slice | The target body has no closing anchor at the requested occurrence, or the range names `toType` without `toMember` (or the reverse). |
 | `CONC133` | Slice | The range is empty or inverted, so it closes at or before it opens. Check the two anchor occurrences against the body order. |
