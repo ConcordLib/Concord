@@ -50,8 +50,8 @@ If the hook can't install, Concord falls back to how it worked before. It checks
 
 Concord rejects a few patch patterns because combining them with Harmony could break the method:
 
-- **Methods with Harmony 2.4 inner patches.** Inner prefixes and postfixes target code inside another patch's replacement. Concord can't combine those patches with its own injections.
-- **Shared reference-type generic methods.** `Box<string>.Get` may share one compiled method body with every reference-type `Box<T>`. A wrapper for one type could affect the others. Concord rejects that patch. Value-type cases such as `Box<int>.Get` have their own compiled bodies and work.
+- **Inner patches that count call sites.** Harmony inner patches (infixes) run after every transpiler and find their call site by position among the calls to one method. Concord rejects a transpiler injection on that method, or an injection whose body calls the inner method, because either one changes the count. Head, Tail, Around, and Invoke injections that never call the inner method work. Concord also rejects inner patches on fields, constructors, and constants, and inner finalizers. Harmony 2.4.2 doesn't run inner patches yet. Harmony 3 does.
+- **Shared reference-type generic methods that Concord can't guard.** `Box<string>.Get` shares one compiled body with every reference-type `Box<T>`. Concord composes every patched instantiation into one wrapper and guards each injection by receiver type, so `Box<string>` and `Box<Version>` each run their own patch. Concord can only guard by receiver, so it still rejects static methods on a generic type, generic methods, and generic struct receivers. It also rejects positions other than Head and Tail, and bodies that read the type argument.
 
 Concord uses its normal detour and logs a warning in these cases because bridge code may break the game.
 
