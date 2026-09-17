@@ -113,6 +113,7 @@ identifies the condition that Concord rejected.
 | `CONC139` | Extended enum | A member field is not static, or is not typed as the extended enum. |
 | `CONC140` | Extended enum | Two members resolve to the same id. |
 | `CONC141` | Extended enum | Concord could not detour one `Enum` method. It logs this and leaves the rest of the set installed. |
+| `CONC143` | Transpiler | A transpiler added a call to `Assembly.GetExecutingAssembly()`. Under Harmony that call returns the target assembly instead of the injection assembly. Use `typeof(YourType).Assembly` instead. |
 
 Each code identifies the condition Concord rejected. Read the exception message for the target and declaration details.
 

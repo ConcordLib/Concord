@@ -50,11 +50,8 @@ If the hook can't install, Concord falls back to how it worked before. It checks
 
 Concord rejects a few patch patterns because combining them with Harmony could break the method:
 
-- **Constructor `Around` injections.** A whole-method `Around` needs a complete object before it can wrap the constructor call. Harmony's constructor patch doesn't promise that state.
 - **Methods with Harmony 2.4 inner patches.** Inner prefixes and postfixes target code inside another patch's replacement. Concord can't combine those patches with its own injections.
-- **Async and iterator methods with the wrong entry method.** Concord must patch the generated state-machine method instead of the method you see in source, and it stops if it receives the wrong one.
 - **Shared reference-type generic methods.** `Box<string>.Get` may share one compiled method body with every reference-type `Box<T>`. A wrapper for one type could affect the others. Concord rejects that patch. Value-type cases such as `Box<int>.Get` have their own compiled bodies and work.
-- **Injection code that calls `Assembly.GetExecutingAssembly()`.** Harmony changes that call to return the target's assembly, so code that expects the injection assembly would get the wrong result.
 
 Concord uses its normal detour and logs a warning in these cases because bridge code may break the game.
 
