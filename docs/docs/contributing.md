@@ -121,7 +121,7 @@ The site follows the [Google developer documentation style guide](https://develo
 for vocabulary and structure. On top of that it applies the mechanical rules of ASD-STE100:
 
 - Keep sentences to 25 words or fewer.
-- Use active voice. Name who does the action, usually Concord or the reader.
+- Use active voice. Name who does the action, usually Concord, or the reader.
 - Give one instruction per sentence.
 - Use no em dashes or en dashes.
 

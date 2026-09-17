@@ -212,7 +212,7 @@ Transpiler failures raise `ConcordEmitException`. The code is at the front of th
 | --- | --- |
 | `CONC116` | The method is not static, or its signature is wrong |
 | `CONC117` | Your transpiler threw, or returned `null` |
-| `CONC118` | The stream has a bad label, local, opcode or exception block |
+| `CONC118` | The stream has a bad label, local, opcode, or exception block |
 | `CONC119` | The rewritten body is not valid IL |
 | `CONC120` | A `CodeMatcher` pattern found no match |
 | `CONC121` | `GetLocal` got a slot index past the end of the locals |
