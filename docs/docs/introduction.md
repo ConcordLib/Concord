@@ -2,7 +2,7 @@
 
 Concord changes method behavior in a running target process. A mod supplies a C# patch, and Concord runs it at the selected point in the target method. Concord does not modify the target assembly on disk.
 
-Say the target has a method like this:
+Say the target type has a method like this:
 
 ```csharp
 public class ShopItem
@@ -20,7 +20,7 @@ You write patch declarations in C#. Concord handles the generated wrapper and ru
 
 ## Start with the authoring packages
 
-When you author a mod, reference `Concord.Ref`, not the Concord Assembly (`Concord.dll`). The ref package gives the compiler and Rider/Visual Studio the Concord API surface, while the target runtime supplies the Concord Assembly.
+When you author a mod, reference `Concord.Ref`, not the Concord Assembly (`Concord.dll`). The ref package gives the compiler and Rider/Visual Studio the Concord API surface, while the runtime adapter supplies the Concord Assembly.
 
 Add `Concord.Analyzers` for build checks and `Concord.Generators` for generated patch registries, shadow members, and IDE refactorings. Both are build-time tools, so keep them private to your project:
 
@@ -32,7 +32,7 @@ Add `Concord.Analyzers` for build checks and `Concord.Generators` for generated 
 </ItemGroup>
 ```
 
-These packages catch authoring errors during the build and generate the code Concord needs without adding a runtime implementation to your mod. The target runtime provides that implementation through the Concord Assembly.
+These packages catch authoring errors during the build and generate the code Concord needs without adding a runtime implementation to your mod. The runtime adapter provides that implementation through the Concord Assembly.
 
 ## Prerequisites
 

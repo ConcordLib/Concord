@@ -20,7 +20,7 @@ probably did not intend.
 | `CONCORD001` | Error | A bootstrap assembly hard-references Concord, the runtime adapter, MonoMod, or Mono.Cecil. A bootstrap runs before those assemblies load. Use reflection, or move the code into the runtime adapter. |
 | `CONCORD002` | Error | An `[InjectField]`, `[InjectProperty]`, or `[InjectMethod]` declaration names a member the target type does not have. |
 | `CONCORD003` | Error | An injected member declaration found its target, but the type, static form, return type, or signature differs. |
-| `CONCORD004` | Warning | The analyzer cannot resolve a string patch target, so it cannot check the declaration. Reference the target's project or assembly. |
+| `CONCORD004` | Warning | The analyzer cannot resolve a string patch target, so it cannot check the declaration. Reference the target assembly's project or package. |
 | `CONCORD005` | Error | An `[Inject]` names a method or constructor the target type does not have. |
 | `CONCORD006` | Error | The injection target name matches more than one overload. Pass `parameterTypes` to pick one. |
 | `CONCORD007` | Error | An injection parameter does not bind to a target parameter by name and type, or a `ControlHandle<T>` does not match the target's return type. |
@@ -42,7 +42,7 @@ probably did not intend.
 | `CONCORD023` | Error | A transpiler has the wrong signature. It takes and returns `IEnumerable<CodeInstruction>`, with an optional second `ITranspilerContext` parameter. |
 | `CONCORD024` | Error | A transpiler reads a `[Shadow]` or injected member. Concord calls a transpiler instead of copying it, so those members are never rewritten for it. |
 | `CONCORD025` | Error | A helper, constructor, or ordinary property reads a `[Shadow]` or injected member. Concord rewrites those reads only inside the bodies it copies, so the helper reads the declaration's own member and gets `null` or a default. Pass the value in as a parameter. |
-| `CONCORD026` | Error | One declaration stores two different state types in one slot on one target. Every `SetState` and `GetState<T>` for a target must agree. |
+| `CONCORD026` | Error | One declaration stores two different state types in one slot on one target. Every `SetState` and `GetState<T>` for a target method must agree. |
 | `CONCORD027` | Warning | A `GetState<T>` has no matching `SetState<T>` anywhere in the declaration, so it reads back `default(T)`. |
 | `CONCORD028` | Error | A `[Capture]` parameter sits at a position that matches no call, or at `At.Around` or `At.Argument`, which already hand you the call's arguments. Move it to the `At.Head` or `At.Tail` of an invoke or construction injection. |
 | `CONCORD029` | Error | `[Slice]` sits on a position other than an invoke or a construction. A slice bounds a call search, so nothing else can use one. |
@@ -52,6 +52,16 @@ probably did not intend.
 | `CONCORD033` | Warning | An extended enum member has an initializer Concord cannot read and overwrites at apply time. Declare the member `const` to pin its value. |
 | `CONCORD034` | Error | Two extended enum members in one assembly resolve to the same id. The id is the key Concord stores the value under, so each member needs its own. |
 | `CONCORD035` | Warning | A static constructor reads an extended enum member. That constructor can run before `Patcher.Apply` assigns the field, which reads back a zero. |
+
+The `[Shadow]` source generator reports its own `CONC1xx` codes at build time:
+
+| Code | Severity | What it means |
+| --- | --- | --- |
+| `CONC100` | Error | The target type has no member with the shadowed name. |
+| `CONC101` | Error | The shadowed name matches more than one overload. Pass parameter types on `[Shadow]`. |
+| `CONC102` | Error | A class that uses `[Shadow]` is not `partial`, so the generator has nowhere to put the members. |
+| `CONC103` | Warning | The declaration's target type cannot be resolved at compile time, so shadow generation is skipped. |
+| `CONC105` | Error | The member cannot be shadowed. The message says why. |
 
 Concord also ships a diagnostic suppressor. It turns off `CS0649`, `CS0169`, and `CS0414` on an
 `[InjectField]` declaration. Those warnings say the field is never assigned or never used, which is
@@ -65,7 +75,7 @@ identifies the condition that Concord rejected.
 | Code | Where | What it means |
 | --- | --- | --- |
 | `CONC002` | Implicit field mapping | A declaration field collides by name with a target field, but its type or static form differs. Match the target field exactly, or rename the declaration field. |
-| `CONC003` | Declaration field | A declaration field matches nothing on the target. Mark it `[Attached]` for new per-instance state. Use `[InjectField("name")]` when it shadows a target field under another name. Concord also raises this code when `[Attached]` sits on a static field, on a field the target already declares, or on an open generic type. The same goes for a value-type target. |
+| `CONC003` | Declaration field | A declaration field matches nothing on the target type. Mark it `[Attached]` for new per-instance state. Use `[InjectField("name")]` when it shadows a target field under another name. Concord also raises this code when `[Attached]` sits on a static field, on a field the target already declares, or on an open generic type. The same goes for a value-type target. |
 | `CONC004` | Attached field | An `[Attached]` field was accessed in a form Concord cannot rewrite, such as a static load. Attached state is per instance. |
 | `CONC012` | Head | A non-`void` Head injection can cancel the target but never assigns `ReturnValue`. A skipped method still needs a result. |
 | `CONC013` | Control or operation handle | The injection stores, captures, or passes a `ControlHandle` or `Operation` family parameter instead of using its supported calls directly. |
@@ -88,7 +98,7 @@ identifies the condition that Concord rejected.
 | `CONC072` | Injected member declaration | An injected member has the wrong type, static form, return type, or signature. This code also covers an `[InjectInstance]` property that cannot receive the target type. |
 | `CONC073` | Injected member declaration | An injected member declaration resolves ambiguously. Rename the declaration target or use a more specific signature. |
 | `CONC074` | Injected instance | `[InjectInstance]` does not support this target, such as a static method or value-type target. |
-| `CONC106` | Tail | A Tail injection found no return in the target body. |
+| `CONC106` | Tail | A Tail injection found no `return` in the target body, so the method always throws or never exits. Use `At.Finally` to run when the method exits by any path, or `At.Head`. |
 | `CONC107` | Whole-method Around | The `Operation` handle's `Invoke(...)` call sits mid-expression on a target with exception handlers. Splicing the original body clears the evaluation stack on any protected-region exit. Write `Invoke(...)` as a statement, a direct assignment, or a direct return. |
 | `CONC108` | Whole-method Around | The target has a `ref`/`out`/`in` (byref) parameter. Byref parameters are not supported by the `Operation` handle. |
 | `CONC109` | Whole-method Around | The target has a pointer, function pointer, or byref-like parameter or return type (or returns by reference). These are not supported by the `Operation` handle. |
@@ -98,7 +108,18 @@ identifies the condition that Concord rejected.
 | `CONC113` | Whole-method Around | The `Operation` handle's `Invoke(...)` call sits inside a loop. The original body can only be spliced once, so Concord rejects a loop that could re-enter the call. |
 | `CONC114` | Whole-method Around | The target is a static type initializer (`.cctor`). Type initializers have no coherent Around contract and are not supported. |
 | `CONC115` | Whole-method Around | A whole-method `Around` injection is combined with a call-site Invoke, Argument, or Constant injection on the same target. Call-site positions mutate the pre-Around spine, which does not compose with the per-copy splicing a whole-method Around performs. |
-| `CONC127` | State slot | One patch declaration puts two types in its state slot on one target. Every `SetState` and `GetState<T>` in the declaration must agree on one type. |
+| `CONC116` | Transpiler | A transpiler is not `static`, returns something other than `IEnumerable<CodeInstruction>`, or takes the wrong parameters. Concord also raises it for an injection position it does not support and for an `ITranspilerContext` it did not create. |
+| `CONC117` | Transpiler | The transpiler returned `null` or threw. The message carries the exception. |
+| `CONC118` | Transpiler write-back | The transpiler emitted instructions Concord cannot write back: an unknown opcode, an operand type it cannot emit, a type, field, or method it cannot resolve, a label or local no instruction owns, or unbalanced exception blocks. The message names the transpiler and the target method. |
+| `CONC119` | Transpiler write-back | Cecil rejected the method body the transpiler produced. The message carries Cecil's reason. |
+| `CONC120` | CodeMatcher | A `CodeMatcher` was read while invalid, or a `CodeMatch` has a null predicate. Call `ThrowIfInvalid` or check `IsValid` before reading `Instruction`. |
+| `CONC121` | Transpiler | A local slot a transpiler refers to is out of range for the body. |
+| `CONC122` | Async / iterator | The injection set `PatchBody.StateMachine`, so it composes onto the generated `MoveNext`, but its handle is typed against the declared return type. Type the handle against `MoveNext`'s return type, or use `PatchBody.Declared`. |
+| `CONC123` | Async / iterator | The injection targets an `async` method or iterator whose body was compiled into a generated `MoveNext`. The method you named only builds the state machine. Set `Body = PatchBody.StateMachine` to reach the body as written. |
+| `CONC124` | Harmony bridge | The coexistence bridge cannot convert a `calli` instruction. Harmony stores its operand as `InlineSignature`, whose constructor is internal. |
+| `CONC125` | Harmony bridge | The bridge met an exception block kind it does not recognize, on either side. |
+| `CONC126` | Injected field | An `[InjectField]` declared as `object` against a value-type target field is boxed on every access, so its address cannot be taken. Read it into a local first. |
+| `CONC127` | State slot | One patch declaration puts two types in its state slot on one target method. Every `SetState` and `GetState<T>` in the declaration must agree on one type. |
 | `CONC128` | Capture | A `[Capture]` parameter sits at a position that matches no call, or at `At.Around` or `At.Argument`, which already receive the call's arguments. Move it to `At.Head` or `At.Tail` of an invoke or construction injection. |
 | `CONC129` | Capture | Concord cannot tell where the captured argument finished pushing. A conditional expression in a call argument causes this. Rewrite the argument into a local before the call. |
 | `CONC130` | Capture | The capture ordinal runs past the last argument, or the parameter type does not match the argument. The matched site can also be a field read, which supplies no arguments. |
@@ -113,9 +134,10 @@ identifies the condition that Concord rejected.
 | `CONC139` | Extended enum | A member field is not static, or is not typed as the extended enum. |
 | `CONC140` | Extended enum | Two members resolve to the same id. |
 | `CONC141` | Extended enum | Concord could not detour one `Enum` method. It logs this and leaves the rest of the set installed. |
+| `CONC142` | State slot | Concord bug. An injection that calls `SetState` or `GetState` has no state slot. Nothing in the declaration causes this; report it with the declaration. |
 | `CONC143` | Transpiler | A transpiler added a call to `Assembly.GetExecutingAssembly()`. Under Harmony that call returns the target assembly instead of the injection assembly. Use `typeof(YourType).Assembly` instead. |
 
-Each code identifies the condition Concord rejected. Read the exception message for the target and declaration details.
+Each code identifies the condition Concord rejected. Read the exception message for the target method and declaration details.
 
 ## Seeing the composed wrapper
 
@@ -136,7 +158,7 @@ abstract class PricePatch : ShopItem
 }
 ```
 
-When `Patcher.Apply` applies the declaration, Concord appends the composed wrapper IL to `Concord.PatchDebug.log` on the current user's desktop. Each entry names the target and includes every patch active on that target at that point. The newest entry is at the bottom of the file.
+When `Patcher.Apply` applies the declaration, Concord appends the composed wrapper IL to `Concord.PatchDebug.log` on the current user's desktop. Each entry names the target method and includes every patch active on it at that point. The newest entry is at the bottom of the file.
 
 Remove `[PatchDebug]` when you finish troubleshooting.
 

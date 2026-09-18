@@ -157,7 +157,7 @@ Treat this as a hard limitation rather than an error you can handle:
 * Concord reports no diagnostic first. The process dies while Concord composes the wrapper, which happens on apply and on any later recompose.
 * A mod cannot test for the condition ahead of time through Concord.
 
-Function-pointer locals are rare in game and mod code, so most patches never reach this. When a target does declare one, leave that method unpatched on a Mono host, and keep `delegate*` locals out of your own injection methods there. CoreCLR reads the same local without trouble, so a .NET 10 host patches that target normally.
+Function-pointer locals are rare in game and mod code, so most patches never reach this. When a target does declare one, leave that method unpatched on a Mono host, and keep `delegate*` locals out of your own injection methods there. CoreCLR reads the same local without trouble, so a .NET 10 host patches that target method normally.
 
 ## Core contributors
 

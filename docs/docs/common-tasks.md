@@ -976,7 +976,7 @@ public void TakeDamage(int amount)
 
 ### Access members on a target you cannot inherit
 
-Use an explicit target plus injected member declarations for a sealed target or any other type the patch declaration cannot extend:
+Use an explicit target type plus injected member declarations for a sealed type or any other type the patch declaration cannot extend:
 
 ```csharp
 [Patch(typeof(SealedFurnace))]

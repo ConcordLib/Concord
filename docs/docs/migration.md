@@ -33,7 +33,7 @@ abstract class PricePatch : ShopItem
 }
 ```
 
-The imperative form keeps the injection body in a helper type. `Patcher.For` selects the target, `Tail` selects the position and injection method, and `Apply` installs it:
+The imperative form keeps the injection body in a helper type. `Patcher.For` selects the target method, `Tail` selects the position and injection method, and `Apply` installs it:
 
 ```csharp
 abstract class PriceInjections : ShopItem
@@ -62,7 +62,7 @@ IPatchHandle handle = Patcher.Apply(typeof(PricePatch).Assembly);
 
 When the project references `Concord.Generators`, `Patcher.Apply` reads its generated patch registry and applies every `[Patch]` declaration together. If the assembly has no generated registry, Concord falls back to a reflection scan. The imperative builder applies only the injections added to that builder. Both forms return an `IPatchHandle`.
 
-Choose one registration form for each injection. Do not scan a declarative patch with `Patcher.Apply` and register the same method through `Patcher.For`. The shorter imperative examples below point at the preceding declaration method. In imperative-only code, remove `[Inject]`. The `[Patch]` marker is optional, but keeping it lets the analyzers check the target and its member mappings. Attributes such as `[InjectField]` stay on the helper type.
+Choose one registration form for each injection. Do not scan a declarative patch with `Patcher.Apply` and register the same method through `Patcher.For`. The shorter imperative examples below point at the preceding declaration method. In imperative-only code, remove `[Inject]`. The `[Patch]` marker is optional, but keeping it lets the analyzers check the target type and its member mappings. Attributes such as `[InjectField]` stay on the helper type.
 
 Harmony unpatches by id (`harmony.UnpatchAll("me.mymod")`). Concord unpatches either form by disposing its handle: `handle.Dispose()`.
 
@@ -226,11 +226,11 @@ IPatchHandle handle = Patcher.For<GameActor>(nameof(GameActor.TakeDamage))
 
 The declared type and static form must match the target field. On a declarative `[Patch]` type, `Concord.Analyzers` checks the mapping during the build when it can resolve the target type. An imperative-only helper is checked when Concord applies the patch.
 
-Both of these forms lean on the declaration extending the target. When it can't, the next section has the mapping.
+Both of these forms lean on the declaration extending the target type. When it can't, the next section has the mapping.
 
 ### When the declaration can't extend the target
 
-Harmony never subclasses anything, so sealed targets cost it nothing. The preceding extending form stops working, though, when the target is `sealed` or `static`. It also stops working when the target has no constructor you can reach, or is a type you can only name by string. Harmony code on a sealed target looks like every other Harmony patch, usually with `Traverse` or `AccessTools` filling the private-member gaps:
+Harmony never subclasses anything, so sealed targets cost it nothing. The preceding extending form stops working, though, when the target is `sealed` or `static`. It also stops working when the target has no constructor you can reach, or is a type you can only name by string. Harmony code on a sealed target type looks like every other Harmony patch, usually with `Traverse` or `AccessTools` filling the private-member gaps:
 
 ```csharp
 [HarmonyPatch(typeof(SealedFurnace), nameof(SealedFurnace.Tick))]
@@ -296,7 +296,7 @@ For a declarative patch, `Concord.Generators` can generate the field, property, 
 
 A few rules carry the weight Harmony's runtime lookups used to. The declaration's type and signature must match the target member exactly; a mismatch fails with `CONC072`, a missing member with `CONC071`, and an ambiguous one with `CONC073`. Unlike `___`-prefixed parameters, the declared name doesn't have to mirror the target's: `[InjectField("_fuel")] private int fuel;` maps a clean local name onto an ugly private one. For declarative patches, `Concord.Analyzers` checks these mappings at build time when it can resolve the target type. Imperative-only helpers get the same mapping checks when you apply the patch.
 
-The same pattern covers the other non-extendable cases. A `static` target class takes a `static` declaration class with static injection methods, minus `[InjectInstance]`, since there's no instance to inject. Asking for one on a static target fails with `CONC074`. A type you can't reference at compile time takes `[Patch("Some.Internal.TypeName")]` with the members declared the same way. [How patches work](how-patches-work.md#sealed-and-non-subclassable-targets) covers the mechanics.
+The same pattern covers the other non-extendable cases. A `static` target class takes a `static` declaration class with static injection methods, minus `[InjectInstance]`, since there's no instance to inject. Asking for one on a static target type fails with `CONC074`. A type you can't reference at compile time takes `[Patch("Some.Internal.TypeName")]` with the members declared the same way. [How patches work](how-patches-work.md#sealed-and-non-subclassable-targets) covers the mechanics.
 
 ### Rewrite an argument
 

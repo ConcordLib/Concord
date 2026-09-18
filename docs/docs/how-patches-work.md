@@ -103,7 +103,7 @@ The base type lets C# bind target members through its normal access rules. `[Pat
 
 ### Sealed and non-subclassable targets
 
-Use `[Patch(typeof(...))]` when the target is sealed or cannot be a base class. Injected member declarations give the patch access to the target object and its members:
+Use `[Patch(typeof(...))]` when the target type is sealed or cannot be a base class. Injected member declarations give the patch access to the target object and its members:
 
 ```csharp
 [Patch(typeof(SealedGameEntity))]
@@ -138,7 +138,7 @@ abstract class SealedEntityPatch
 
 Concord reports `CONC071` when it cannot find an injected member. It reports `CONC072` when the declaration has the wrong type, static form, return type, or signature.
 
-The declaration scanner records every `[Attached]` instance field and reports it to the runtime adapter. Concord rewrites each read and write into side-table access. The field reads like a normal field and stores one value per instance. See [Attached Data](attached-data.md). Concord rejects a field that carries neither attribute and matches nothing on the target, with `CONC003`.
+The declaration scanner records every `[Attached]` instance field and reports it to the runtime adapter. Concord rewrites each read and write into side-table access. The field reads like a normal field and stores one value per instance. See [Attached Data](attached-data.md). Concord rejects a field that carries neither attribute and matches nothing on the target type, with `CONC003`.
 
 `Concord.Analyzers` checks patch declarations when it can resolve the target type. It catches missing members and bad signatures before runtime. It also checks overloads, control handles, static targets, and duplicate injections. Assembly-qualified string targets work when a project reference exposes the target assembly.
 
@@ -198,7 +198,7 @@ Concord lowers both calls into a wrapper local, the same way it lowers `Cancel()
 
 ### Scope
 
-One patch declaration gets one slot per target. Concord keys the slot on the injection method's declaring type. Two injection methods on the same class share a slot. Two classes get two slots, even when one mod owns both.
+One patch declaration gets one slot per target method. Concord keys the slot on the injection method's declaring type. Two injection methods on the same class share a slot. Two classes get two slots, even when one mod owns both.
 
 Two mods that patch the same method cannot see each other's slot. Concord gives each declaration its own wrapper local.
 
@@ -370,9 +370,9 @@ The parameter's declared type picks between the two. Declare `ref int` and you g
 
 `At.Constant`, `[InjectNew]`, `[Slice]`, and any `At.Transpiler` edit all match compiler output. A source change can move a literal, change a construction, renumber locals, or rewrite branch instructions. Check these patches again after the target changes.
 
-## Ordering patches on one target
+## Ordering patches on one target method
 
-Concord orders injections that target the same method. A rule on one target does not affect another target.
+Concord orders injections that target the same method. A rule on one target method does not affect another target method.
 
 Without a before or after rule, `Priority` decides the order. Lower priorities run first. Concord uses apply sequence to break a tie, so the injection applied later runs first when both priorities match.
 

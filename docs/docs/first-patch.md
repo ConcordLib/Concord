@@ -60,7 +60,7 @@ public int GetWarmth()
 
 Concord doesn't modify the `Campfire` source.
 
-### Stop the original method
+### Stop the target method
 
 This patch blocks invalid fuel burns:
 

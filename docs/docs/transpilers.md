@@ -45,7 +45,7 @@ abstract class ShopPatch : Shop
 
 The method must be `static`. A `[Patch]` declaration is abstract and Concord never creates an instance of it, so an instance transpiler cannot run.
 
-Concord calls your transpiler at patch time. It does not copy it into the target the way it copies other injections. So your transpiler cannot access the declaration's `[Shadow]`, `[InjectField]`, `[InjectProperty]` or `[InjectMethod]` members. Those members are stubs that exist only as IL for Concord to copy. The analyzer rejects this at compile time.
+Concord calls your transpiler at patch time. It does not copy it into the target method the way it copies other injections. So your transpiler cannot access the declaration's `[Shadow]`, `[InjectField]`, `[InjectProperty]` or `[InjectMethod]` members. Those members are stubs that exist only as IL for Concord to copy. The analyzer rejects this at compile time.
 
 ## CodeInstruction
 
