@@ -136,6 +136,7 @@ identifies the condition that Concord rejected.
 | `CONC141` | Extended enum | Concord could not detour one `Enum` method. It logs this and leaves the rest of the set installed. |
 | `CONC142` | State slot | Concord bug. An injection that calls `SetState` or `GetState` has no state slot. Nothing in the declaration causes this; report it with the declaration. |
 | `CONC143` | Transpiler | A transpiler added a call to `Assembly.GetExecutingAssembly()`. Under Harmony that call returns the target assembly instead of the injection assembly. Use `typeof(YourType).Assembly` instead. |
+| `CONC144` | Runtime | The runtime rejected the composed body as invalid IL. The message carries the IL dump and an `assemblies` table listing every assembly the body resolves against. Two rows under one name, or a row marked `refonly`, means the host loaded two copies of that assembly (RimWorld's Prepatcher does this). Send the whole message with the report. |
 
 Each code identifies the condition Concord rejected. Read the exception message for the target method and declaration details.
 
