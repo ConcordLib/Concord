@@ -60,7 +60,7 @@ The `[Shadow]` source generator reports its own `CONC1xx` codes at build time:
 | `CONC100` | Error | The target type has no member with the shadowed name. |
 | `CONC101` | Error | The shadowed name matches more than one overload. Pass parameter types on `[Shadow]`. |
 | `CONC102` | Error | A class that uses `[Shadow]` is not `partial`, so the generator has nowhere to put the members. |
-| `CONC103` | Warning | The declaration's target type cannot be resolved at compile time, so shadow generation is skipped. |
+| `CONC103` | Warning | The generator cannot resolve the declaration's target type at compile time, so it skips shadow generation. |
 | `CONC105` | Error | The member cannot be shadowed. The message says why. |
 
 Concord also ships a diagnostic suppressor. It turns off `CS0649`, `CS0169`, and `CS0414` on an
@@ -110,15 +110,15 @@ identifies the condition that Concord rejected.
 | `CONC115` | Whole-method Around | A whole-method `Around` injection is combined with a call-site Invoke, Argument, or Constant injection on the same target. Call-site positions mutate the pre-Around spine, which does not compose with the per-copy splicing a whole-method Around performs. |
 | `CONC116` | Transpiler | A transpiler is not `static`, returns something other than `IEnumerable<CodeInstruction>`, or takes the wrong parameters. Concord also raises it for an injection position it does not support and for an `ITranspilerContext` it did not create. |
 | `CONC117` | Transpiler | The transpiler returned `null` or threw. The message carries the exception. |
-| `CONC118` | Transpiler write-back | The transpiler emitted instructions Concord cannot write back: an unknown opcode, an operand type it cannot emit, a type, field, or method it cannot resolve, a label or local no instruction owns, or unbalanced exception blocks. The message names the transpiler and the target method. |
+| `CONC118` | Transpiler write-back | The transpiler emitted instructions Concord cannot write back, such as an unknown opcode, an unresolvable member, or unbalanced exception blocks. The message names the transpiler, the target method, and the exact reason. |
 | `CONC119` | Transpiler write-back | Cecil rejected the method body the transpiler produced. The message carries Cecil's reason. |
-| `CONC120` | CodeMatcher | A `CodeMatcher` was read while invalid, or a `CodeMatch` has a null predicate. Call `ThrowIfInvalid` or check `IsValid` before reading `Instruction`. |
+| `CONC120` | CodeMatcher | Your transpiler read a `CodeMatcher` while it was invalid, or built a `CodeMatch` with a null predicate. Call `ThrowIfInvalid` or check `IsValid` before you read `Instruction`. |
 | `CONC121` | Transpiler | A local slot a transpiler refers to is out of range for the body. |
 | `CONC122` | Async / iterator | The injection set `PatchBody.StateMachine`, so it composes onto the generated `MoveNext`, but its handle is typed against the declared return type. Type the handle against `MoveNext`'s return type, or use `PatchBody.Declared`. |
 | `CONC123` | Async / iterator | The injection targets an `async` method or iterator whose body was compiled into a generated `MoveNext`. The method you named only builds the state machine. Set `Body = PatchBody.StateMachine` to reach the body as written. |
 | `CONC124` | Harmony bridge | The coexistence bridge cannot convert a `calli` instruction. Harmony stores its operand as `InlineSignature`, whose constructor is internal. |
 | `CONC125` | Harmony bridge | The bridge met an exception block kind it does not recognize, on either side. |
-| `CONC126` | Injected field | An `[InjectField]` declared as `object` against a value-type target field is boxed on every access, so its address cannot be taken. Read it into a local first. |
+| `CONC126` | Injected field | Concord boxes an `[InjectField]` that you declare as `object` against a value-type target field, so you cannot take its address. Read it into a local first. |
 | `CONC127` | State slot | One patch declaration puts two types in its state slot on one target method. Every `SetState` and `GetState<T>` in the declaration must agree on one type. |
 | `CONC128` | Capture | A `[Capture]` parameter sits at a position that matches no call, or at `At.Around` or `At.Argument`, which already receive the call's arguments. Move it to `At.Head` or `At.Tail` of an invoke or construction injection. |
 | `CONC129` | Capture | Concord cannot tell where the captured argument finished pushing. A conditional expression in a call argument causes this. Rewrite the argument into a local before the call. |
