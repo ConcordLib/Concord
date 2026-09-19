@@ -14,6 +14,8 @@
   href: how-patches-work.md
 - name: Raw IL with Transpilers
   href: transpilers.md
+- name: Target a Local Variable
+  href: local-variables.md
 - name: Attached Data
   href: attached-data.md
 - name: Extended Enums

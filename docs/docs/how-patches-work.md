@@ -366,9 +366,71 @@ The parameter's declared type picks between the two. Declare `ref int` and you g
 | One argument of a matched call | Use `At.Argument` |
 | Field read or write | Concord has no instruction matcher yet. Use `[InjectField]` to access the field from another injection. |
 | Object construction | Use `[InjectNew]` with `At.Head`, `At.Tail`, `At.Around`, or `At.Argument`. Patching the body of a constructor also works. |
-| Local, branch, or raw return instruction | Use `At.Transpiler` to edit the instruction stream directly. See [Raw IL with transpilers](transpilers.md). |
+| Local variable | Use a `[Local]` parameter, a `LocalHandle<T>` parameter, or an `At.Local` injection. See [Target a local variable](local-variables.md). |
+| Branch or raw return instruction | Use `At.Transpiler` to edit the instruction stream directly. See [Raw IL with transpilers](transpilers.md). |
 
 `At.Constant`, `[InjectNew]`, `[Slice]`, and any `At.Transpiler` edit all match compiler output. A source change can move a literal, change a construction, renumber locals, or rewrite branch instructions. Check these patches again after the target changes.
+
+## Counting occurrences with by
+
+An *occurrence* is one match of what a position looks for: one call to `Bar`, one `42` literal, one write to a local. `by` picks one of them, counting from 1 in body order. The default, `by: 0`, takes all of them.
+
+| Position | What it counts |
+| --- | --- |
+| `At.Invoke` | Calls matching the owner type, method name, and parameter types |
+| `[InjectNew]` | Constructions of the matched type |
+| `At.Constant` | Inlined literals equal to the value |
+| `At.Local` | Reads or writes of the selected local |
+
+### Another mod's patch does not change your count
+
+Two mods can patch one target method, and neither author controls which injection composes first. So `by` has to count the same either way.
+
+`At.Local`, `At.Constant`, `At.Invoke`, and `[InjectNew]` all match against a copy of the target method body taken before any injection splices into it. An injection's own body can hold a call to `Bar`, a `42`, or a write to the same local, and none of that is counted. Your `by: 2` stays the second call the target method itself makes, whatever else patches it.
+
+### At.Around on a call is the exception
+
+An `At.Invoke` or `[InjectNew]` injection with the `At.Around` shift counts against the live body instead. That is a real gap, and it is not fixed.
+
+`At.Around` cannot use the earlier copy. It removes the call it wraps and splices in a replacement carrying its own copy of that call. That copy is how a second Around wraps the first. The earlier copy still holds the instruction the first wrap removed, so matching there would hand Around a call that is gone. It has to read the body as it now stands, including whatever earlier injections put in it.
+
+Take a target method that calls `Helper.Bar` once, and two mods:
+
+```csharp
+// Mod A. The injection body happens to call Bar as well.
+[Inject(nameof(Work), typeof(Helper), nameof(Helper.Bar), At.Head, by: 1)]
+static void BeforeBar()
+{
+    Ledger.Record(Helper.Bar());
+}
+```
+
+```csharp
+// Mod B.
+[Inject(nameof(Work), typeof(Helper), nameof(Helper.Bar), At.Around, by: 2)]
+static int AroundBar(Operation<int> original)
+{
+    return original.Invoke() + 1;
+}
+```
+
+If mod A composes first, its copied body adds a second `Bar` call to the live body. Mod B then counts two calls where the target method has one:
+
+| Mod B asks for | What happens |
+| --- | --- |
+| `by: 1` | Wraps mod A's copied call instead of the target method's own. Wrong behavior, no error, no diagnostic code. |
+| `by: 2` | The wrapper is malformed. It throws `ArgumentException: Bad label content in ILGenerator` when the runtime compiles it. Concord reports no diagnostic code and evicts nothing. |
+| `by: 3` | Matches, although the target method has one `Bar` call. |
+
+Neither author wrote anything wrong, and neither one picked the order.
+
+There is no reliable way around this. Narrowing the match does not help. The call the other injection copied in is the same call you are matching. A more specific owner type cannot tell the two apart. Neither can a fuller parameter list. A `[Slice]` bounds a range of the live body. That body already holds the copy, so whether the copy lands inside your range is luck.
+
+Do not reach for `by: 0` either. It takes every match, so it wraps the copied call as well as the one you wanted.
+
+What you can do is avoid the shift. Use `At.Head` or `At.Tail` on the call when you only need to run code around it. Both count against a copy of the target taken before any injection splices into it. Reach for the `At.Around` shift only when you need to replace or skip the call. On a call other mods are likely to target, accept that it is unreliable.
+
+Fixing this needs Concord to track a call site across the composition that removes it.
 
 ## Ordering patches on one target method
 
