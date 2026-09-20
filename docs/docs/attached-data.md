@@ -141,7 +141,7 @@ Patcher.UseAttachedPropertyRegistry(new MyRegistry());
 
 `MyRegistry` implements `IAttachedPropertyRegistry`. Concord calls `RegisterAttachedProperty(declarationType, baseType, name, valueType, slot)` once per declared field, for every assembly passed to `Patcher.Apply`. `declarationType` is the patch class that declares the field, so its assembly tells you which mod owns it. The `slot` is the same storage the patched code reads and writes, so an adapter that saves the value writes back through it on load.
 
-Registries are additive. Install order does not matter: Concord replays every field declared so far into a registry when you add it, and every registry keeps receiving new ones. A host adapter and a mod can both listen. Adding the same instance twice does nothing. If one registry throws, Concord logs it and the others still get the field.
+Registries are additive. Install order does not matter. Concord replays every field declared so far into a registry when you add it, and every registry keeps receiving new ones. A host adapter and a mod can both listen. Adding the same instance twice does nothing. If one registry throws, Concord logs it and the others still get the field.
 
 ### Read a field's storage from your own code
 

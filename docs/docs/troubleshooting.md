@@ -147,7 +147,7 @@ Name the other mod's type as a string, `[Patch("Other.Mod.Type")]`. Concord reso
 
 Do not inherit the other mod's type, and do not name it with `typeof`. Either one makes your declaration fail to load, which stops the whole `Patcher.Apply` call before Concord can skip anything. Concord logs a `typeof` target it could not read, so check the log for `skipped declaration` when a patch never runs.
 
-Better still, use whatever your host offers for loading an assembly only when the other mod is present. RimWorld has `LoadFolders.xml` with `IfModActive`, which keeps the compat assembly out of the game entirely.
+Better still, use whatever your host offers for loading an assembly only when the other mod is present. RimWorld has `LoadFolders.xml` with `IfModActive`, which keeps the compatibility assembly out of the game entirely.
 
 ## Seeing the composed wrapper
 
