@@ -55,6 +55,8 @@ Concord rejects a few patch patterns because combining them with Harmony could b
 
 Concord uses its normal detour and logs a warning in these cases because bridge code may break the game.
 
+A refusal costs you one patch declaration, not the mod. Concord reports it as `CONC166`, skips that declaration, logs which one and why, and applies the rest of the assembly.
+
 Another mod can add a Harmony inner patch after Concord sends the method through the bridge. Concord checks for inner patches during composition, so the watchdog may be the first code to find the problem if no other composition step runs.
 
 ## Settings

@@ -136,9 +136,18 @@ identifies the condition that Concord rejected.
 | `CONC141` | Extended enum | Concord could not detour one `Enum` method. It logs this and leaves the rest of the set installed. |
 | `CONC142` | State slot | Concord bug. An injection that calls `SetState` or `GetState` has no state slot. Nothing in the declaration causes this; report it with the declaration. |
 | `CONC143` | Transpiler | A transpiler added a call to `Assembly.GetExecutingAssembly()`. Under Harmony that call returns the target assembly instead of the injection assembly. Use `typeof(YourType).Assembly` instead. |
+| `CONC166` | Coexistence | Another patcher owns the method and Concord cannot combine with it. The message says which case. One declaration is skipped and logged. The rest of the mod still applies. See [Harmony compatibility](harmony-compatibility.md#cases-concord-rejects). |
 | `CONC144` | Runtime | The runtime rejected the composed body as invalid IL. The message carries the IL dump and an `assemblies` table listing every assembly the body resolves against. Two rows under one name, or a row marked `refonly`, means the host loaded two copies of that assembly (RimWorld's Prepatcher does this). Send the whole message with the report. |
 
 Each code identifies the condition Concord rejected. Read the exception message for the target method and declaration details.
+
+## A patch that targets another mod
+
+Name the other mod's type as a string, `[Patch("Other.Mod.Type")]`. Concord resolves it when it applies the assembly. If no loaded assembly has that type, Concord skips that one declaration and logs which one, and the rest of your patches still apply.
+
+Do not inherit the other mod's type, and do not name it with `typeof`. Either one makes your declaration fail to load, which stops the whole `Patcher.Apply` call before Concord can skip anything. Concord logs a `typeof` target it could not read, so check the log for `skipped declaration` when a patch never runs.
+
+Better still, use whatever your host offers for loading an assembly only when the other mod is present. RimWorld has `LoadFolders.xml` with `IfModActive`, which keeps the compat assembly out of the game entirely.
 
 ## Seeing the composed wrapper
 

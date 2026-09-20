@@ -139,6 +139,19 @@ Persistence is the adapter's call. An adapter that supports save files writes th
 Patcher.UseAttachedPropertyRegistry(new MyRegistry());
 ```
 
-`MyRegistry` implements `IAttachedPropertyRegistry`. Concord calls `RegisterAttachedProperty(baseType, name, valueType, slot)` once per declared field, for every assembly passed to `Patcher.Apply`. The `slot` is the same storage the patched code reads and writes, so an adapter that saves the value writes back through it on load.
+`MyRegistry` implements `IAttachedPropertyRegistry`. Concord calls `RegisterAttachedProperty(declarationType, baseType, name, valueType, slot)` once per declared field, for every assembly passed to `Patcher.Apply`. `declarationType` is the patch class that declares the field, so its assembly tells you which mod owns it. The `slot` is the same storage the patched code reads and writes, so an adapter that saves the value writes back through it on load.
 
-Install the registry before the first `Patcher.Apply` call. Declarations registered before it is installed go to the default store, which nothing reads, and are lost.
+Registries are additive. Install order does not matter: Concord replays every field declared so far into a registry when you add it, and every registry keeps receiving new ones. A host adapter and a mod can both listen. Adding the same instance twice does nothing. If one registry throws, Concord logs it and the others still get the field.
+
+### Read a field's storage from your own code
+
+An `[Attached]` field is a normal field inside the patch. To reach the same value from code outside the declaration, ask for the slot:
+
+```csharp
+IAttachedSlot slot = AttachedStorage.SlotAt(
+    AttachedStorage.SlotFor(typeof(ActorArmor), nameof(ActorArmor.BonusArmor), typeof(int)));
+
+int bonus = (int)slot.Get(actor);
+```
+
+`SlotFor` is keyed by declaration type and field name and returns the same slot every time, so this reaches the storage the patch already uses. Constructing an `AttachedField<TTarget, TVal>` does not: each instance owns a separate table.
