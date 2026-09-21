@@ -20,7 +20,7 @@ interface Env {
 function authorized(request: Request, env: Env): boolean {
   if (!env.DOCS_USER || !env.DOCS_PASS) return true;
   const header = request.headers.get('authorization');
-  if (!header || !header.startsWith('Basic ')) return false;
+  if (!header?.startsWith('Basic ')) return false;
   let decoded: string;
   try {
     decoded = atob(header.slice(6));
@@ -85,6 +85,68 @@ function parseRoute(urlPath: string): { version: string; rest: string } | null {
   return { version: 'latest', rest: path };
 }
 
+function jsonResponse(body: BodyInit): Response {
+  return new Response(body, { headers: { 'content-type': 'application/json; charset=utf-8' } });
+}
+
+function htmlResponse(body: BodyInit): Response {
+  return new Response(body, {
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'public, max-age=3600',
+    },
+  });
+}
+
+async function serveVersions(env: Env): Promise<Response> {
+  const obj = await env.DOCS.get('versions.json');
+  if (obj) return jsonResponse(obj.body);
+  return jsonResponse(JSON.stringify({ latest: env.LATEST_VERSION, versions: [] }));
+}
+
+function redirectFor(path: string, origin: string): Response | null {
+  if (path === '/') {
+    return Response.redirect(new URL('/latest/', origin).toString(), 302);
+  }
+  if (/^\/(v\d+\.\d+(\.\d+)?|latest|unstable)$/.test(path)) {
+    return Response.redirect(new URL(path + '/', origin).toString(), 302);
+  }
+  return null;
+}
+
+function toR2Key(rest: string): string {
+  if (rest.endsWith('/')) return rest + 'index.html';
+  if (!rest.includes('.')) return rest + '/index.html';
+  return rest;
+}
+
+async function serveDoc(env: Env, version: string, r2Key: string): Promise<Response> {
+  const obj = await env.DOCS.get(`${version}/${r2Key}`);
+  if (obj) {
+    const mime = getMimeType(r2Key);
+    return new Response(obj.body, {
+      headers: {
+        'content-type': mime,
+        'cache-control': mime.includes('text/html')
+          ? 'public, max-age=3600'
+          : 'public, max-age=86400',
+      },
+    });
+  }
+
+  const dirObj = await env.DOCS.get(`${version}/${r2Key.replace(/\/$/, '')}/index.html`);
+  if (dirObj) return htmlResponse(dirObj.body);
+
+  // DocFX emits the API reference root as Concord.html, not index.html, so a bare
+  // /api/ directory request has no index. Fall back to the API landing page.
+  if (/^api\/(index\.html)?$/.test(r2Key)) {
+    const apiRootObj = await env.DOCS.get(`${version}/api/Concord.html`);
+    if (apiRootObj) return htmlResponse(apiRootObj.body);
+  }
+
+  return new Response('Not found', { status: 404 });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (!authorized(request, env)) {
@@ -95,86 +157,20 @@ export default {
     }
 
     const url = new URL(request.url);
-    let path = url.pathname;
+    const path = url.pathname;
 
-    // Special route: versions.json
     if (path === '/versions.json') {
-      const obj = await env.DOCS.get('versions.json');
-      if (obj) {
-        return new Response(obj.body, {
-          headers: { 'content-type': 'application/json; charset=utf-8' },
-        });
-      }
-      // Fallback if versions.json doesn't exist yet
-      return new Response(
-        JSON.stringify({ latest: env.LATEST_VERSION, versions: [] }),
-        { headers: { 'content-type': 'application/json; charset=utf-8' } }
-      );
+      return serveVersions(env);
     }
 
-    // Redirect bare / to /latest/ for clean URLs
-    if (path === '/') {
-      return Response.redirect(new URL('/latest/', url.origin).toString(), 302);
-    }
-
-    // Redirect a bare version segment to its trailing-slash form (for relative paths).
-    if (/^\/(v\d+\.\d+(\.\d+)?|latest|unstable)$/.test(path)) {
-      return Response.redirect(new URL(path + '/', url.origin).toString(), 302);
-    }
+    const redirect = redirectFor(path, url.origin);
+    if (redirect) return redirect;
 
     const route = parseRoute(path);
     if (!route) {
       return new Response('Not found', { status: 404 });
     }
 
-    // Normalize: directory paths get index.html
-    let r2Key = route.rest;
-    if (r2Key.endsWith('/')) {
-      r2Key += 'index.html';
-    } else if (!r2Key.includes('.')) {
-      // No file extension, might be a directory
-      r2Key += '/index.html';
-    }
-
-    const fullKey = `${route.version}/${r2Key}`;
-
-    const obj = await env.DOCS.get(fullKey);
-    if (!obj) {
-      // Try with index.html appended
-      const dirKey = `${route.version}/${r2Key.replace(/\/$/, '')}/index.html`;
-      const dirObj = await env.DOCS.get(dirKey);
-      if (dirObj) {
-        return new Response(dirObj.body, {
-          headers: {
-            'content-type': 'text/html; charset=utf-8',
-            'cache-control': 'public, max-age=3600',
-          },
-        });
-      }
-      // DocFX emits the API reference root as Concord.html, not index.html, so a bare
-      // /api/ directory request has no index. Fall back to the API landing page.
-      if (/^api\/(index\.html)?$/.test(r2Key)) {
-        const apiRootObj = await env.DOCS.get(`${route.version}/api/Concord.html`);
-        if (apiRootObj) {
-          return new Response(apiRootObj.body, {
-            headers: {
-              'content-type': 'text/html; charset=utf-8',
-              'cache-control': 'public, max-age=3600',
-            },
-          });
-        }
-      }
-      return new Response('Not found', { status: 404 });
-    }
-
-    const mime = getMimeType(r2Key);
-    const headers: Record<string, string> = {
-      'content-type': mime,
-      'cache-control': mime.includes('text/html')
-        ? 'public, max-age=3600'
-        : 'public, max-age=86400',
-    };
-
-    return new Response(obj.body, { headers });
+    return serveDoc(env, route.version, toR2Key(route.rest));
   },
 };
