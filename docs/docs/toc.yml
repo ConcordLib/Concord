@@ -16,6 +16,8 @@
   href: transpilers.md
 - name: Target a Local Variable
   href: local-variables.md
+- name: The Composed Body Contract
+  href: composed-body.md
 - name: Attached Data
   href: attached-data.md
 - name: Extended Enums
