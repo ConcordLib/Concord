@@ -5,9 +5,6 @@ on:
     branches:
       - main
       - 'v[0-9]+.[0-9]+'
-    # No paths filter: a new vX.Y branch is created at an existing commit (no
-    # changed paths), so a path filter would skip its first deploy. Deploys are
-    # idempotent, so redeploying main on unrelated pushes is harmless.
   workflow_dispatch:
     inputs:
       version:
@@ -19,7 +16,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -36,8 +33,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Vale
-        # Pinned to a full SHA: `@reviewdog` is a branch, so the action's code could change
-        # under us between runs. Bump deliberately rather than tracking the branch head.
         uses: errata-ai/vale-action@85f9f7f2c5f449ac0ae5b66662961bae3f77ca6a # reviewdog
         with:
           version: 3.15.1
@@ -45,18 +40,7 @@ jobs:
           fail_on_error: true
           reporter: github-check
 
-  # Scans this repo's own code (the Worker's TypeScript and worker/scripts/*.py). It runs as a
-  # separate job on a clean checkout on purpose: build-and-deploy copies Core's src/ into the
-  # tree for docfx metadata, and scanning after that would attribute Core's C# to the Docs
-  # project. Nothing here is .NET, so the generic scan action is the right tool, not the
-  # begin/build/end .NET scanner used in Core, Waylith, RimWorld, and concord-ide.
-  #
-  # Everything is excluded from coverage because the Worker has no test suite at all. Without
-  # the exclusion the scanner reports 0%, which fails the Sonar way gate's 80% new-code
-  # coverage condition on a number that measures nothing. Excluding leaves the metric
-  # uncomputed so the condition is skipped, and the other five conditions still apply. The
-  # gate itself cannot be changed on this SonarCloud plan. Drop this line once the Worker has
-  # tests and report real coverage instead.
+  # TODO(worker has no tests): drop the coverage exclusion and report real coverage
   sonar:
     name: SonarCloud
     runs-on: ubuntu-latest
@@ -64,7 +48,7 @@ jobs:
       - name: Checkout docs
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0     # blame data for new-code detection
+          fetch-depth: 0
 
       - name: Scan
         uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
@@ -116,27 +100,43 @@ jobs:
 
       - name: Determine version
         id: version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
           BRANCH="${GITHUB_REF#refs/heads/}"
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-          elif [ "$BRANCH" = "main" ]; then
-            VERSION="unstable"
+          if [ "$BRANCH" = "main" ]; then
+            DERIVED="unstable"
           else
-            VERSION="$BRANCH"
+            DERIVED="$BRANCH"
           fi
+
+          VERSION="${INPUT_VERSION:-$DERIVED}"
+
+          if ! printf '%s' "$VERSION" | grep -qE '^(unstable|v[0-9]+\.[0-9]+)$'; then
+            echo "::error::Refusing to deploy: version '$VERSION' is not 'unstable' or vX.Y."
+            exit 1
+          fi
+
+          if [ "$VERSION" != "$DERIVED" ]; then
+            echo "::error::Refusing to deploy: version '$VERSION' does not match branch '$BRANCH', which deploys as '$DERIVED'. Run the deploy from the branch you want to publish."
+            exit 1
+          fi
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Deploying as: $VERSION"
 
       - name: Determine Core ref
         id: core
+        env:
+          INPUT_CORE_REF: ${{ github.event.inputs.core_ref }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          if [ -n "${{ github.event.inputs.core_ref }}" ]; then
-            REF="${{ github.event.inputs.core_ref }}"
-          elif [ "${{ steps.version.outputs.version }}" = "unstable" ]; then
+          if [ -n "$INPUT_CORE_REF" ]; then
+            REF="$INPUT_CORE_REF"
+          elif [ "$VERSION" = "unstable" ]; then
             REF="${CORE_DEFAULT_REF}"
           else
-            REF="${{ steps.version.outputs.version }}"
+            REF="$VERSION"
           fi
           echo "ref=$REF" >> "$GITHUB_OUTPUT"
           echo "Requested Core ref: $REF"
@@ -144,7 +144,6 @@ jobs:
       - name: Checkout Core source
         id: core_checkout
         uses: actions/checkout@v4
-        continue-on-error: true
         with:
           repository: ${{ env.CORE_REPO }}
           ref: ${{ steps.core.outputs.ref }}
@@ -152,29 +151,21 @@ jobs:
           path: .core
           fetch-depth: 0
 
-      - name: Checkout Core source (fallback to default ref)
-        if: steps.core_checkout.outcome == 'failure'
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.CORE_REPO }}
-          ref: ${{ env.CORE_DEFAULT_REF }}
-          token: ${{ secrets.CORE_CHECKOUT_TOKEN }}
-          path: .core
-          fetch-depth: 0
-
       - name: Stage Core source for docfx metadata
+        env:
+          CORE_REF: ${{ steps.core.outputs.ref }}
         run: |
-          if [ -d .core/src ]; then
-            rm -rf src
-            cp -a .core/src src
-            # Root MSBuild inputs the src projects import while walking up the tree.
-            for f in Directory.Build.props Directory.Build.targets Directory.Packages.props StyleCop.props stylecop.json global.json .editorconfig; do
-              [ -f ".core/$f" ] && cp -a ".core/$f" "$f"
-            done
-            echo "Staged Core src/ from ref: ${{ steps.core.outputs.ref }} (fallback outcome: ${{ steps.core_checkout.outcome }})"
-          else
-            echo "::warning::.core/src not found; API metadata will be empty."
+          if [ ! -d .core/src ]; then
+            echo "::error::.core/src not found after checking out $CORE_REPO. API metadata would be empty and the deploy would delete the published API reference."
+            exit 1
           fi
+
+          rm -rf src
+          cp -a .core/src src
+          for f in Directory.Build.props Directory.Build.targets Directory.Packages.props StyleCop.props stylecop.json global.json .editorconfig; do
+            [ -f ".core/$f" ] && cp -a ".core/$f" "$f"
+          done
+          echo "Staged Core src/ from ref: $CORE_REF"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -205,7 +196,6 @@ jobs:
         id: api_metadata
         if: steps.api_metadata_cache.outputs.cache-hit != 'true'
         run: docfx metadata docfx.json
-        continue-on-error: true
 
       - name: Save API metadata cache
         if: steps.api_metadata_cache.outputs.cache-hit != 'true' && steps.api_metadata.outcome == 'success'
@@ -223,7 +213,11 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          # The highest vX.Y branch on the repo is the canonical `latest`.
+          if ! git ls-remote --heads origin >/dev/null; then
+            echo "::error::Cannot list branches on origin. latest-version.py treats an unreachable origin as 'no version branches', which would publish this build over latest/."
+            exit 1
+          fi
+
           LATEST=$(python3 worker/scripts/latest-version.py)
           echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
           echo "Highest version branch: ${LATEST:-<none>}"
@@ -237,6 +231,37 @@ jobs:
         if: steps.worker_changes.outputs.changed == 'true'
         working-directory: worker
         run: npm ci --ignore-scripts
+
+      - name: Refuse to publish a broken build
+        env:
+          MIN_API_PAGES: '20'
+          MIN_DOC_PAGES: '10'
+        run: |
+          BROKEN=0
+
+          if [ ! -f .site/index.html ]; then
+            echo "::error::.site/index.html is missing; docfx produced no site."
+            BROKEN=1
+          fi
+
+          API_PAGES=$(find .site/api -type f -name '*.html' 2>/dev/null | wc -l) || API_PAGES=0
+          if [ "$API_PAGES" -lt "$MIN_API_PAGES" ]; then
+            echo "::error::.site/api has $API_PAGES pages, below the floor of $MIN_API_PAGES. Publishing would delete the API reference for this version."
+            BROKEN=1
+          fi
+
+          DOC_PAGES=$(find .site/docs -type f -name '*.html' 2>/dev/null | wc -l) || DOC_PAGES=0
+          if [ "$DOC_PAGES" -lt "$MIN_DOC_PAGES" ]; then
+            echo "::error::.site/docs has $DOC_PAGES pages, below the floor of $MIN_DOC_PAGES. Publishing would delete the guides for this version."
+            BROKEN=1
+          fi
+
+          if [ "$BROKEN" -ne 0 ]; then
+            echo "::error::Refusing to sync .site to R2. The bucket has no versioning, so the sync is not reversible."
+            exit 1
+          fi
+
+          echo "Build passes the floor: $API_PAGES API pages, $DOC_PAGES doc pages."
 
       - name: Upload docs to R2
         env:
@@ -262,7 +287,6 @@ jobs:
 
           rclone sync .site "r2:concord-docs/$VERSION" "${RCLONE_FLAGS[@]}"
 
-          # Mirror to `latest` when this deploy IS the highest version branch.
           if [ -n "$LATEST" ] && [ "$VERSION" = "$LATEST" ]; then
             rclone sync .site "r2:concord-docs/latest" "${RCLONE_FLAGS[@]}"
           fi

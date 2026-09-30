@@ -14,8 +14,9 @@ def version_branches():
     """Every vX.Y branch on origin, plus the VERSION being deployed, newest-first."""
     out = subprocess.run(
         ["git", "ls-remote", "--heads", "origin", "refs/heads/v[0-9]*.[0-9]*"],
-        capture_output=True,
+        stdout=subprocess.PIPE,
         text=True,
+        check=True,
     ).stdout
     names = set()
     for line in out.splitlines():
