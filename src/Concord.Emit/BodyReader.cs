@@ -21,6 +21,26 @@ internal static class BodyReader {
         return new DynamicMethodDefinition(method);
     }
 
+    internal static DynamicMethodDefinition OpenOriginal(MethodBase method) {
+        Reject(method);
+        ComposedBody? declared = OriginalBody.HostOriginalBody?.Invoke(method);
+        if (declared is null) {
+            return new DynamicMethodDefinition(method);
+        }
+
+        DynamicMethodDefinition opened = new DynamicMethodDefinition(
+            "<Declared>" + method.Name,
+            WrapperComposer.ResolveReturnType(method),
+            WrapperComposer.ResolveParameterTypes(method));
+        try {
+            ComposedBodyWriter.Write(opened.Definition, declared, method);
+            return opened;
+        } catch {
+            opened.Dispose();
+            throw;
+        }
+    }
+
     internal static void Reject(MethodBase method) {
         if (!Fenced) {
             return;

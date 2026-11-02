@@ -23,6 +23,9 @@ public static class TargetEligibility {
     /// <summary>The prefix on every fallback message, so a log reader can tell a backend downgrade from a patch failure.</summary>
     public const string FallbackMarker = "[Concord.Waylith] backend-fallback";
 
+    /// <summary>The prefix on a message about a target no backend can patch, so a log reader can tell it from a downgrade.</summary>
+    public const string RefusalMarker = "[Concord.Waylith] target-refused";
+
     private const string StillApplies =
         "The patch still applies through a native detour, without the inlined-caller and hot-caller guarantees " +
         "body replacement adds.";
@@ -91,6 +94,20 @@ public static class TargetEligibility {
         return Fallback(
             $"{Describe(target)} was refused by the runtime while {stage}: " +
             $"{refusal.GetType().Name}{thrower}, {refusal.Message.TrimEnd('.')}. {StillApplies}");
+    }
+
+    /// <summary>Builds the message for a target whose declared body this host would not read back, which leaves no backend able to patch it.</summary>
+    /// <param name="target">The method whose declared-body read was refused.</param>
+    /// <param name="refusal">The refusal raised while reading the declared body.</param>
+    /// <returns>A message starting with <see cref="RefusalMarker" />.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="target" /> or <paramref name="refusal" /> is <c>null</c>.</exception>
+    public static string ForDeclaredBodyRefusal(MethodBase target, Exception refusal) {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(refusal);
+
+        return $"{RefusalMarker} {Describe(target)} stays unpatched: {refusal.Message.TrimEnd('.')}. The native " +
+            "detour cannot stand in for it, because composing a detour reads the same declared body and is refused " +
+            "the same way.";
     }
 
     /// <summary>Gate for logging a fallback, so a target that falls back on every patch attempt is only announced the first time in a process.</summary>

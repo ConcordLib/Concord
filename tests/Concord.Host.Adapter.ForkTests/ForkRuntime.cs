@@ -10,7 +10,9 @@ public enum ForkGap {
 }
 
 public static class ForkRuntime {
-    public const string Runtime = "10.0.10-waylithclr.dev";
+    public const string Runtime = "10.0.13-waylithclr.dev";
+
+    public static bool HostRead { get; } = Register();
 
     private static readonly Type? Updater = RuntimeCapability.Updater();
 
@@ -26,6 +28,11 @@ public static class ForkRuntime {
             $"'{RuntimeCapability.UpdaterTypeName}' reports {nameof(RuntimeCapability.IsAvailable)} on '{RuntimeCapability.Runtime}' but 'Concord.Host.Adapter.ForkBodyWriter' could not bind ReplaceMethodBody/Revert, so no fork body can be written here",
         _ => RuntimeCapability.Explain(),
     };
+
+    private static bool Register() {
+        WrapperComposer.CaptureComposedBody = true;
+        return AdapterEntryPoint.RegisterDeclaredBodyReader();
+    }
 
     public static byte[] Returning(int value) {
         return Returning(value, 1);

@@ -441,8 +441,8 @@ public static class WrapperComposer {
         }
 
         try {
-            using DynamicMethodDefinition requested = BodyReader.Open(target);
-            using DynamicMethodDefinition other = BodyReader.Open(probe);
+            using DynamicMethodDefinition requested = BodyReader.OpenOriginal(target);
+            using DynamicMethodDefinition other = BodyReader.OpenOriginal(probe);
             return SameInstructions(requested.Definition, other.Definition);
         } catch (Exception) {
             return false;
@@ -1184,7 +1184,7 @@ public static class WrapperComposer {
 
         MethodBase resolved = target;
 
-        using DynamicMethodDefinition source = BodyReader.Open(resolved);
+        using DynamicMethodDefinition source = BodyReader.OpenOriginal(resolved);
         Type returnType = ResolveReturnType(resolved);
         Type[] parameterTypes = ResolveParameterTypes(resolved);
 
@@ -1269,7 +1269,7 @@ public static class WrapperComposer {
     private static string ComposeDumpOnce(MethodBase target, IReadOnlyList<Injection> ordered) {
         MethodBase resolved = target;
 
-        using DynamicMethodDefinition source = BodyReader.Open(resolved);
+        using DynamicMethodDefinition source = BodyReader.OpenOriginal(resolved);
         Type returnType = ResolveReturnType(resolved);
         Type[] parameterTypes = ResolveParameterTypes(resolved);
 
@@ -2582,7 +2582,7 @@ public static class WrapperComposer {
         }
 
         try {
-            using DynamicMethodDefinition original = BodyReader.Open(target);
+            using DynamicMethodDefinition original = BodyReader.OpenOriginal(target);
             MethodBody body = original.Definition.Body;
             if (slot.Index >= body.Variables.Count) {
                 return true;

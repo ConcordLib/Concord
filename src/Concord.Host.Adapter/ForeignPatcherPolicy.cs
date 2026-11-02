@@ -33,8 +33,10 @@ public static class ForeignPatcherPolicy {
 
     private const string WithdrawnBody = "Concord published a composed body for it and has withdrawn that body";
 
-    private const string StrandedBody = "Concord's composed body is still installed on it, sits under the foreign " +
-        "detour, never runs, and comes off at the next patch change on that target";
+    private const string StrandedBody = "Concord's composed body is still installed on it, and this host answers a " +
+        "body read with whatever body is live, so the foreign patcher copied Concord's body as though it were the " +
+        "original: Concord's injections run folded into that copy, and a foreign unpatch restores Concord's body " +
+        "rather than the method's declared one";
 
     private static readonly ForeignVerdict Allowed = new ForeignVerdict(ForeignHandling.Allow, string.Empty, null);
 

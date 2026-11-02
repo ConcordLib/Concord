@@ -28,4 +28,7 @@ public sealed class EncodedBody {
 
     /// <summary>Length of the IL stream in bytes, header excluded. One past the last valid IL offset.</summary>
     public int CodeSize { get; }
+
+    /// <summary>Just the IL stream, with the header and any trailing handler section cut off.</summary>
+    public ReadOnlySpan<byte> Il => Bytes.AsSpan((Bytes[0] & 0x3) == 0x2 ? 1 : 12, CodeSize);
 }

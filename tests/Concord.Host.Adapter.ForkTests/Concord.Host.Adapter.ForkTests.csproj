@@ -26,6 +26,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <RuntimeHostConfigurationOption Include="WaylithClr.FieldInjection" Value="true" Trim="false"/>
+    <RuntimeHostConfigurationOption Include="WaylithClr.FieldInjectionGCDescReserve" Value="4" Trim="false"/>
+    <RuntimeHostConfigurationOption Include="WaylithClr.JitPatchableAssemblies" Value="$(AssemblyName)" Trim="false"/>
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="../Concord.Host.Adapter.Tests/RealBodies.cs" Link="RealBodies.cs"/>
   </ItemGroup>
 

@@ -220,7 +220,17 @@ public sealed class ComposedBodyPublisher : ITargetBodyOwner {
         }
 
         bool held = WaylithDetourBackend.Writers.HoldsClaim(target);
-        ComposeResult composed = WrapperComposer.Compose(target, ordered);
+        ComposeResult composed;
+        try {
+            composed = WrapperComposer.Compose(target, ordered);
+        } catch (ConcordEmitException refusal) when (refusal.Code == AdapterEntryPoint.DeclaredBodyRefusalCode) {
+            if (TargetEligibility.ReportOnce(target)) {
+                WaylithDetourBackend.Log(TargetEligibility.ForDeclaredBodyRefusal(target, refusal));
+            }
+
+            throw;
+        }
+
         foreach (RejectedInjection rejection in composed.Rejected) {
             if (EvictionReport.Compose("[Concord.Waylith] injection-evicted", target, rejection) is string report) {
                 WaylithDetourBackend.Log(report);
@@ -255,6 +265,7 @@ public sealed class ComposedBodyPublisher : ITargetBodyOwner {
 
         try {
             FrameAttribution.Register(target, composed.Body, encoded, ordered);
+            WaylithDetourBackend.Writers.Published(target, encoded.Il);
             writer.Write(target, encoded.Bytes, map);
             WaylithDetourBackend.Writers.Published(target, encoded.Bytes.Length);
         } catch (Exception failure) when (failure is not OutOfMemoryException) {
@@ -523,7 +534,9 @@ public sealed class WaylithDetourBackend : IDetourBackend, IOwnsBodyQuery, ISupp
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(encoded);
 
-        int original = target.GetMethodBody()?.GetILAsByteArray()?.Length ?? -1;
+        int original = ForkBodyReader.Shared.Read(target)?.Il.Length
+            ?? target.GetMethodBody()?.GetILAsByteArray()?.Length
+            ?? -1;
         return original < 0 || (long)original + encoded.CodeSize > SentinelCeiling ? -1 : original;
     }
 
@@ -833,6 +846,7 @@ public sealed class WaylithDetourBackend : IDetourBackend, IOwnsBodyQuery, ISupp
                 }
 
                 map = OffsetMap(target, forwarder, encoded, NoInjections);
+                Writers.Published(target, encoded.Il);
                 writer.Write(target, encoded.Bytes, map);
                 Writers.Published(target, encoded.Bytes.Length);
             } catch (Exception failure) when (failure is not OutOfMemoryException) {

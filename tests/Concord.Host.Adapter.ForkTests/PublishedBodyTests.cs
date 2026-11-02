@@ -109,16 +109,23 @@ public sealed class PublishedBodyTests : IDisposable {
     }
 
     [Fact(Skip = NoFork, SkipWhen = nameof(Unavailable))]
-    public void AReadReturnsTheOriginalBodyNotTheLiveOne() {
+    public void AReflectionReadOfAReplacedBodyReturnsTheLiveIl() {
         MethodInfo target = typeof(Published).GetMethod(nameof(Published.ReadBack))!;
-        byte[] before = target.GetMethodBody()!.GetILAsByteArray()!;
+        byte[] declared = target.GetMethodBody()!.GetILAsByteArray()!;
+        byte[] body = ForkRuntime.Returning(5);
 
         Write(target, 5);
         Assert.Equal(5, Published.ReadBack());
 
-        byte[] after = target.GetMethodBody()!.GetILAsByteArray()!;
+        byte[] read = target.GetMethodBody()!.GetILAsByteArray()!;
 
-        Assert.Equal(before, after);
+        Assert.NotEqual(declared, read);
+        Assert.True(
+            body.AsSpan().EndsWith(read),
+            $"reflection read [{string.Join(",", read)}] back, and the body published over the target was " +
+            $"[{string.Join(",", body)}], whose header is followed by that same IL. The read is neither the " +
+            $"declared IL [{string.Join(",", declared)}] nor the body just written, so this runtime answers a " +
+            "body read from somewhere this fact does not account for.");
     }
 
     [Fact(Skip = NoFork, SkipWhen = nameof(Unavailable))]

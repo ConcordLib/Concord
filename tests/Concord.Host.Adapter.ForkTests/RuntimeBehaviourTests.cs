@@ -5,7 +5,7 @@ using Xunit;
 namespace Concord.Host.Adapter.ForkTests;
 
 public static class Measured {
-    public const string Runtime = "10.0.10-waylithclr.dev";
+    public const string Runtime = "10.0.13-waylithclr.dev";
 
     public const string InstallVariable = "CONCORD_GAME_INSTALL";
 
@@ -118,6 +118,76 @@ public class RuntimeBehaviourTests {
         (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyClause::ClassTokenOrFilterOffset"),
         (string.Empty, string.Empty, "System.Int32 WaylithClr.ILOffsetMapEntry::get_OriginalOffset()"),
         (string.Empty, string.Empty, "System.Int32 WaylithClr.ILOffsetMapEntry::get_NewOffset()"),
+        (
+            "field injection is off unless the host turns it on, so a batch must never be committed without probing first",
+            "the game runtimeconfig sets WaylithClr.FieldInjection true; Commit throws NotSupportedException when it is false",
+            "System.Boolean WaylithClr.FieldInjection::get_IsSupported()"),
+        (string.Empty, string.Empty, "System.Boolean WaylithClr.FieldInjectionApplyResult::get_AllApplied()"),
+        (string.Empty, string.Empty, "System.Boolean WaylithClr.MethodBodyUpdater::TryGetActiveMethodBody(System.Reflection.MethodBase,System.Span`1<WaylithClr.MethodBodyClause>,WaylithClr.MethodBodyView&)"),
+        (string.Empty, string.Empty, "System.Boolean WaylithClr.MethodBodyUpdater::TryGetActiveMethodBody(System.RuntimeMethodHandle,System.Span`1<WaylithClr.MethodBodyClause>,WaylithClr.MethodBodyView&)"),
+        (
+            "a body replaced in place is rejitted rather than poisoned, so the in-place path keeps working across a relayout and only DynamicMethods go stale",
+            "AReplacedBodyKeepsRunningAfterItsOperandTypeIsRelaidOut, which saw 2 rejitted and 0 stale",
+            "System.Collections.Generic.IReadOnlyList`1<System.Reflection.MethodBase> WaylithClr.FieldInjectionApplyResult::get_RejittedMethods()"),
+        (string.Empty, string.Empty, "System.Collections.Generic.IReadOnlyList`1<System.Reflection.MethodBase> WaylithClr.FieldInjectionApplyResult::get_StaleDynamicMethods()"),
+        (string.Empty, string.Empty, "System.Collections.Generic.IReadOnlyList`1<WaylithClr.FieldInjectionBatch> WaylithClr.FieldInjectionApplyResult::get_Applied()"),
+        (string.Empty, string.Empty, "System.Collections.Generic.IReadOnlyList`1<WaylithClr.FieldInjectionBatch> WaylithClr.FieldInjectionApplyResult::get_Pending()"),
+        (string.Empty, string.Empty, "System.Collections.Generic.IReadOnlyList`1<WaylithClr.InjectedField> WaylithClr.FieldInjectionBatch::get_Fields()"),
+        (string.Empty, string.Empty, "System.Exception WaylithClr.FieldInjectionBatch::get_Error()"),
+        (
+            "the epoch moves on every relayout, which is the only cheap signal that a layout changed",
+            "AReplacedBodyKeepsRunningAfterItsOperandTypeIsRelaidOut",
+            "System.Int32 WaylithClr.FieldInjection::get_LayoutEpoch()"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.FieldInjection::get_PendingCount()"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.FieldInjectionBatchStatus::value__"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.FieldInjectionRefusal::value__"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.InjectedField::get_MetadataToken()"),
+        (string.Empty, string.Empty, "System.Int64 WaylithClr.FieldInjectionApplyResult::get_MigratedInstances()"),
+        (string.Empty, string.Empty, "System.Int64 WaylithClr.FieldInjectionBatch::get_MigratedInstances()"),
+        (string.Empty, string.Empty, "System.Reflection.FieldAttributes WaylithClr.InjectedField::get_Attributes()"),
+        (
+            "reflection sees an injected field once the batch applied, under the token InjectedField reports, so composed IL can name one",
+            "ReflectionSeesAnInjectedFieldOnItsDeclaringType",
+            "System.Reflection.FieldInfo WaylithClr.InjectedField::get_Field()"),
+        (
+            "DependentFrames names the blocking frames, and the method that called apply is one of them when its own body touches a field of the target type",
+            "AFrameBelowTheApplyThatReadsTheTargetTypeRefusesTheRelayout",
+            "System.String WaylithClr.FieldInjectionBatch::get_PendingReason()"),
+        (string.Empty, string.Empty, "System.String WaylithClr.InjectedField::get_Name()"),
+        (string.Empty, string.Empty, "System.Type WaylithClr.InjectedField::get_DeclaringType()"),
+        (string.Empty, string.Empty, "System.Type WaylithClr.InjectedField::get_FieldType()"),
+        (string.Empty, string.Empty, "System.Void WaylithClr.FieldInjectionBatch::.ctor()"),
+        (string.Empty, string.Empty, "System.Void WaylithClr.FieldInjectionBatch::Commit()"),
+        (string.Empty, string.Empty, "System.Void WaylithClr.FieldInjectionBatch::OnMigrated(System.Type,System.Action`1<System.Object>)"),
+        (string.Empty, string.Empty, "System.Void WaylithClr.FieldInjectionBatch::SetDefault(WaylithClr.InjectedField,System.Object)"),
+        (
+            "an apply drains every queued batch, so one consumer calling it applies another consumer's batches too",
+            "FieldInjectionTests, and FieldInjection.ApplyPending over the shared s_queue",
+            "WaylithClr.FieldInjectionApplyResult WaylithClr.FieldInjection::ApplyPending()"),
+        (string.Empty, string.Empty, "WaylithClr.FieldInjectionApplyResult WaylithClr.FieldInjectionBatch::CommitAndApply()"),
+        (
+            "an apply has three verdicts, and Failed dequeues the batch while a refusal keeps it queued for the host to retry",
+            "FieldInjectionTests, and FieldInjection.ApplyPending's catch path",
+            "WaylithClr.FieldInjectionBatchStatus WaylithClr.FieldInjectionBatch::get_Status()"),
+        (string.Empty, string.Empty, "WaylithClr.FieldInjectionBatchStatus WaylithClr.FieldInjectionBatchStatus::Applied"),
+        (string.Empty, string.Empty, "WaylithClr.FieldInjectionBatchStatus WaylithClr.FieldInjectionBatchStatus::Building"),
+        (string.Empty, string.Empty, "WaylithClr.FieldInjectionBatchStatus WaylithClr.FieldInjectionBatchStatus::Failed"),
+        (string.Empty, string.Empty, "WaylithClr.FieldInjectionBatchStatus WaylithClr.FieldInjectionBatchStatus::Queued"),
+        (
+            "the refusal reported is whichever gate blocks first, so CompileGateBusy masks DependentFrames while anything else publishes a body",
+            "AFrameBelowTheApplyThatReadsTheTargetTypeRefusesTheRelayout, which only reports DependentFrames after retrying past the transient gates",
+            "WaylithClr.FieldInjectionRefusal WaylithClr.FieldInjectionBatch::get_LastRefusal()"),
+        (string.Empty, string.Empty, "WaylithClr.FieldInjectionRefusal WaylithClr.FieldInjectionRefusal::CompileGateBusy"),
+        (string.Empty, string.Empty, "WaylithClr.FieldInjectionRefusal WaylithClr.FieldInjectionRefusal::DependentFrames"),
+        (string.Empty, string.Empty, "WaylithClr.FieldInjectionRefusal WaylithClr.FieldInjectionRefusal::GCBusy"),
+        (string.Empty, string.Empty, "WaylithClr.FieldInjectionRefusal WaylithClr.FieldInjectionRefusal::GCNotLatched"),
+        (string.Empty, string.Empty, "WaylithClr.FieldInjectionRefusal WaylithClr.FieldInjectionRefusal::NoGCRegions"),
+        (string.Empty, string.Empty, "WaylithClr.FieldInjectionRefusal WaylithClr.FieldInjectionRefusal::None"),
+        (string.Empty, string.Empty, "WaylithClr.FieldInjectionRefusal WaylithClr.FieldInjectionRefusal::PinnedInstance"),
+        (
+            "a field can only be added to an assembly named in WaylithClr.JitPatchableAssemblies, and any other module fails as a framework assembly",
+            "AnAssemblyOutsideJitPatchableAssembliesIsRefusedAsAFrameworkAssembly",
+            "WaylithClr.InjectedField WaylithClr.FieldInjectionBatch::AddField(System.Type,System.String,System.Type,System.Reflection.FieldAttributes)"),
     ];
 
     private static readonly string[] MeasuredTypes = [
@@ -125,6 +195,12 @@ public class RuntimeBehaviourTests {
         "WaylithClr.MethodBodyView",
         "WaylithClr.MethodBodyClause",
         "WaylithClr.ILOffsetMapEntry",
+        "WaylithClr.FieldInjection",
+        "WaylithClr.FieldInjectionBatch",
+        "WaylithClr.FieldInjectionApplyResult",
+        "WaylithClr.FieldInjectionBatchStatus",
+        "WaylithClr.FieldInjectionRefusal",
+        "WaylithClr.InjectedField",
     ];
 
     public static TheoryData<string, string, string> LoadBearing {

@@ -42,20 +42,13 @@ internal static class BodyCopier {
         InjectedMemberMap emptyMembers = new InjectedMemberMap(new Dictionary<string, FieldInfo>(), new Dictionary<string, MethodInfo?>(), new Dictionary<string, AttachedFieldSlot>());
         foreach (Instruction source_instruction in sourceBody.Instructions) {
             Instruction copy = CloneInstruction(source_instruction, module, variableMap, emptyMembers);
-            InstructionOrigins.Record(copy, source_instruction.Offset);
+            int recorded = InstructionOrigins.OffsetOf(source_instruction);
+            InstructionOrigins.Record(copy, recorded == InstructionOrigins.None ? source_instruction.Offset : recorded);
             instructionMap[source_instruction] = copy;
             il.Append(copy);
-            if (IsGetExecutingAssemblyCall(source_instruction)) {
-                copy.OpCode = OpCodes.Ldtoken;
-                copy.Operand = module.ImportReference(declaringType);
-                Instruction fromHandle = Instruction.Create(OpCodes.Call, module.ImportReference(GetTypeFromHandle));
-                Instruction assembly = Instruction.Create(OpCodes.Callvirt, module.ImportReference(TypeAssemblyGetter));
-                InstructionOrigins.Record(fromHandle, source_instruction.Offset);
-                InstructionOrigins.Record(assembly, source_instruction.Offset);
-                il.Append(fromHandle);
-                il.Append(assembly);
-            }
         }
+
+        RewriteExecutingAssembly(destinationBody, declaringType);
 
         foreach (Instruction copy in destinationBody.Instructions) {
             RemapBranchTargets(copy, instructionMap);
@@ -466,6 +459,29 @@ internal static class BodyCopier {
             if (instruction.Operand is VariableDefinition slot && localMap.TryGetValue(slot, out VariableDefinition? clone)) {
                 instruction.Operand = clone;
             }
+        }
+    }
+
+    internal static void RewriteExecutingAssembly(MethodBody body, Type declaringType) {
+        ModuleDefinition module = body.Method.Module;
+        ILProcessor il = body.GetILProcessor();
+        foreach (Instruction call in new List<Instruction>(body.Instructions)) {
+            if (!IsGetExecutingAssemblyCall(call)) {
+                continue;
+            }
+
+            int origin = InstructionOrigins.OffsetOf(call);
+            call.OpCode = OpCodes.Ldtoken;
+            call.Operand = module.ImportReference(declaringType);
+            Instruction fromHandle = Instruction.Create(OpCodes.Call, module.ImportReference(GetTypeFromHandle));
+            Instruction assembly = Instruction.Create(OpCodes.Callvirt, module.ImportReference(TypeAssemblyGetter));
+            if (origin != InstructionOrigins.None) {
+                InstructionOrigins.Record(fromHandle, origin);
+                InstructionOrigins.Record(assembly, origin);
+            }
+
+            il.InsertAfter(call, fromHandle);
+            il.InsertAfter(fromHandle, assembly);
         }
     }
 

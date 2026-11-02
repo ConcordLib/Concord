@@ -81,7 +81,7 @@ public sealed class CoexistenceTests : IDisposable {
     }
 
     [Fact(Skip = NoFork, SkipWhen = nameof(Unavailable))]
-    public void AHarmonyPatchCopiesTheOriginalBodyNotTheWrittenOne() {
+    public void AHarmonyPatchComposesOntoTheWrittenBodyNotTheDeclaredOne() {
         MethodInfo target = typeof(Victims).GetMethod(nameof(Victims.WrittenThenPatched))!;
 
         Write(target, 5);
@@ -89,18 +89,31 @@ public sealed class CoexistenceTests : IDisposable {
 
         harmony.Patch(target, postfix: new HarmonyMethod(Shifter));
 
-        Assert.Equal(11, Victims.WrittenThenPatched());
+        int patched = Victims.WrittenThenPatched();
+
+        Assert.True(
+            patched == 15,
+            $"the patched target returns {patched}. 15 is the written body's 5 plus the postfix, and 11 would be " +
+            "the declared body's 1 plus the postfix. Harmony copies a target through MethodBase.GetMethodBody, " +
+            "which this runtime answers with whatever body is live, so a foreign patcher landing after Concord " +
+            "folds Concord's composed body into its own copy instead of starting from the raw IL.");
     }
 
     [Fact(Skip = NoFork, SkipWhen = nameof(Unavailable))]
-    public void AHarmonyUnpatchDiscardsTheWrittenBody() {
+    public void AHarmonyUnpatchRestoresTheWrittenBodyNotTheDeclaredOne() {
         MethodInfo target = typeof(Victims).GetMethod(nameof(Victims.WrittenThenUnpatched))!;
 
         Write(target, 5);
         harmony.Patch(target, postfix: new HarmonyMethod(Shifter));
         harmony.Unpatch(target, Shifter);
 
-        Assert.Equal(1, Victims.WrittenThenUnpatched());
+        int unpatched = Victims.WrittenThenUnpatched();
+
+        Assert.True(
+            unpatched == 5,
+            $"the unpatched target returns {unpatched}. 5 is the body Concord wrote and 1 is the declared one. " +
+            "An unpatch rebuilds from the copy Harmony took, so Concord's body survives a foreign unpatch here " +
+            "rather than being discarded by it.");
     }
 
     [Fact(Skip = NoFork, SkipWhen = nameof(Unavailable))]

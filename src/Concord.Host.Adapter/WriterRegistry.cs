@@ -16,6 +16,18 @@ public enum ContentionFinding {
     ForeignOwner,
 }
 
+/// <summary>Whose body is installed on a target, as far as a registry can tell.</summary>
+public enum InstalledBody {
+    /// <summary>Not answerable: Concord published no IL to this target, or this runtime cannot report an installed body. Never an all-clear.</summary>
+    Unknown,
+
+    /// <summary>The installed IL is the IL Concord published.</summary>
+    Concords,
+
+    /// <summary>The installed IL is not the IL Concord published, so something replaced it.</summary>
+    Replaced,
+}
+
 /// <summary>One target's last published body as this registry saw it: who asked for it, how big it was, when it went in, and how many times it has been replaced.</summary>
 public sealed class WriterRecord {
     internal WriterRecord(
@@ -129,10 +141,11 @@ public sealed class WriterRegistry {
     /// <summary>The log marker on the whole-registry line that <see cref="Summary" /> builds.</summary>
     public const string SummaryMarker = "[Concord.Waylith] writer-registry";
 
-    /// <summary>The caveat appended to any clean report: what this registry structurally cannot see.</summary>
+    /// <summary>The caveat appended to any clean report: what this registry still cannot see.</summary>
     public const string BlindSpot =
-        "Concord cannot read a method's active body back, so a foreign body replacement is never visible here. " +
-        "An unobserved target means no contention was seen, not that Concord is the sole writer.";
+        "A foreign body replacement is only visible on a target Concord itself published to, by comparing the " +
+        "installed body against the one Concord wrote. An unobserved target means no contention was seen, " +
+        "not that Concord is the sole writer.";
 
     private const string ClaimSlot = "Concord.Host.Adapter.WriterRegistry.Claims";
 
@@ -147,6 +160,8 @@ public sealed class WriterRegistry {
     private readonly ConcurrentDictionary<MethodBase, WriterRecord> claims = new ConcurrentDictionary<MethodBase, WriterRecord>();
 
     private readonly ConcurrentDictionary<MethodBase, ContentionFinding> reported = new ConcurrentDictionary<MethodBase, ContentionFinding>();
+
+    private readonly ConcurrentDictionary<MethodBase, ulong> publishedIl = new ConcurrentDictionary<MethodBase, ulong>();
 
     private readonly ConcurrentDictionary<MethodBase, string> processClaims;
 
@@ -220,6 +235,34 @@ public sealed class WriterRegistry {
         ArgumentNullException.ThrowIfNull(target);
         Interlocked.Increment(ref writes);
         Interlocked.Add(ref bytes, length);
+    }
+
+    /// <summary>Remembers the IL Concord installed on a target, so a later read can tell it from someone else's.</summary>
+    /// <param name="target">The method whose body was written.</param>
+    /// <param name="il">The IL stream that was written, header and handler sections excluded.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="target" /> is <c>null</c>.</exception>
+    public void Published(MethodBase target, ReadOnlySpan<byte> il) {
+        ArgumentNullException.ThrowIfNull(target);
+        publishedIl[Key(target)] = Fingerprint(il);
+    }
+
+    /// <summary>Reports whose body is installed on a target right now.</summary>
+    /// <param name="target">The method to check.</param>
+    /// <returns><see cref="InstalledBody.Unknown" /> when Concord published no IL here or this runtime cannot report an installed body, which is never an all-clear.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="target" /> is <c>null</c>.</exception>
+    public InstalledBody Installed(MethodBase target) {
+        ArgumentNullException.ThrowIfNull(target);
+
+        if (!publishedIl.TryGetValue(Key(target), out ulong mine)) {
+            return InstalledBody.Unknown;
+        }
+
+        HostBody? installed = ForkBodyReader.Shared.ReadActive(target);
+        if (installed is null) {
+            return InstalledBody.Unknown;
+        }
+
+        return Fingerprint(installed.Il) == mine ? InstalledBody.Concords : InstalledBody.Replaced;
     }
 
     /// <summary>Records a publish, taking the owner list from the injections that went into the body in run order.</summary>
@@ -296,6 +339,7 @@ public sealed class WriterRegistry {
         MethodBase key = Key(target);
         processClaims.TryRemove(new KeyValuePair<MethodBase, string>(key, WriterId));
         reported.TryRemove(key, out _);
+        publishedIl.TryRemove(key, out _);
         ForeignPatcherPolicy.Forget(target);
         return claims.TryRemove(key, out _);
     }
@@ -367,9 +411,17 @@ public sealed class WriterRegistry {
             }
         }
 
+        int replaced = 0;
+        foreach (WriterRecord record in claims.Values) {
+            if (Installed(record.Target) == InstalledBody.Replaced) {
+                replaced++;
+            }
+        }
+
         return SummaryMarker + ": " + claims.Count + " target(s) claimed, " + PublishedBodies + " body/bodies published, " +
             PublishedBytes + " byte(s) of replaced IL allocated and never freed, " + stuck +
-            " target(s) permanently poisoned by a foreign patcher. " + BlindSpot;
+            " target(s) permanently poisoned by a foreign patcher, " + replaced +
+            " target(s) whose body someone else has since replaced. " + BlindSpot;
     }
 
     internal static ConcurrentDictionary<MethodBase, string> ProcessClaims() {

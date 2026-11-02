@@ -7,6 +7,9 @@ namespace Concord.Emit;
 ///     Creates callable clones of original target method bodies.
 /// </summary>
 public static class OriginalBody {
+    /// <summary>Reads a method's declared body from the host, for runtimes where reflection reports the live one.</summary>
+    public static Func<MethodBase, ComposedBody?>? HostOriginalBody { get; set; }
+
     /// <summary>
     ///     Clones an original method into an unmanaged dynamic method that is not affected by Concord detours.
     /// </summary>
@@ -16,7 +19,7 @@ public static class OriginalBody {
     ///     the first delegate argument.
     /// </returns>
     public static MethodInfo Clone(MethodBase original) {
-        using DynamicMethodDefinition dmd = BodyReader.Open(original);
+        using DynamicMethodDefinition dmd = BodyReader.OpenOriginal(original);
         return dmd.Generate();
     }
 }

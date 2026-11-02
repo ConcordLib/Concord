@@ -30,6 +30,8 @@ public static class AdapterEntryPoint {
     /// <summary>Environment variable that drops the offset map from every written body, so frames report raw offsets.</summary>
     public const string EmptyMapVariable = "CONCORD_WAYLITH_EMPTY_MAP";
 
+    internal const string DeclaredBodyRefusalCode = "CONC178";
+
     private static readonly string[] On = ["1", "true", "on", "yes", "enabled"];
 
     private static readonly string[] Off = ["0", "false", "off", "no", "disabled"];
@@ -37,6 +39,9 @@ public static class AdapterEntryPoint {
     private static readonly object Gate = new object();
 
     private static readonly Func<int> ConcordPatchedTargets = static () => Patcher.PatchedTargetCount;
+
+    private static readonly Func<bool> ConcordDeclaredBodyReads =
+        static () => !ForkBodyWriter.Shared.IsAvailable || RegisterDeclaredBodyReader();
 
     private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(5);
 
@@ -49,6 +54,9 @@ public static class AdapterEntryPoint {
 
     /// <summary>Overrides the count of already-patched targets the install checks before swapping. Left <c>null</c>, Concord's own count is used.</summary>
     public static Func<int>? PatchedTargets { get; set; }
+
+    /// <summary>Overrides whether a runtime that replaces bodies will also read a declared one back. Left <c>null</c>, the real bind result is used.</summary>
+    public static Func<bool>? DeclaredBodyReads { get; set; }
 
     /// <summary>How often to re-check for a foreign patcher taking a target. Set it to zero before installing to skip the poll. Defaults to five seconds.</summary>
     public static TimeSpan PollInterval { get; set; } = DefaultPollInterval;
@@ -96,6 +104,17 @@ public static class AdapterEntryPoint {
 
             return chosen;
         }
+    }
+
+    /// <summary>Points Concord's original-body reads at the host, when this runtime offers one.</summary>
+    /// <returns><see langword="true" /> when the host read bound and is now in use.</returns>
+    public static bool RegisterDeclaredBodyReader() {
+        if (!ForkBodyReader.Shared.IsAvailable) {
+            return false;
+        }
+
+        OriginalBody.HostOriginalBody = DeclaredBody;
+        return true;
     }
 
     /// <summary>Reads one environment variable's text, case-insensitively and ignoring surrounding space.</summary>
@@ -270,6 +289,13 @@ public static class AdapterEntryPoint {
                 "nothing to write a method body with. " + chosen.Reason);
         }
 
+        if (!(DeclaredBodyReads ?? ConcordDeclaredBodyReads)()) {
+            return new Selection(
+                false,
+                "this runtime replaces method bodies but will not read a declared one back, so every read of a " +
+                "target's original body would return whatever body Concord last wrote over it. " + chosen.Reason);
+        }
+
         WaylithDetourBackend.Log = write;
         IDetourBackend installed = backend is null ? new WaylithDetourBackend(inner) : backend(inner);
         if (router is null) {
@@ -279,6 +305,25 @@ public static class AdapterEntryPoint {
         }
 
         return chosen;
+    }
+
+    private static ComposedBody? DeclaredBody(MethodBase method) {
+        HostBody? read = ForkBodyReader.Shared.Read(method);
+        if (read is null) {
+            throw Refuse(method, "this host would not read its declared body back");
+        }
+
+        ComposedBody? decoded = BodyDecoder.Decode(method, read, out string? refusal);
+        return decoded ?? throw Refuse(method, "Concord could not decode the body this host read back: " + refusal);
+    }
+
+    private static ConcordEmitException Refuse(MethodBase method, string because) {
+        return new ConcordEmitException(
+            DeclaredBodyRefusalCode,
+            $"'{method.DeclaringType?.FullName ?? "<no declaring type>"}.{method.Name}' cannot be read as it was " +
+            $"declared: {because}. This runtime reports a replaced body through reflection, so falling back to " +
+            "that read would hand out a patched body as though it were the original, and Concord refuses the " +
+            "method instead.");
     }
 
     private static void RegisterLocalNameResolver(string[]? assemblyDirectories, Action<string> write) {
