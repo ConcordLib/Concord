@@ -16,6 +16,12 @@ public static class ForkFieldInjection {
 
     public const string ConfigKey = "WaylithClr.FieldInjection";
 
+    /// <summary>
+    ///     The xunit collection every class that queues or applies a batch must join: the runtime holds
+    ///     one process-wide queue and any apply drains all of it.
+    /// </summary>
+    public const string ApplyCollection = "waylith-field-injection-queue";
+
     private const BindingFlags AnyStatic = BindingFlags.Public | BindingFlags.Static;
 
     private const BindingFlags AnyInstance = BindingFlags.Public | BindingFlags.Instance;

@@ -56,6 +56,15 @@
     </Reference>
   </ItemGroup>
 
+  <!-- A self-contained app resolves by deps.json, which OverlayForkRuntime does not write, so the
+       host wrapper the stale-handler facts bind to needs a reference of its own. -->
+  <ItemGroup Condition="Exists('$(ForkRuntimeDir)/Waylith.Injection.dll')">
+    <Reference Include="Waylith.Injection">
+      <HintPath>$(ForkRuntimeDir)/Waylith.Injection.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
   <Target Name="RequireForkRuntime" BeforeTargets="Build"
           Condition="'$(SkipForkRuntimeOverlay)' != 'true' And !Exists('$(ForkRuntimeDir)/libcoreclr.so')">
     <Error Text="ForkRuntimeDir '$(ForkRuntimeDir)' has no libcoreclr.so, so the facts in this project would silently run off-fork and report every fact [SKIP]. Pass -p:ForkRuntimeDir=&lt;path&gt; pointing at the fork runtime, or -p:SkipForkRuntimeOverlay=true to build off-fork on purpose."/>

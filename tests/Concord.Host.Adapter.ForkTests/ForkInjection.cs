@@ -11,7 +11,7 @@ public enum InjectionGap {
 public static class ForkInjection {
     public const string InjectionTypeName = "Waylith.Injection.Injection, Waylith.Injection";
 
-    public const string DelegateTypeName = "Waylith.Injection.HarmonyRegenerateDelegate, Waylith.Injection";
+    public const string DelegateTypeName = "Waylith.Injection.Injection+HarmonyRegenerateDelegate, Waylith.Injection";
 
     private const BindingFlags AnyStatic = BindingFlags.Public | BindingFlags.Static;
 
@@ -30,9 +30,16 @@ public static class ForkInjection {
         AnyStatic,
         [typeof(MethodBase)]);
 
-    private static readonly MethodInfo? QueueEntry = ForkFieldInjection.BatchType is null
+    private static readonly Type? ContinuationType = ForkFieldInjection.BatchType is null
         ? null
-        : Injection?.GetMethod("QueueForFrameBoundary", AnyStatic, [ForkFieldInjection.BatchType, typeof(Action)]);
+        : typeof(Action<>).MakeGenericType(ForkFieldInjection.BatchType);
+
+    private static readonly MethodInfo? QueueEntry = ContinuationType is null
+        ? null
+        : Injection?.GetMethod(
+            "QueueForFrameBoundary",
+            AnyStatic,
+            [ForkFieldInjection.BatchType!, ContinuationType]);
 
     private static readonly MethodInfo? ApplyAtBoundary = Injection?.GetMethod(
         "ApplyPendingAtFrameBoundary",
@@ -74,8 +81,11 @@ public static class ForkInjection {
     }
 
     public static void QueueForFrameBoundary(ForkFieldInjection.Batch batch, Action onApplied) {
+        Action<object> relay = _ => onApplied();
+        Delegate continuation = Delegate.CreateDelegate(ContinuationType!, relay.Target, relay.Method);
+
         ForkFieldInjection.Unwrapped(() => {
-            QueueEntry!.Invoke(null, [batch.Inner, onApplied]);
+            QueueEntry!.Invoke(null, [batch.Inner, continuation]);
             return null;
         });
     }

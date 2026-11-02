@@ -64,6 +64,7 @@ public static class DependentProbe {
     }
 }
 
+[Collection(ForkFieldInjection.ApplyCollection)]
 public sealed class FieldInjectionTests {
     private const string NoInjection = "No field-injection runtime here, so nothing can be injected.";
 

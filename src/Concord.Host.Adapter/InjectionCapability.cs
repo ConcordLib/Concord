@@ -27,7 +27,7 @@ public static class InjectionCapability {
     public const string InjectionTypeName = "Waylith.Injection.Injection, Waylith.Injection";
 
     /// <summary>The assembly-qualified name of the delegate <c>RegisterStaleMethodHandler</c> takes.</summary>
-    public const string DelegateTypeName = "Waylith.Injection.HarmonyRegenerateDelegate, Waylith.Injection";
+    public const string DelegateTypeName = "Waylith.Injection.Injection+HarmonyRegenerateDelegate, Waylith.Injection";
 
     private const string SupportFlag = "IsSupported";
 
