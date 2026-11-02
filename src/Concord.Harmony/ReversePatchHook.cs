@@ -13,6 +13,8 @@ internal static class ReversePatchHook
 {
     internal const string LiveMarker = "[Concord.Coex] reverse-snapshot-live";
 
+    internal const string DeclaredMarker = "[Concord.Coex] reverse-original-declared";
+
     private static readonly MethodInfo? NotifyMethod =
         typeof(ReversePatchHook).GetMethod(nameof(Notify), BindingFlags.NonPublic | BindingFlags.Static);
 
@@ -56,7 +58,7 @@ internal static class ReversePatchHook
         if (reversePatch == null || NotifyMethod == null)
         {
             logger = null;
-            log(CoexistenceLogMarkers.HookUnavailable + " reverse patch: HarmonyLib.PatchFunctions.ReversePatch was not found, so a Snapshot reverse patch of a Concord-owned method reads stale IL");
+            log(CoexistenceLogMarkers.HookUnavailable + " reverse patch: HarmonyLib.PatchFunctions.ReversePatch was not found, so a reverse patch of a Concord-owned method reads stale IL");
             return false;
         }
 
@@ -84,7 +86,26 @@ internal static class ReversePatchHook
 
     private static void Notify(ControlHandle<MethodInfo> ch, HarmonyMethod standin, MethodBase original, MethodInfo postTranspiler)
     {
-        if (standin == null || original == null || standin.reversePatchType != HarmonyReversePatchType.Snapshot || !OwnsBody(original))
+        if (standin == null || original == null || !OwnsBody(original))
+        {
+            return;
+        }
+
+        if (standin.reversePatchType == HarmonyReversePatchType.Original)
+        {
+            MethodBase declared = OriginalBody.AsDeclared(original);
+            if (ReferenceEquals(declared, original))
+            {
+                return;
+            }
+
+            logger?.Invoke(DeclaredMarker + " " + Describe(original) + " into " + Describe(standin.method));
+            ch.ReturnValue = Rewrite(standin, declared, postTranspiler);
+            ch.Cancel();
+            return;
+        }
+
+        if (standin.reversePatchType != HarmonyReversePatchType.Snapshot)
         {
             return;
         }
@@ -94,18 +115,15 @@ internal static class ReversePatchHook
             throw new NotSupportedException(
                 "Concord owns " + Describe(original) + ", so its live body is only reachable as a call, not as an instruction stream. " +
                 "The transpiler declared inside " + Describe(standin.method) + " would run over that call and edit nothing. " +
-                "Drop the stub's transpiler, or reverse patch with HarmonyReversePatchType.Original to edit the unpatched IL.");
+                "Drop the stub's transpiler to take the live body as a call, or reverse patch with " +
+                "HarmonyReversePatchType.Original to transpile the declared IL, which carries none of Concord's injections.");
         }
 
         logger?.Invoke(LiveMarker + " " + Describe(original) + " into " + Describe(standin.method));
         standin.reversePatchType = HarmonyReversePatchType.Original;
         try
         {
-            ch.ReturnValue = (MethodInfo)reversePatch!.Invoke(null, new object?[] { standin, TrampolineFor(original), postTranspiler })!;
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException != null)
-        {
-            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            ch.ReturnValue = Rewrite(standin, TrampolineFor(original), postTranspiler);
         }
         finally
         {
@@ -113,6 +131,19 @@ internal static class ReversePatchHook
         }
 
         ch.Cancel();
+    }
+
+    private static MethodInfo Rewrite(HarmonyMethod standin, MethodBase source, MethodInfo? postTranspiler)
+    {
+        try
+        {
+            return (MethodInfo)reversePatch!.Invoke(null, new object?[] { standin, source, postTranspiler })!;
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException != null)
+        {
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
+        }
     }
 
     private static bool OwnsBody(MethodBase method)

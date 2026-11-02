@@ -223,6 +223,37 @@ public sealed class ReversePatchHookTests
         }
     }
 
+    [Fact]
+    public void OriginalOnAConcordOwnedTarget_TakesTheBodyTheHostDeclares()
+    {
+        List<string> logs = new List<string>();
+        MethodBase target = Method(typeof(DeclaredTarget), nameof(DeclaredTarget.Compute));
+        MethodInfo standin = Method(typeof(DeclaredStandin), nameof(DeclaredStandin.Compute));
+        RoutingDetourBackend router = new RoutingDetourBackend(new MonoModDetourBackend(), logs.Add);
+        HarmonyBridge bridge = new HarmonyBridge(logs.Add);
+        HarmonyLib.Harmony harmony = new HarmonyLib.Harmony("test.reverse.hook.declared");
+        Func<MethodBase, System.Reflection.MethodBody?>? before = OriginalBody.HostMethodBody;
+
+        try
+        {
+            Arm(router, bridge, logs);
+            OriginalBody.HostMethodBody = _ => new StubBody();
+
+            using IDetourHandle handle = router.ApplyComposed(target, new[] { HeadOf(nameof(Mods.DeclaredHead)) });
+            Assert.Equal(RouteState.Raw, router.GetRoute(target));
+
+            harmony.CreateReversePatcher(target, new HarmonyMethod(standin)).Patch(HarmonyReversePatchType.Original);
+
+            Assert.Equal(7, DeclaredStandin.Compute(1));
+            Assert.Single(logs.FindAll(line => line.StartsWith(ReversePatchHook.DeclaredMarker)));
+        }
+        finally
+        {
+            OriginalBody.HostMethodBody = before;
+            Disarm(harmony, "test.reverse.hook.declared");
+        }
+    }
+
     private static void Arm(RoutingDetourBackend router, HarmonyBridge bridge, List<string> logs)
     {
         router.ActivateHost(bridge);
@@ -288,6 +319,39 @@ public sealed class ReversePatchHookTests
         {
             throw new NotImplementedException("the reverse patch did not replace this body");
         }
+    }
+
+    public static class DeclaredTarget
+    {
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static int Compute(int seed)
+        {
+            return seed + 12;
+        }
+    }
+
+    public static class DeclaredStandin
+    {
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static int Compute(int seed)
+        {
+            throw new NotImplementedException("the reverse patch did not replace this body");
+        }
+    }
+
+    private sealed class StubBody : System.Reflection.MethodBody
+    {
+        public override IList<LocalVariableInfo> LocalVariables => new List<LocalVariableInfo>();
+
+        public override IList<ExceptionHandlingClause> ExceptionHandlingClauses => new List<ExceptionHandlingClause>();
+
+        public override int MaxStackSize => 1;
+
+        public override bool InitLocals => false;
+
+        public override int LocalSignatureMetadataToken => 0;
+
+        public override byte[] GetILAsByteArray() => new byte[] { 0x1f, 0x07, 0x2a };
     }
 
     public static class OriginalTarget
@@ -400,6 +464,12 @@ public sealed class ReversePatchHookTests
         }
 
         public static void OriginalHead(ControlHandle<int> ch)
+        {
+            ch.ReturnValue = 99;
+            ch.Cancel();
+        }
+
+        public static void DeclaredHead(ControlHandle<int> ch)
         {
             ch.ReturnValue = 99;
             ch.Cancel();

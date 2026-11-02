@@ -114,6 +114,7 @@ public static class AdapterEntryPoint {
         }
 
         OriginalBody.HostOriginalBody = DeclaredBody;
+        OriginalBody.HostMethodBody = DeclaredMethodBodyFor;
         return true;
     }
 
@@ -315,6 +316,28 @@ public static class AdapterEntryPoint {
 
         ComposedBody? decoded = BodyDecoder.Decode(method, read, out string? refusal);
         return decoded ?? throw Refuse(method, "Concord could not decode the body this host read back: " + refusal);
+    }
+
+    private static System.Reflection.MethodBody? DeclaredMethodBodyFor(MethodBase method) {
+        HostBody? read = ForkBodyReader.Shared.Read(method);
+        if (read is null) {
+            throw Refuse(method, "this host would not read its declared body back");
+        }
+
+        Type[]? typeArguments = method.DeclaringType is { IsGenericType: true } declaring
+            ? declaring.GetGenericArguments()
+            : null;
+        Type[]? methodArguments = method is MethodInfo { IsGenericMethod: true } generic
+            ? generic.GetGenericArguments()
+            : null;
+
+        ComposedLocal[]? locals = LocalSignatureDecoder.Decode(
+            read.LocalSignature.ToArray(), method.Module, typeArguments, methodArguments, out string? refusal);
+        if (locals is null) {
+            throw Refuse(method, "Concord could not decode the local signature this host read back: " + refusal);
+        }
+
+        return DeclaredMethodBody.Build(method, read, locals);
     }
 
     private static ConcordEmitException Refuse(MethodBase method, string because) {
