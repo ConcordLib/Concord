@@ -83,6 +83,28 @@ internal sealed class TargetDetourRegistry {
         return registry.IsApplied;
     }
 
+    internal static bool RecomposeLive(MethodBase target) {
+        MethodBase key = MethodIdentity.SharedBodyKey(target);
+        TargetDetourRegistry? registry = Find(key);
+        if (registry == null) {
+            return false;
+        }
+
+        lock (RegistriesGate) {
+            if (ForeignOwned.Contains(registry.target)) {
+                return false;
+            }
+        }
+
+        try {
+            return registry.RecomposeFromLive();
+        } catch (Exception failure) {
+            PatchLog.Write(
+                $"[Concord] recompose failed for '{registry.target.DeclaringType?.FullName}.{registry.target.Name}': {failure.Message}");
+            return false;
+        }
+    }
+
     internal static void MarkForeignOwned(MethodBase key) {
         lock (RegistriesGate) {
             ForeignOwned.Add(key);
@@ -146,6 +168,22 @@ internal sealed class TargetDetourRegistry {
             sequence = nextSequence;
             RecomposeOrRestore(ordered, debug, previous, previousSequence);
             return new RegistryHandle(this, owned);
+        }
+    }
+
+    private bool RecomposeFromLive() {
+        lock (gate) {
+            if (live.Count == 0) {
+                return false;
+            }
+
+            bool debug = false;
+            foreach ((long Seq, Injection Injection) entry in live) {
+                debug |= entry.Injection.Debug;
+            }
+
+            Recompose(InjectionOrderer.OrderForComposition(live), debug);
+            return true;
         }
     }
 

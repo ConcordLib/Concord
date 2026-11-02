@@ -373,7 +373,7 @@ public sealed class ComposedBodyPublisher : ITargetBodyOwner {
 ///     The <see cref="IDetourBackend" /> a caller selects to get body replacement instead of native
 ///     detours. <see cref="Apply" /> and <see cref="ApplyComposed" /> are the two ways in.
 /// </summary>
-public sealed class WaylithDetourBackend : IDetourBackend, IOwnsBodyQuery, ISuppressionProbes {
+public sealed class WaylithDetourBackend : IDetourBackend, IOwnsBodyQuery, IRecomposeTarget, ISuppressionProbes {
     /// <summary>Log prefix for a target published without an offset map, so its line numbers are unreliable.</summary>
     public const string NoOffsetMapMarker = "[Concord.Waylith] no-offset-map";
 
@@ -674,6 +674,12 @@ public sealed class WaylithDetourBackend : IDetourBackend, IOwnsBodyQuery, ISupp
     public bool OwnsBody(MethodBase target) {
         ArgumentNullException.ThrowIfNull(target);
         return Writers.HoldsClaim(target) || (fallback as IOwnsBodyQuery)?.OwnsBody(target) == true;
+    }
+
+    /// <inheritdoc />
+    public bool Recompose(MethodBase target) {
+        ArgumentNullException.ThrowIfNull(target);
+        return (fallback as IRecomposeTarget)?.Recompose(target) == true;
     }
 
     /// <inheritdoc />

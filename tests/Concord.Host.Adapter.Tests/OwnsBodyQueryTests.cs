@@ -55,6 +55,27 @@ public sealed class OwnsBodyQueryTests : IDisposable {
         Assert.False(backend.OwnsBody(Target()));
     }
 
+    [Fact]
+    public void RecomposeForwardsTheFallbacksAnswer() {
+        IRecomposeTarget backend = Backend(new RecomposingFallback(true));
+
+        Assert.True(backend.Recompose(Target()));
+    }
+
+    [Fact]
+    public void RecomposeForwardsAFalseAnswer() {
+        IRecomposeTarget backend = Backend(new RecomposingFallback(false));
+
+        Assert.False(backend.Recompose(Target()));
+    }
+
+    [Fact]
+    public void RecomposeIsFalseWhenTheFallbackCannotRecompose() {
+        IRecomposeTarget backend = Backend(new UnawareFallback());
+
+        Assert.False(backend.Recompose(Target()));
+    }
+
     private static MethodBase Target() {
         return typeof(OwnsBodyQueryTests).GetMethod(nameof(Subject))!;
     }
@@ -76,6 +97,12 @@ public sealed class OwnsBodyQueryTests : IDisposable {
     private sealed class OwningFallback : UnawareFallback, IOwnsBodyQuery {
         public bool OwnsBody(MethodBase target) {
             return true;
+        }
+    }
+
+    private sealed class RecomposingFallback(bool answer) : UnawareFallback, IRecomposeTarget {
+        public bool Recompose(MethodBase target) {
+            return answer;
         }
     }
 }

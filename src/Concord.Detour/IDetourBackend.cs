@@ -39,6 +39,23 @@ public interface IOwnsBodyQuery {
 }
 
 /// <summary>
+///     Lets a caller ask a backend to rebuild a target's composed body from the injections already live on it,
+///     adding and removing nothing, without assuming MonoMod.Core.
+/// </summary>
+public interface IRecomposeTarget {
+    /// <summary>
+    ///     Recomposes and republishes <paramref name="target" />'s body from its live injections. Safe to call
+    ///     more than once for one target.
+    /// </summary>
+    /// <param name="target">The method to rebuild.</param>
+    /// <returns>
+    ///     <see langword="true" /> if this backend recomposed <paramref name="target" />,
+    ///     <see langword="false" /> if it has no live injections on it or a foreign patch host owns its body.
+    /// </returns>
+    bool Recompose(MethodBase target);
+}
+
+/// <summary>
 ///     Lets a backend tell a foreign patch host whether Concord may keep a target's body instead of letting
 ///     that host rebuild it. A backend that does not implement this leaves suppression off.
 /// </summary>

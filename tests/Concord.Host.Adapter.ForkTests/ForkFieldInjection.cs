@@ -22,7 +22,7 @@ public static class ForkFieldInjection {
 
     private static readonly Type? Injection = Type.GetType(InjectionTypeName, throwOnError: false);
 
-    private static readonly Type? BatchType = Type.GetType(BatchTypeName, throwOnError: false);
+    internal static readonly Type? BatchType = Type.GetType(BatchTypeName, throwOnError: false);
 
     private static readonly PropertyInfo? Supported = Injection?.GetProperty("IsSupported", AnyStatic);
 
@@ -83,6 +83,8 @@ public static class ForkFieldInjection {
         internal Batch(object inner) {
             this.inner = inner;
         }
+
+        internal object Inner => inner;
 
         public string Status => Read("Status")!.ToString()!;
 

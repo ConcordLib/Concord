@@ -10,7 +10,7 @@ namespace Concord.Detour;
 ///     uses. MonoMod.Core resolves the runtime generic context, so methods declared on a generic type are
 ///     redirected correctly.
 /// </summary>
-public sealed class MonoModDetourBackend : IDetourBackend, IOwnsBodyQuery {
+public sealed class MonoModDetourBackend : IDetourBackend, IOwnsBodyQuery, IRecomposeTarget {
     /// <summary>
     ///     Initializes a new instance of the <see cref="MonoModDetourBackend" /> class and wires
     ///     <see cref="ReversePatchFactory.OwnsBody" /> to it, so <see cref="ReversePatchFactory.Bind" />
@@ -23,6 +23,15 @@ public sealed class MonoModDetourBackend : IDetourBackend, IOwnsBodyQuery {
     /// <inheritdoc />
     public bool OwnsBody(MethodBase target) {
         return TargetDetourRegistry.OwnsBody(target);
+    }
+
+    /// <inheritdoc />
+    public bool Recompose(MethodBase target) {
+        if (target is null) {
+            throw new ArgumentNullException(nameof(target));
+        }
+
+        return TargetDetourRegistry.RecomposeLive(target);
     }
 
     /// <inheritdoc />
