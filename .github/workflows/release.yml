@@ -16,6 +16,12 @@ on:
         required: false
         default: RimWorld
         type: string
+      runtime_release_type:
+        description: Release the runtime cuts for that Core tag
+        required: false
+        default: patch
+        type: choice
+        options: [patch, minor, major]
 
 permissions:
   contents: read
@@ -260,6 +266,21 @@ jobs:
           echo "released=$RELEASED" >> "$GITHUB_OUTPUT"
           echo "newest v-tag on HEAD: ${TAG:-none}"
           echo "cut by this run: ${RELEASED:-none}"
+          TYPE=""
+          if [ -n "$RELEASED" ]; then
+            PREVIOUS=$(git tag --list 'v*' --sort=-v:refname | grep -vx "$RELEASED" | head -1 || true)
+            IFS=. read -r NEW_MAJOR NEW_MINOR _ <<< "${RELEASED#v}"
+            IFS=. read -r OLD_MAJOR OLD_MINOR _ <<< "${PREVIOUS#v}"
+            if [ -z "$PREVIOUS" ] || [ "$NEW_MAJOR" != "$OLD_MAJOR" ]; then
+              TYPE="major"
+            elif [ "$NEW_MINOR" != "$OLD_MINOR" ]; then
+              TYPE="minor"
+            else
+              TYPE="patch"
+            fi
+          fi
+          echo "type=$TYPE" >> "$GITHUB_OUTPUT"
+          echo "release type against ${PREVIOUS:-no earlier tag}: ${TYPE:-none}"
 
       - name: Pack
         if: steps.tag.outputs.tag != ''
@@ -336,7 +357,8 @@ jobs:
             repo=$(echo "$repo" | xargs)
             gh api "repos/ConcordLib/$repo/dispatches" \
               -f event_type=core-released \
-              -F "client_payload[core_version]=${{ steps.tag.outputs.released }}"
+              -F "client_payload[core_version]=${{ steps.tag.outputs.released }}" \
+              -F "client_payload[release_type]=${{ steps.tag.outputs.type }}"
           done
 
   dispatch-runtime:
@@ -365,8 +387,10 @@ jobs:
           GH_TOKEN: ${{ steps.apptoken.outputs.token }}
           RUNTIME_REPOSITORY: ${{ inputs.runtime_repository }}
           RUNTIME_VERSION: ${{ inputs.runtime_version }}
+          RUNTIME_RELEASE_TYPE: ${{ inputs.runtime_release_type }}
         run: |
           set -euo pipefail
           gh api "repos/ConcordLib/${RUNTIME_REPOSITORY}/dispatches" \
             -f event_type=core-released \
-            -F "client_payload[core_version]=${RUNTIME_VERSION}"
+            -F "client_payload[core_version]=${RUNTIME_VERSION}" \
+            -F "client_payload[release_type]=${RUNTIME_RELEASE_TYPE}"
