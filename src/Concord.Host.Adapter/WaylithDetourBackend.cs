@@ -677,6 +677,10 @@ public sealed class WaylithDetourBackend : IDetourBackend, IOwnsBodyQuery, IReco
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     Out of scope for a target whose body this backend wrote in place: the runtime rejits that body on a
+    ///     relayout, so no stale handler is ever asked about it.
+    /// </remarks>
     public bool Recompose(MethodBase target) {
         ArgumentNullException.ThrowIfNull(target);
         return (fallback as IRecomposeTarget)?.Recompose(target) == true;

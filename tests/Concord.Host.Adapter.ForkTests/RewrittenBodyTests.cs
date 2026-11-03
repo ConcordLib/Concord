@@ -1,8 +1,12 @@
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace Concord.Host.Adapter.ForkTests;
+
+public sealed class RewrittenFieldTarget {
+}
 
 public static class RewrittenProbe {
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -21,6 +25,7 @@ public static class RewrittenProbe {
     }
 }
 
+[Collection(ForkFieldInjection.ApplyCollection)]
 public sealed class RewrittenBodyTests : IDisposable {
     private const string NoInjection =
         "No field-injection runtime here, so nothing reports whether a body was rewritten.";
@@ -34,7 +39,8 @@ public sealed class RewrittenBodyTests : IDisposable {
 
     private readonly HashSet<MethodBase> written = [];
 
-    public static bool Unavailable => ForkRuntime.Unavailable || ForkInjection.Unavailable;
+    public static bool Unavailable =>
+        ForkRuntime.Unavailable || ForkInjection.Unavailable || ForkFieldInjection.Unavailable;
 
     public void Dispose() {
         foreach (MethodBase target in written) {
@@ -86,5 +92,47 @@ public sealed class RewrittenBodyTests : IDisposable {
             "the declared body is back and the runtime still reports this method as rewritten. The verdict is a set " +
             "the host only ever adds to, so a restored target would stay flagged for the life of the process and a " +
             "stale-method handler keyed on it would refuse that target forever.");
+    }
+
+    [Fact(Skip = NoInjection, SkipWhen = nameof(Unavailable))]
+    public void AnAccessorTheRuntimeBoundThroughProcessAssembliesReadsAsRewritten() {
+        MethodInfo accessor = BuildInjectedFieldAccessor();
+
+        ForkInjection.ProcessAssemblies([accessor.Module.Assembly]);
+
+        Assert.True(
+            ForkInjection.HasRewrittenBody(accessor),
+            $"{nameof(ForkInjection.ProcessAssemblies)} ran the runtime's own InjectionProcessor.Finish over an " +
+            "accessor this fact tagged with [InjectedField], and the verdict still read false for it. Finish is " +
+            "the only place that writes the set behind the verdict, so a true reading here is what makes the " +
+            "three false readings above mean something instead of a verdict that never turns true.");
+    }
+
+    private static MethodInfo BuildInjectedFieldAccessor() {
+        AssemblyName name = new AssemblyName("ConcordRewrittenFieldProbe_" + Guid.NewGuid().ToString("N"));
+        PersistedAssemblyBuilder assembly = new PersistedAssemblyBuilder(name, typeof(object).Assembly);
+        ModuleBuilder module = assembly.DefineDynamicModule(name.Name!);
+
+        TypeBuilder accessors = module.DefineType(
+            "Accessors",
+            TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.Class);
+
+        MethodBuilder accessor = accessors.DefineMethod(
+            "ReadInjectedField",
+            MethodAttributes.Public | MethodAttributes.Static,
+            typeof(int),
+            [typeof(RewrittenFieldTarget)]);
+        accessor.SetCustomAttribute(ForkInjection.NewInjectedFieldAttribute());
+
+        ILGenerator il = accessor.GetILGenerator();
+        il.Emit(OpCodes.Ldc_I4_0);
+        il.Emit(OpCodes.Ret);
+
+        accessors.CreateType();
+
+        using MemoryStream stream = new MemoryStream();
+        assembly.Save(stream);
+        Type built = Assembly.Load(stream.ToArray()).GetType("Accessors")!;
+        return built.GetMethod("ReadInjectedField", BindingFlags.Public | BindingFlags.Static)!;
     }
 }

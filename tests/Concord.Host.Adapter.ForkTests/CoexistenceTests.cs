@@ -38,6 +38,7 @@ public static class Shift {
     }
 }
 
+[Collection(ForkFieldInjection.ApplyCollection)]
 public sealed class CoexistenceTests : IDisposable {
     private const string NoFork = "No body-replacement runtime here, so nothing can be written.";
 

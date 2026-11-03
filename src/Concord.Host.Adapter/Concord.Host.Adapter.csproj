@@ -36,6 +36,11 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Concord.Host.Adapter.Tests"/>
+    <InternalsVisibleTo Include="Concord.Host.Adapter.ForkTests"/>
+  </ItemGroup>
+
   <UsingTask TaskName="ReadConcordBuildSha" TaskFactory="RoslynCodeTaskFactory"
              AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>

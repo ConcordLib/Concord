@@ -43,7 +43,18 @@ public static class AdapterEntryPoint {
     private static readonly Func<bool> ConcordDeclaredBodyReads =
         static () => !ForkBodyWriter.Shared.IsAvailable || RegisterDeclaredBodyReader();
 
+    private static readonly Func<Action<string>, InjectionCapabilityGap> ConcordStaleHandler = static write => {
+        if (InjectionCapability.Unavailable) {
+            return InjectionCapability.Gap;
+        }
+
+        StaleBodyHandler.Install(write);
+        return InjectionCapabilityGap.None;
+    };
+
     private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(5);
+
+    private static bool staleHandlerAsked;
 
     private static string? warnedEmptyMap;
 
@@ -57,6 +68,9 @@ public static class AdapterEntryPoint {
 
     /// <summary>Overrides whether a runtime that replaces bodies will also read a declared one back. Left <c>null</c>, the real bind result is used.</summary>
     public static Func<bool>? DeclaredBodyReads { get; set; }
+
+    /// <summary>Overrides registering the handler this runtime reports a stale method to, returning <see cref="InjectionCapabilityGap.None" /> once it is registered or the gap that stopped it. Left <c>null</c>, the real probe and registration are used.</summary>
+    public static Func<Action<string>, InjectionCapabilityGap>? StaleHandler { get; set; }
 
     /// <summary>How often to re-check for a foreign patcher taking a target. Set it to zero before installing to skip the poll. Defaults to five seconds.</summary>
     public static TimeSpan PollInterval { get; set; } = DefaultPollInterval;
@@ -97,6 +111,7 @@ public static class AdapterEntryPoint {
             }
 
             write(chosen.Message);
+            RegisterStaleHandler(write, support);
             Current = chosen;
             if (chosen.Waylith && PollInterval > TimeSpan.Zero) {
                 poll = new Timer(_ => Report(write), null, PollInterval, PollInterval);
@@ -180,7 +195,7 @@ public static class AdapterEntryPoint {
         };
     }
 
-    /// <summary>Forgets the installed selection and stops the poll, waiting for a callback already running. For tests, never for a running game.</summary>
+    /// <summary>Forgets the installed selection, stops the poll waiting for a callback already running, and lets the stale-method handler be registered again. For tests, never for a running game.</summary>
     public static void ResetForTests() {
         lock (Gate) {
             Timer? running = Interlocked.Exchange(ref poll, null);
@@ -192,6 +207,7 @@ public static class AdapterEntryPoint {
             }
 
             Current = null;
+            staleHandlerAsked = false;
             warnedEmptyMap = null;
             PollInterval = DefaultPollInterval;
         }
@@ -239,6 +255,25 @@ public static class AdapterEntryPoint {
             requested == SwitchState.ForceWaylith
                 ? source + " asked for it, but it cannot run here: " + explained
                 : explained);
+    }
+
+    private static void RegisterStaleHandler(Action<string> write, BodyReplacement support) {
+        if (staleHandlerAsked) {
+            return;
+        }
+
+        staleHandlerAsked = true;
+        InjectionCapabilityGap gap = (StaleHandler ?? ConcordStaleHandler)(write);
+        if (gap == InjectionCapabilityGap.None || support != BodyReplacement.Available) {
+            return;
+        }
+
+        write(
+            Selection.Prefix + "no stale-method handler: " +
+            InjectionCapability.Explain(gap, InjectionCapability.ProbeFailure) + ". Patching still works, but if " +
+            "another mod adds a field to a type one of Concord's patched methods touches, every wrapper Concord " +
+            "compiled against the old layout is thrown out, and the patches behind them stop running until the " +
+            "game is restarted.");
     }
 
     private static void Report(Action<string> write) {

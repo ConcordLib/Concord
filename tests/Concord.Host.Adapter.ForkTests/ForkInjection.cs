@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Reflection.Emit;
 
 namespace Concord.Host.Adapter.ForkTests;
 
@@ -12,6 +13,8 @@ public static class ForkInjection {
     public const string InjectionTypeName = "Waylith.Injection.Injection, Waylith.Injection";
 
     public const string DelegateTypeName = "Waylith.Injection.Injection+HarmonyRegenerateDelegate, Waylith.Injection";
+
+    public const string InjectedFieldAttributeTypeName = "Waylith.Injection.InjectedFieldAttribute, Waylith.Injection";
 
     private const BindingFlags AnyStatic = BindingFlags.Public | BindingFlags.Static;
 
@@ -48,9 +51,22 @@ public static class ForkInjection {
 
     private static readonly PropertyInfo? Regenerate = Injection?.GetProperty("HarmonyRegenerate", AnyStatic);
 
+    private static readonly MethodInfo? ProcessAssembliesEntry = Injection?.GetMethod(
+        "ProcessAssemblies",
+        AnyStatic,
+        [typeof(IReadOnlyList<Assembly>)]);
+
+    private static readonly Type? InjectedFieldAttributeType =
+        Type.GetType(InjectedFieldAttributeTypeName, throwOnError: false);
+
+    private static readonly ConstructorInfo? InjectedFieldAttributeCtor =
+        InjectedFieldAttributeType?.GetConstructor(Type.EmptyTypes);
+
     public static InjectionGap Gap =>
         InjectionCapability.Unavailable ? InjectionGap.Capability
-        : QueueEntry is null || ApplyAtBoundary is null || Regenerate is null ? InjectionGap.Api
+        : QueueEntry is null || ApplyAtBoundary is null || Regenerate is null || HasRewritten is null
+            || ProcessAssembliesEntry is null || InjectedFieldAttributeCtor is null
+            ? InjectionGap.Api
         : InjectionGap.None;
 
     public static bool Unavailable => Gap != InjectionGap.None;
@@ -100,5 +116,16 @@ public static class ForkInjection {
     public static Delegate? HarmonyRegenerate {
         get => (Delegate?)Regenerate!.GetValue(null);
         set => Regenerate!.SetValue(null, value);
+    }
+
+    public static void ProcessAssemblies(IReadOnlyList<Assembly> assemblies) {
+        ForkFieldInjection.Unwrapped(() => {
+            ProcessAssembliesEntry!.Invoke(null, [assemblies]);
+            return null;
+        });
+    }
+
+    public static CustomAttributeBuilder NewInjectedFieldAttribute() {
+        return new CustomAttributeBuilder(InjectedFieldAttributeCtor!, []);
     }
 }

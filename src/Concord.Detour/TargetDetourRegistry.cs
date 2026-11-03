@@ -87,11 +87,17 @@ internal sealed class TargetDetourRegistry {
         MethodBase key = MethodIdentity.SharedBodyKey(target);
         TargetDetourRegistry? registry = Find(key);
         if (registry == null) {
-            return false;
+            MethodBase? resolved = MethodIdentity.ResolveOriginal(target);
+            registry = resolved == null ? null : Find(MethodIdentity.SharedBodyKey(resolved));
+            if (registry == null) {
+                return false;
+            }
         }
 
         lock (RegistriesGate) {
             if (ForeignOwned.Contains(registry.target)) {
+                PatchLog.Write(
+                    $"[Concord] recompose refused for '{registry.target.DeclaringType?.FullName}.{registry.target.Name}': a foreign patch host wrote the body.");
                 return false;
             }
         }

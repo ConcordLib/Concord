@@ -41,6 +41,7 @@ public static class SuppressNotify {
     }
 }
 
+[Collection(ForkFieldInjection.ApplyCollection)]
 public sealed class SuppressedRebuildTests : IDisposable {
     private const string NoFork = "No body-replacement runtime here, so nothing can be written.";
 

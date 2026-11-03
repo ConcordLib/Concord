@@ -441,6 +441,7 @@ public sealed class InstallTests : IDisposable {
         DetourBackend.Current = backendBefore;
         AdapterEntryPoint.ResetForTests();
         AdapterEntryPoint.PatchedTargets = null;
+        AdapterEntryPoint.StaleHandler = AmbientSwitches.SilentStaleHandler;
         Patcher.UseLocalNameResolver(null);
     }
 
@@ -689,6 +690,49 @@ public sealed class InstallTests : IDisposable {
         Assert.Equal(2, written.Count);
         Assert.Contains("no assembly directories were supplied", written[0]);
         Assert.Equal(chosen.Message, written[1]);
+    }
+
+    [Fact]
+    public void ARuntimeWithNoStaleMethodHandlerStillGetsTheBackendAndIsNamedOnce() {
+        List<string> written = new List<string>();
+        AdapterEntryPoint.StaleHandler = static _ => InjectionCapabilityGap.AssemblyAbsent;
+        StandInBackend installed = new StandInBackend();
+
+        Selection chosen = AdapterEntryPoint.Install(
+            written.Add, null, [AppContext.BaseDirectory], BodyReplacement.Available, _ => installed);
+
+        List<string> named = written.FindAll(
+            line => line.Contains("no stale-method handler", StringComparison.Ordinal));
+
+        Assert.True(
+            chosen.Waylith && ReferenceEquals(installed, DetourBackend.Current),
+            "a runtime that takes no stale-method handler was refused the backend: waylith=" + chosen.Waylith +
+            ", backend swapped=" + ReferenceEquals(installed, DetourBackend.Current) + ". " + chosen.Reason +
+            " Body replacement works without the handler, so refusing here trades partial protection for no " +
+            "patching at all.");
+        Assert.True(
+            named.Count == 1,
+            "the missing stale-method handler was named " + named.Count + " time(s) in one install, wanted 1: " +
+            string.Join(" | ", written) + ". A player reading the log has to be told once what this runtime gives " +
+            "up, and told it where the backend line is.");
+        Assert.Contains("is not present on", named[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OffForkTheMissingStaleMethodHandlerStaysSilent() {
+        List<string> written = new List<string>();
+        AdapterEntryPoint.StaleHandler = static _ => InjectionCapabilityGap.AssemblyAbsent;
+
+        Selection chosen = AdapterEntryPoint.Install(
+            written.Add, null, [AppContext.BaseDirectory], BodyReplacement.ApiAbsent, null);
+
+        List<string> named = written.FindAll(
+            line => line.Contains("no stale-method handler", StringComparison.Ordinal));
+
+        Assert.False(
+            chosen.Waylith,
+            "stock RimWorld has no body replacement, so the backend should have stayed native: " + chosen.Reason);
+        Assert.Empty(named);
     }
 }
 

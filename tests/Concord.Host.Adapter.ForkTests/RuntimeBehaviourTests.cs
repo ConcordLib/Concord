@@ -26,6 +26,7 @@ public static class Measured {
     }
 }
 
+[Collection(ForkFieldInjection.ApplyCollection)]
 public class RuntimeBehaviourTests {
     private const string CoreLibFile = "System.Private.CoreLib.dll";
 

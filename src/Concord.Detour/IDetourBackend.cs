@@ -44,13 +44,13 @@ public interface IOwnsBodyQuery {
 /// </summary>
 public interface IRecomposeTarget {
     /// <summary>
-    ///     Recomposes and republishes <paramref name="target" />'s body from its live injections. Safe to call
-    ///     more than once for one target.
+    ///     Recomposes <paramref name="target" />'s body from its live injections. Safe to call more than once
+    ///     for one target.
     /// </summary>
     /// <param name="target">The method to rebuild.</param>
     /// <returns>
-    ///     <see langword="true" /> if this backend recomposed <paramref name="target" />,
-    ///     <see langword="false" /> if it has no live injections on it or a foreign patch host owns its body.
+    ///     <see langword="true" /> if it recomposed <paramref name="target" />,
+    ///     <see langword="false" /> for no live injections, a foreign owner, a logged failure left on the original body, or a body this backend wrote in place.
     /// </returns>
     bool Recompose(MethodBase target);
 }

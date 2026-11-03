@@ -34,6 +34,7 @@ public static class RawStandin {
     }
 }
 
+[Collection(ForkFieldInjection.ApplyCollection)]
 public sealed class ReverseOriginalTests : IDisposable {
     private const string NoFork = "No host body read here, so an installed body cannot differ from the declared one.";
 
