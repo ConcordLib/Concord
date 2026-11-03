@@ -20,8 +20,8 @@ public enum SwitchState {
 }
 
 /// <summary>
-///     What a host mod calls to put the body-replacement backend in front of the native detour. Call it once, before
-///     the first patch applies: a swap after that would strand every patched target on the old backend.
+///     What a host mod calls to pick a detour backend. Body replacement is retired, so
+///     <see cref="Install(System.Action{string},bool?,string[])" /> always leaves Concord on its native detour.
 /// </summary>
 public static class AdapterEntryPoint {
     /// <summary>Environment variable that forces the backend either way, overriding the host's setting.</summary>
@@ -29,6 +29,15 @@ public static class AdapterEntryPoint {
 
     /// <summary>Environment variable that drops the offset map from every written body, so frames report raw offsets.</summary>
     public const string EmptyMapVariable = "CONCORD_WAYLITH_EMPTY_MAP";
+
+    /// <summary>
+    ///     Why <see cref="Install(System.Action{string},bool?,string[])" /> never installs body replacement. It
+    ///     is the whole reason text of the <see cref="Selection" /> that call returns.
+    /// </summary>
+    public const string RetiredReason =
+        "the waylith adapter is retired, so it installs nothing and neither reads nor writes a method body " +
+        "through the fork. Patches run on Concord's native detour backend, which is what a host without this " +
+        "package already gets. " + SwitchVariable + " does not turn it back on.";
 
     internal const string DeclaredBodyRefusalCode = "CONC178";
 
@@ -75,16 +84,33 @@ public static class AdapterEntryPoint {
     /// <summary>How often to re-check for a foreign patcher taking a target. Set it to zero before installing to skip the poll. Defaults to five seconds.</summary>
     public static TimeSpan PollInterval { get; set; } = DefaultPollInterval;
 
-    /// <summary>Installs the backend, probing this runtime for body-replacement support.</summary>
+    /// <summary>
+    ///     Retired. Registers the file lookup [Local(Name)] needs, writes the one selection line, and leaves
+    ///     Concord on its native detour backend. Nothing probes the runtime and no body is replaced.
+    /// </summary>
     /// <param name="log">Where to write the one selection line. <c>null</c> sends it to <see cref="Trace" />.</param>
-    /// <param name="setting">The host's own preference, or <c>null</c> to take the default for this runtime.</param>
+    /// <param name="setting">Ignored. Body replacement stays off whatever the host asks for.</param>
     /// <param name="assemblyDirectories">Directories to find a byte-loaded mod assembly's file in. Empty or <c>null</c> logs a warning and leaves [Local(Name)] unresolvable.</param>
-    /// <returns>The choice made. Inspect <see cref="Selection.Waylith" /> to see whether body replacement is live.</returns>
+    /// <returns>A selection reading <see cref="Selection.Waylith" /> <c>false</c>, explained by <see cref="RetiredReason" />.</returns>
     public static Selection Install(Action<string>? log, bool? setting, string[]? assemblyDirectories) {
-        return Install(log, setting, assemblyDirectories, RuntimeCapability.Support, null);
+        _ = setting;
+
+        lock (Gate) {
+            if (Current is { } already) {
+                return already;
+            }
+
+            Action<string> write = log ?? (message => Trace.WriteLine(message));
+            RegisterLocalNameResolver(assemblyDirectories, write);
+
+            Selection chosen = new Selection(false, RetiredReason);
+            write(chosen.Message);
+            Current = chosen;
+            return chosen;
+        }
     }
 
-    /// <summary>Installs the backend with the capability verdict and the backend factory supplied, for tests and unusual hosts.</summary>
+    /// <summary>Installs the backend with the capability verdict and the backend factory supplied, for tests and unusual hosts. The only overload that still installs body replacement.</summary>
     /// <param name="log">Where to write the one selection line. <c>null</c> sends it to <see cref="Trace" />.</param>
     /// <param name="setting">The host's own preference, or <c>null</c> to take the default for this runtime.</param>
     /// <param name="assemblyDirectories">Directories to find a byte-loaded mod assembly's file in.</param>

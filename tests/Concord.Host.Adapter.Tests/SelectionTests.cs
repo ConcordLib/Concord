@@ -734,6 +734,58 @@ public sealed class InstallTests : IDisposable {
             "stock RimWorld has no body replacement, so the backend should have stayed native: " + chosen.Reason);
         Assert.Empty(named);
     }
+
+    [Fact]
+    public void TheInstallAHostCallsIsRetiredAndLeavesTheNativeBackendWhereItWas() {
+        List<string> written = new List<string>();
+        IDetourBackend previous = DetourBackend.Current;
+        bool staleHandlerAsked = false;
+        AdapterEntryPoint.StaleHandler = _ => {
+            staleHandlerAsked = true;
+            return InjectionCapabilityGap.None;
+        };
+
+        Selection chosen = AdapterEntryPoint.Install(written.Add, true, [AppContext.BaseDirectory]);
+
+        Assert.True(
+            !chosen.Waylith && ReferenceEquals(previous, DetourBackend.Current),
+            "the three-argument install is the only entry point a host mod calls, and it is retired. It read " +
+            "waylith=" + chosen.Waylith + ", backend swapped=" + !ReferenceEquals(previous, DetourBackend.Current) +
+            ". " + chosen.Reason);
+        Assert.Equal(AdapterEntryPoint.RetiredReason, chosen.Reason);
+        Assert.Equal(new[] { chosen.Message }, written);
+        Assert.False(
+            staleHandlerAsked,
+            "a retired install registered a stale-method handler with the fork. Nothing composes a wrapper here, " +
+            "so there is no wrapper for a field injection to poison and no reason to touch the fork at all.");
+    }
+
+    [Fact]
+    public void TheEnvironmentVariableCannotTurnTheRetiredInstallBackOn() {
+        Environment.SetEnvironmentVariable(AdapterEntryPoint.SwitchVariable, "1");
+        IDetourBackend previous = DetourBackend.Current;
+
+        Selection chosen = AdapterEntryPoint.Install(
+            _ => {
+            },
+            null,
+            [AppContext.BaseDirectory]);
+
+        Assert.False(chosen.Waylith);
+        Assert.Same(previous, DetourBackend.Current);
+        Assert.Equal(AdapterEntryPoint.RetiredReason, chosen.Reason);
+    }
+
+    [Fact]
+    public void ARetiredInstallStillReportsThatItHasNoDirectoryToFindAModAssemblyIn() {
+        List<string> written = new List<string>();
+
+        Selection chosen = AdapterEntryPoint.Install(written.Add, null, null);
+
+        Assert.Equal(2, written.Count);
+        Assert.Contains("no assembly directories were supplied", written[0]);
+        Assert.Equal(chosen.Message, written[1]);
+    }
 }
 
 public sealed class LocalNameResolverTests {
