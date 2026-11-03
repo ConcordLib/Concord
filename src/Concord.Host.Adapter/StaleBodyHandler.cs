@@ -39,7 +39,7 @@ internal static class StaleBodyHandler {
             named = WaylithDetourBackend.Describe(target);
 
             if ((RewrittenBodyOverride ?? HostRewroteBody)(target)) {
-                logger?.Invoke(
+                Log(
                     RefusedMarker + " '" + named + "': the host rewrote this body " +
                     "itself. Two writers on one body do not compose and publishing replaces rather than chains, so " +
                     "recomposing here would throw away whichever of them wrote last. Concord refuses it and hands " +
@@ -49,7 +49,7 @@ internal static class StaleBodyHandler {
 
             return (RecomposeOverride ?? RecomposeThroughBackend)(target);
         } catch (Exception failure) {
-            logger?.Invoke(
+            Log(
                 FaultMarker + " '" + (named ?? stale.Name) + "': " + failure.GetType().Name + ", " +
                 failure.Message.TrimEnd('.') + ". Every patch on that method stays poisoned until something " +
                 "patches it again. The rest of the handler chain still runs, because a throw out of here would " +
@@ -75,7 +75,7 @@ internal static class StaleBodyHandler {
             registered = true;
         } catch (Exception thrown) {
             Exception failure = (thrown as TargetInvocationException)?.InnerException ?? thrown;
-            log(
+            Log(
                 FaultMarker + " registering with '" + InjectionCapability.InjectionTypeName + "'." + RegisterEntry +
                 " threw " + failure.GetType().Name + ", " + failure.Message.TrimEnd('.') + ". Nothing will tell " +
                 "Concord when a mod injecting a field poisons its wrappers, so the first sign will be a patched " +
@@ -88,7 +88,7 @@ internal static class StaleBodyHandler {
         IDetourBackend inner = current is RoutingDetourBackend router ? router.Inner : current;
 
         if (inner is not IRecomposeTarget recomposer) {
-            logger?.Invoke(
+            Log(
                 NoRecomposeMarker + " '" + WaylithDetourBackend.Describe(target) + "': the installed backend '" +
                 inner.GetType().FullName + "' does not implement '" + typeof(IRecomposeTarget).FullName + "', so " +
                 "nothing can rebuild the wrapper this relayout poisoned and every patch on that method is dead " +
@@ -97,6 +97,13 @@ internal static class StaleBodyHandler {
         }
 
         return recomposer.Recompose(target);
+    }
+
+    private static void Log(string message) {
+        try {
+            logger?.Invoke(message);
+        } catch (Exception) {
+        }
     }
 
     private static Func<MethodBase, bool> BindRewrittenBody() {

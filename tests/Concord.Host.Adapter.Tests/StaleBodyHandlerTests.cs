@@ -258,6 +258,22 @@ public sealed class StaleBodyHandlerTests : IDisposable {
     }
 
     [Fact]
+    public void ARefusedRowAnswersFalseEvenWhenTheHostLoggerThrowsOnEveryCall() {
+        MethodBase wrapper = PatchAndRunOnce();
+        StaleBodyHandler.RewrittenBodyOverride = _ => true;
+        StaleBodyHandler.Install(ThrowingLogger);
+
+        bool answered = Handle(wrapper);
+
+        Assert.True(
+            !answered,
+            $"the handler answered {answered} for a refused body while the host's own logger threw on every " +
+            "call. False was wanted: one try/catch wraps the runtime's whole handler chain, so a throw out of " +
+            "Concord's own log call would end that chain and take harmony's handler down with it, same as a " +
+            "throw from recompose.");
+    }
+
+    [Fact]
     public void HandlingOneTargetTwiceRecomposesItWithoutStackingASecondWrapper() {
         MethodBase first = PatchAndRunOnce();
         StaleBodyHandler.RewrittenBodyOverride = _ => false;
@@ -486,6 +502,11 @@ public sealed class StaleBodyHandlerTests : IDisposable {
         lock (Written) {
             Written.Add(line);
         }
+    }
+
+    private static void ThrowingLogger(string line) {
+        _ = line;
+        throw new InvalidOperationException(Thrown + ".");
     }
 
     private static void Clear() {

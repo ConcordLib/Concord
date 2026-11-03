@@ -188,7 +188,20 @@ internal sealed class TargetDetourRegistry {
                 debug |= entry.Injection.Debug;
             }
 
-            Recompose(InjectionOrderer.OrderForComposition(live), debug);
+            try {
+                Recompose(InjectionOrderer.OrderForComposition(live), debug);
+            } catch {
+                ICoreDetour? stale = detour;
+                detour = null;
+                MethodIdentity.Forget(wrapperKeys);
+                if (stale is { IsApplied: true }) {
+                    stale.Undo();
+                }
+
+                stale?.Dispose();
+                throw;
+            }
+
             return true;
         }
     }
