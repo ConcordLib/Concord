@@ -62,6 +62,10 @@ dotnet run --project tests/Concord.Host.Adapter.ForkTests/Concord.Host.Adapter.F
 
 The runner prints the runtime it ran on, `10.0.15-waylithclr.dev` today.
 
+`tests/Concord.Host.Adapter.ForkTests/run-fork-tests.sh` builds and runs the same facts. Set
+`FORK_FACTS_COVERAGE=<file>` to run them under `coverlet` and write an OpenCover report, which
+is how the SonarCloud job counts the fork-only adapter code as covered.
+
 Unit tests run on stock .NET 10, through the xunit console runner:
 
 ```bash

@@ -5,6 +5,7 @@ usage() {
     echo "usage: run-fork-tests.sh [-p:Name=Value ...] [-- exe-arg ...]" >&2
     echo "  args before -- go to dotnet build; args after -- go to the test exe" >&2
     echo "  (e.g. -- --report-trx --report-trx-filename fork-facts.trx)" >&2
+    echo "  FORK_FACTS_COVERAGE=<file> runs the exe under coverlet and writes an opencover report there" >&2
 }
 
 case "${1:-}" in
@@ -30,6 +31,11 @@ for arg in "$@"; do
     fi
 done
 
+if [ -n "${FORK_FACTS_COVERAGE:-}" ] && ! command -v coverlet >/dev/null; then
+    echo "run-fork-tests: FORK_FACTS_COVERAGE is set but coverlet is not on PATH (dotnet tool install --global coverlet.console)" >&2
+    exit 1
+fi
+
 dotnet build "$project" --nologo -c "$configuration" -tl:false "${build_args[@]}"
 build_status=$?
 if [ "$build_status" -ne 0 ]; then
@@ -43,8 +49,16 @@ if [ ! -x "$exe" ]; then
     exit 1
 fi
 
-output="$("$exe" "${exe_args[@]}")"
-run_status=$?
+if [ -n "${FORK_FACTS_COVERAGE:-}" ]; then
+    output="$(coverlet "$exe.dll" --target "$exe" --targetargs "${exe_args[*]}" \
+        --include '[Concord.Host.Adapter]*' --include '[Concord]*' \
+        --exclude '[Concord.Host.Adapter.ForkTests]*' \
+        --format opencover --output "$FORK_FACTS_COVERAGE")"
+    run_status=$?
+else
+    output="$("$exe" "${exe_args[@]}")"
+    run_status=$?
+fi
 printf '%s\n' "$output"
 
 clean="$(printf '%s\n' "$output" | sed 's/\x1b\[[0-9;]*m//g')"

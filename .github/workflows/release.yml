@@ -168,11 +168,20 @@ jobs:
       - name: Install scanner
         run: dotnet tool install --global dotnet-sonarscanner --version 11.3.0
 
+      - name: Install coverlet
+        run: dotnet tool install --global coverlet.console --version 10.0.1
+
       - name: Download fork refs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: fork-refs
           path: ${{ runner.temp }}/fork-refs
+
+      - name: Run fork facts with coverage
+        env:
+          FORK_REFS: ${{ runner.temp }}/fork-refs
+          FORK_FACTS_COVERAGE: ${{ github.workspace }}/coverage/fork/coverage.opencover.xml
+        run: tests/Concord.Host.Adapter.ForkTests/run-fork-tests.sh -p:ForkRuntimeDir="$FORK_REFS"
 
       - name: Analyse
         env:
@@ -190,7 +199,7 @@ jobs:
             /d:sonar.cs.opencover.reportsPaths="coverage/**/coverage.opencover.xml" \
             /d:sonar.coverage.exclusions="tests/**,bench/**" \
             /d:sonar.qualitygate.wait=true
-          dotnet build Concord.ci.slnx -c Release -p:ForkRuntimeDir="$FORK_REFS"
+          dotnet build Concord.ci.slnx -c Release --no-incremental -p:ForkRuntimeDir="$FORK_REFS"
           dotnet test Concord.ci.slnx -c Release --no-build -f net10.0 \
             -p:ForkRuntimeDir="$FORK_REFS" \
             --collect:"XPlat Code Coverage;Format=opencover" \
