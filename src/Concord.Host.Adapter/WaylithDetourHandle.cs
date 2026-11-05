@@ -10,17 +10,31 @@ namespace Concord.Host.Adapter;
 ///     never both, so a caller that changes the live injection set publishes the whole set again.
 /// </summary>
 public interface ITargetBodyOwner {
+    /// <summary>How many targets currently carry a live body from this owner.</summary>
+    int PublishedTargetCount { get; }
+
     /// <summary>
     ///     Installs the composed body for the whole live injection set, not just the new ones.
-    ///     <see cref="ComposedBodyPublisher" /> is the implementation.
+    ///     <see cref="StagePublisher" /> is the implementation.
     /// </summary>
     /// <param name="target">The method whose body is replaced.</param>
     /// <param name="ordered">Every injection that must run, already in composition order.</param>
-    void PublishComposed(MethodBase target, IReadOnlyList<Injection> ordered);
+    /// <returns><see langword="true" /> when the owner took the body, <see langword="false" /> when it refused it.</returns>
+    bool PublishComposed(MethodBase target, IReadOnlyList<Injection> ordered);
 
     /// <summary>Puts <paramref name="target" />'s own body back, leaving it with no injections.</summary>
     /// <param name="target">The method to restore.</param>
     void RevertToOriginal(MethodBase target);
+
+    /// <summary>Reports whether <paramref name="target" /> currently carries a live body from this owner.</summary>
+    /// <param name="target">The method to check.</param>
+    /// <returns><see langword="false" /> for a target never published, and for one whose last publish failed.</returns>
+    bool IsPublished(MethodBase target);
+
+    /// <summary>Rebuilds <paramref name="target" />'s body from the injections already recorded for it.</summary>
+    /// <param name="target">The method to rebuild.</param>
+    /// <returns><see langword="false" /> when nothing is recorded for it, or the rebuild failed.</returns>
+    bool Rebuild(MethodBase target);
 }
 
 /// <summary>
@@ -77,6 +91,15 @@ public sealed class WaylithTargetStack {
         return entries.TryGetValue(Key(target), out TargetEntry? entry) && entry.IsPublished;
     }
 
+    /// <summary>Lists the owners with a live injection on <paramref name="target" />, in run order.</summary>
+    /// <param name="target">The method to inspect.</param>
+    /// <returns>Distinct owner ids in composition order, empty for a target this stack has nothing on.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="target" /> is <see langword="null" />.</exception>
+    public IReadOnlyList<string> OwnersOf(MethodBase target) {
+        ArgumentNullException.ThrowIfNull(target);
+        return entries.TryGetValue(Key(target), out TargetEntry? entry) ? entry.Owners() : [];
+    }
+
     private static MethodBase Key(MethodBase target) {
         return BodyScope.KeyOf(target);
     }
@@ -126,9 +149,7 @@ public sealed class WaylithDetourHandle : IDetourHandle {
 
         Exception? failure;
         try {
-            lock (WaylithDetourBackend.Gate(entry.Key)) {
-                failure = entry.Remove(owned);
-            }
+            failure = entry.Remove(owned);
         } catch (Exception thrown) {
             failure = thrown;
         }
@@ -159,13 +180,17 @@ internal sealed class TargetEntry {
         this.log = log;
     }
 
-    internal MethodBase Key => key;
-
     internal bool IsPublished {
         get {
             lock (gate) {
-                return live.Count > 0;
+                return live.Count > 0 && bodyOwner.IsPublished(key);
             }
+        }
+    }
+
+    internal IReadOnlyList<string> Owners() {
+        lock (gate) {
+            return WaylithDetourBackend.DistinctOwners(InjectionOrderer.OrderForComposition(live));
         }
     }
 
@@ -183,14 +208,23 @@ internal sealed class TargetEntry {
                 live.Add((owned[i], added[i]));
             }
 
+            bool published;
             try {
-                PublishLive();
+                published = PublishLive();
             } catch {
                 if (Rollback(previous, previousSequence) is string report) {
                     log(report);
                 }
 
                 throw;
+            }
+
+            if (!published) {
+                if (Rollback(previous, previousSequence) is string report) {
+                    log(report);
+                }
+
+                return new WaylithDetourHandle(this, requested, []);
             }
 
             return new WaylithDetourHandle(this, requested, owned);
@@ -209,21 +243,31 @@ internal sealed class TargetEntry {
                 }
             }
 
+            bool published;
             try {
-                PublishLive();
-                return null;
+                published = PublishLive();
             } catch (Exception failure) {
-                string? report = Rollback(previous, sequence);
-                log(WaylithTargetStack.UndoFailedMarker + " '" + Describe() + "': " + failure.GetType().Name + ", " +
-                    failure.Message.TrimEnd('.') +
-                    ". Its injections keep running until the next patch change on that target.");
-                if (report is not null) {
-                    log(report);
-                }
-
-                return failure;
+                return FailRemoval(previous, failure);
             }
+
+            if (!published) {
+                return FailRemoval(previous, new InvalidOperationException("the stage refused the remaining set"));
+            }
+
+            return null;
         }
+    }
+
+    private Exception FailRemoval(List<(long Seq, Injection Injection)> previous, Exception failure) {
+        string? report = Rollback(previous, sequence);
+        log(WaylithTargetStack.UndoFailedMarker + " '" + WaylithDetourBackend.Describe(key) + "': " +
+            failure.GetType().Name + ", " + failure.Message.TrimEnd('.') +
+            ". Its injections keep running until the next patch change on that target.");
+        if (report is not null) {
+            log(report);
+        }
+
+        return failure;
     }
 
     private string? Rollback(List<(long Seq, Injection Injection)> previous, long previousSequence) {
@@ -231,26 +275,30 @@ internal sealed class TargetEntry {
         live.AddRange(previous);
         sequence = previousSequence;
 
+        bool published;
         try {
-            PublishLive();
-            return null;
+            published = PublishLive();
         } catch (Exception failure) when (failure is not OutOfMemoryException) {
-            return WaylithTargetStack.RepublishFailedMarker + " '" + Describe() + "': " + failure.GetType().Name +
-                ", " + failure.Message.TrimEnd('.') +
+            return WaylithTargetStack.RepublishFailedMarker + " '" + WaylithDetourBackend.Describe(key) + "': " +
+                failure.GetType().Name + ", " + failure.Message.TrimEnd('.') +
                 ". The installed body no longer matches the injections this target is recorded as carrying.";
         }
-    }
 
-    private string Describe() {
-        return (key.DeclaringType?.FullName ?? key.Module.Name) + "." + key.Name;
-    }
-
-    private void PublishLive() {
-        if (live.Count == 0) {
-            bodyOwner.RevertToOriginal(key);
-            return;
+        if (!published) {
+            return WaylithTargetStack.RepublishFailedMarker + " '" + WaylithDetourBackend.Describe(key) +
+                "': the stage refused the republished set." +
+                " The installed body no longer matches the injections this target is recorded as carrying.";
         }
 
-        bodyOwner.PublishComposed(key, InjectionOrderer.OrderForComposition(live));
+        return null;
+    }
+
+    private bool PublishLive() {
+        if (live.Count == 0) {
+            bodyOwner.RevertToOriginal(key);
+            return true;
+        }
+
+        return bodyOwner.PublishComposed(key, InjectionOrderer.OrderForComposition(live));
     }
 }

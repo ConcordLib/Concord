@@ -1,5 +1,4 @@
 using System.Reflection;
-using Concord.Detour;
 using Xunit;
 
 namespace Concord.Emit.Tests;
@@ -35,32 +34,6 @@ public static class AroundComposeInjectionMethods {
         int result = original.Invoke();
         AroundComposeLog.Entries.Add("post");
         return result;
-    }
-}
-
-public sealed class AroundComposeCtorTarget {
-    public int Seed;
-
-    public AroundComposeCtorTarget(int seed) {
-        Seed = seed;
-        AroundComposeLog.Entries.Add("ctor-body:" + seed);
-    }
-}
-
-public static class AroundComposeCtorInjectionMethods {
-    public static void CancelHead(int seed, ControlHandle ch) {
-        AroundComposeLog.Entries.Add("head");
-        ch.Cancel();
-    }
-
-    public static void Around(int seed, VoidOperation<int> original) {
-        AroundComposeLog.Entries.Add("pre");
-        original.Invoke(seed);
-        AroundComposeLog.Entries.Add("post");
-    }
-
-    public static void Tail(int seed, ControlHandle ch) {
-        AroundComposeLog.Entries.Add("tail:" + seed);
     }
 }
 
@@ -304,29 +277,6 @@ public sealed class AroundComposeTests {
 
         Assert.Equal(7, value);
         Assert.Equal(["head", "pre", "body", "post"], AroundComposeLog.Entries);
-    }
-
-    [Fact]
-    public void Compose_CtorHeadCancelWithAround_ReachesEpilogueWithBodyNotRunAndThrows() {
-        ConstructorInfo ctor = typeof(AroundComposeCtorTarget).GetConstructor([typeof(int)])!;
-        MethodBase headInjectionMethod = typeof(AroundComposeCtorInjectionMethods).GetMethod(nameof(AroundComposeCtorInjectionMethods.CancelHead))!;
-        MethodBase aroundInjectionMethod = typeof(AroundComposeCtorInjectionMethods).GetMethod(nameof(AroundComposeCtorInjectionMethods.Around))!;
-
-        Injection head = new Injection(headInjectionMethod, new InjectAt.Head(), "test", 0);
-        Injection around = new Injection(aroundInjectionMethod, new InjectAt.Around(), "test", 1);
-
-        ComposeResult result = WrapperComposer.Compose(ctor, [head, around]);
-        IDetourHandle handle = DetourBackend.Current.Apply(ctor, result.Wrapper);
-
-        AroundComposeLog.Clear();
-
-        try {
-            Assert.Throws<TargetInvocationException>(() => Activator.CreateInstance(typeof(AroundComposeCtorTarget), 3));
-
-            Assert.Equal(["head"], AroundComposeLog.Entries);
-        } finally {
-            handle.Dispose();
-        }
     }
 
     [Theory]
@@ -576,29 +526,5 @@ public sealed class AroundComposeTests {
         result.Wrapper.Invoke(null, []);
 
         Assert.Equal(["pre", "body", "tail", "post"], AroundComposeLog.Entries);
-    }
-
-    [Fact]
-    public void Compose_ConstructorTailWithAround_TailFiresBeforeAroundPostCode() {
-        ConstructorInfo ctor = typeof(AroundComposeCtorTarget).GetConstructor([typeof(int)])!;
-        MethodBase aroundInjectionMethod = typeof(AroundComposeCtorInjectionMethods).GetMethod(nameof(AroundComposeCtorInjectionMethods.Around))!;
-        MethodBase tailInjectionMethod = typeof(AroundComposeCtorInjectionMethods).GetMethod(nameof(AroundComposeCtorInjectionMethods.Tail))!;
-
-        Injection around = new Injection(aroundInjectionMethod, new InjectAt.Around(), "test", 0);
-        Injection tail = new Injection(tailInjectionMethod, new InjectAt.Tail(), "test", 1);
-
-        ComposeResult result = WrapperComposer.Compose(ctor, [around, tail]);
-        IDetourHandle handle = DetourBackend.Current.Apply(ctor, result.Wrapper);
-
-        AroundComposeLog.Clear();
-
-        try {
-            AroundComposeCtorTarget instance = new AroundComposeCtorTarget(4);
-
-            Assert.Equal(4, instance.Seed);
-            Assert.Equal(["pre", "ctor-body:4", "tail:4", "post"], AroundComposeLog.Entries);
-        } finally {
-            handle.Dispose();
-        }
     }
 }

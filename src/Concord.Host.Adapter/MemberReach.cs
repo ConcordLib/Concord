@@ -23,13 +23,12 @@ public static class MemberReach {
         ArgumentNullException.ThrowIfNull(target);
 
         Assembly consumer = target.Assembly;
-        string consumerName = NameOf(consumer);
 
         if (FirstUnreachableType(member, consumer) is Type hidden) {
             return $"cannot mint a metadata token for {Describe(member)} into module '{target.Name}': the type " +
                 $"'{FullName(hidden)}' is not visible outside '{NameOf(hidden.Assembly)}'. Patched IL in " +
-                $"'{consumerName}' would throw TypeAccessException the first time it ran. " +
-                Fix(hidden, hidden.Assembly, consumerName);
+                $"'{NameOf(consumer)}' would throw TypeAccessException the first time it ran. " +
+                Fix(hidden, hidden.Assembly, NameOf(consumer));
         }
 
         Assembly owner = member.Module.Assembly;
@@ -38,9 +37,9 @@ public static class MemberReach {
         }
 
         return $"cannot mint a metadata token for {Describe(member)} into module '{target.Name}': it is declared " +
-            $"{level}, so no code in '{consumerName}' can reach it. Patched IL in '{consumerName}' would throw " +
+            $"{level}, so no code in '{NameOf(consumer)}' can reach it. Patched IL in '{NameOf(consumer)}' would throw " +
             (member is FieldInfo ? "FieldAccessException" : "MethodAccessException") +
-            " the first time it ran. " + Fix(member, owner, consumerName);
+            " the first time it ran. " + Fix(member, owner, NameOf(consumer));
     }
 
     private static string Fix(MemberInfo subject, Assembly owner, string consumerName) {

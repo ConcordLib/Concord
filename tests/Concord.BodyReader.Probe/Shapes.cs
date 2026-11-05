@@ -259,11 +259,7 @@ public static class GenericValueTupleTryCatchShape {
 public static class DynamicAssemblyLocalShape {
     public static MethodBase Build() {
         AssemblyName name = new AssemblyName("Concord.BodyReader.Probe.Dynamic");
-#if NETFRAMEWORK
-        AssemblyBuilder assembly = AppDomain.CurrentDomain.DefineDynamicAssembly(name, AssemblyBuilderAccess.Run);
-#else
         AssemblyBuilder assembly = AssemblyBuilder.DefineDynamicAssembly(name, AssemblyBuilderAccess.Run);
-#endif
         ModuleBuilder module = assembly.DefineDynamicModule("Main");
         TypeBuilder payload = module.DefineType("Payload", TypeAttributes.Public | TypeAttributes.Class);
         Type payloadType = payload.CreateType()!;

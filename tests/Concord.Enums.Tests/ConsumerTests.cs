@@ -1,4 +1,8 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
+using Concord.Detour;
+using Concord.Emit;
+using Concord.Tests.Shared;
 using Xunit;
 
 namespace Concord.Enums.Tests;
@@ -28,35 +32,30 @@ public abstract class ConsumerWeather : ExtendedEnum<WeatherKind> {
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2263", Justification = "CoreLibEnumDetours only detours the Type-taking overloads, so the generic ones would not exercise the detour.")]
 public sealed class ConsumerTests {
     [Fact]
-    public void Values_IncludesTheAddedMember() {
+    public void EachConsumerShape_PatchesItsMethod_AtTheDeclaredPosition() {
         ApplyMembers();
-        EnumConsumers.For(typeof(WeatherKind)).Values(typeof(WeatherUtility), nameof(WeatherUtility.All));
+        RecordingDetourBackend recorder = new RecordingDetourBackend();
+        DetourBackend.Current = recorder;
 
-        Assert.Contains(ConsumerWeather.Frozen, WeatherUtility.All());
-    }
+        EnumConsumers.For(typeof(WeatherKind))
+            .Values(typeof(WeatherUtility), nameof(WeatherUtility.All))
+            .Parse(typeof(WeatherUtility), nameof(WeatherUtility.Parse))
+            .Display(typeof(WeatherUtility), nameof(WeatherUtility.Display))
+            .IsDefined(typeof(WeatherUtility), nameof(WeatherUtility.IsValid));
 
-    [Fact]
-    public void Parse_ResolvesTheAddedMember() {
-        ApplyMembers();
-        EnumConsumers.For(typeof(WeatherKind)).Parse(typeof(WeatherUtility), nameof(WeatherUtility.Parse));
+        List<(MethodBase Target, Type At)> expected = new List<(MethodBase Target, Type At)> {
+            (Utility(nameof(WeatherUtility.All)), typeof(InjectAt.Tail)),
+            (Utility(nameof(WeatherUtility.Parse)), typeof(InjectAt.Head)),
+            (Utility(nameof(WeatherUtility.Display)), typeof(InjectAt.Head)),
+            (Utility(nameof(WeatherUtility.IsValid)), typeof(InjectAt.Head)),
+        };
 
-        Assert.Equal(ConsumerWeather.Frozen, WeatherUtility.Parse("Frozen"));
-    }
+        List<(MethodBase Target, Type At)> actual = new List<(MethodBase Target, Type At)>();
+        foreach ((MethodBase Target, IReadOnlyList<Injection> Added) entry in recorder.ComposedDetours) {
+            actual.Add((entry.Target, Assert.Single(entry.Added).At.GetType()));
+        }
 
-    [Fact]
-    public void Display_NamesTheAddedMember() {
-        ApplyMembers();
-        EnumConsumers.For(typeof(WeatherKind)).Display(typeof(WeatherUtility), nameof(WeatherUtility.Display));
-
-        Assert.Equal("Frozen", WeatherUtility.Display(ConsumerWeather.Frozen));
-    }
-
-    [Fact]
-    public void IsDefined_AcceptsTheAddedMember() {
-        ApplyMembers();
-        EnumConsumers.For(typeof(WeatherKind)).IsDefined(typeof(WeatherUtility), nameof(WeatherUtility.IsValid));
-
-        Assert.True(WeatherUtility.IsValid(ConsumerWeather.Frozen));
+        Assert.Equal(expected, actual);
     }
 
     [Fact]
@@ -67,6 +66,10 @@ public sealed class ConsumerTests {
             () => EnumConsumers.For(typeof(WeatherKind)).Values(typeof(WeatherUtility), nameof(WeatherUtility.WrongShape)));
 
         Assert.Contains("CONC137", ex.ToString(), StringComparison.Ordinal);
+    }
+
+    private static MethodBase Utility(string name) {
+        return typeof(WeatherUtility).GetMethod(name, BindingFlags.Public | BindingFlags.Static)!;
     }
 
     private static void ApplyMembers() {

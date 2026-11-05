@@ -1,7 +1,6 @@
 using System.Reflection;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using Xunit;
 using MethodCallingConvention = Mono.Cecil.MethodCallingConvention;
 
@@ -11,8 +10,8 @@ public sealed class IlAssertTests {
     [Fact]
     public void BodiesMatch_IdenticalBodies_Passes() {
         MethodBase target = typeof(EmitTargets).GetMethod(nameof(EmitTargets.Add))!;
-        using DynamicMethodDefinition a = new DynamicMethodDefinition(target);
-        using DynamicMethodDefinition b = new DynamicMethodDefinition(target);
+        using ScratchMethod a = BodyReader.Open(target);
+        using ScratchMethod b = BodyReader.Open(target);
 
         IlAssert.BodiesMatch(a.Definition, b.Definition);
     }
@@ -21,8 +20,8 @@ public sealed class IlAssertTests {
     public void BodiesMatch_DifferentBodies_Fails() {
         MethodBase add = typeof(EmitTargets).GetMethod(nameof(EmitTargets.Add))!;
         MethodBase bump = typeof(EmitTargets).GetMethod(nameof(EmitTargets.Bump))!;
-        using DynamicMethodDefinition a = new DynamicMethodDefinition(add);
-        using DynamicMethodDefinition b = new DynamicMethodDefinition(bump);
+        using ScratchMethod a = BodyReader.Open(add);
+        using ScratchMethod b = BodyReader.Open(bump);
 
         Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => IlAssert.BodiesMatch(a.Definition, b.Definition));
     }
@@ -30,8 +29,8 @@ public sealed class IlAssertTests {
     [Fact]
     public void BodiesMatch_InitLocalsDiffers_Fails() {
         MethodBase target = typeof(EmitTargets).GetMethod(nameof(EmitTargets.Add))!;
-        using DynamicMethodDefinition a = new DynamicMethodDefinition(target);
-        using DynamicMethodDefinition b = new DynamicMethodDefinition(target);
+        using ScratchMethod a = BodyReader.Open(target);
+        using ScratchMethod b = BodyReader.Open(target);
 
         b.Definition.Body.InitLocals = !b.Definition.Body.InitLocals;
 
@@ -41,8 +40,8 @@ public sealed class IlAssertTests {
     [Fact]
     public void BodiesMatch_LocalVariableTypeDiffers_Fails() {
         MethodBase target = typeof(Counterish).GetMethod(nameof(Counterish.Step))!;
-        using DynamicMethodDefinition a = new DynamicMethodDefinition(target);
-        using DynamicMethodDefinition b = new DynamicMethodDefinition(target);
+        using ScratchMethod a = BodyReader.Open(target);
+        using ScratchMethod b = BodyReader.Open(target);
 
         Assert.NotEmpty(b.Definition.Body.Variables);
         VariableDefinition var0 = b.Definition.Body.Variables[0];
@@ -54,8 +53,8 @@ public sealed class IlAssertTests {
     [Fact]
     public void BodiesMatch_ExceptionHandlerOrderDiffers_Fails() {
         MethodBase target = typeof(ExceptionHandlerTargets).GetMethod(nameof(ExceptionHandlerTargets.WithExceptionHandlers))!;
-        using DynamicMethodDefinition a = new DynamicMethodDefinition(target);
-        using DynamicMethodDefinition b = new DynamicMethodDefinition(target);
+        using ScratchMethod a = BodyReader.Open(target);
+        using ScratchMethod b = BodyReader.Open(target);
 
         Assert.True(b.Definition.Body.ExceptionHandlers.Count >= 2, "Target must declare at least two exception handlers to exercise ordering.");
         ExceptionHandler first = b.Definition.Body.ExceptionHandlers[0];
@@ -69,8 +68,8 @@ public sealed class IlAssertTests {
     [Fact]
     public void BodiesMatch_ExceptionHandlerCatchTypeDiffers_Fails() {
         MethodBase target = typeof(ExceptionHandlerTargets).GetMethod(nameof(ExceptionHandlerTargets.WithExceptionHandlers))!;
-        using DynamicMethodDefinition a = new DynamicMethodDefinition(target);
-        using DynamicMethodDefinition b = new DynamicMethodDefinition(target);
+        using ScratchMethod a = BodyReader.Open(target);
+        using ScratchMethod b = BodyReader.Open(target);
 
         Assert.NotEmpty(b.Definition.Body.ExceptionHandlers);
         ExceptionHandler handler = b.Definition.Body.ExceptionHandlers[0];
@@ -83,8 +82,8 @@ public sealed class IlAssertTests {
     [Fact]
     public void BodiesMatch_OpcodeShortVsLongDiffers_Fails() {
         MethodBase target = typeof(EmitTargets).GetMethod(nameof(EmitTargets.Add))!;
-        using DynamicMethodDefinition a = new DynamicMethodDefinition(target);
-        using DynamicMethodDefinition b = new DynamicMethodDefinition(target);
+        using ScratchMethod a = BodyReader.Open(target);
+        using ScratchMethod b = BodyReader.Open(target);
 
         bool found = false;
         foreach (Instruction instr in b.Definition.Body.Instructions) {
@@ -103,8 +102,8 @@ public sealed class IlAssertTests {
     [Fact]
     public void BodiesMatch_StringOperandQuoted_DistinguishesFromNull() {
         MethodBase target = typeof(EmitTargets).GetMethod(nameof(EmitTargets.Add))!;
-        using DynamicMethodDefinition a = new DynamicMethodDefinition(target);
-        using DynamicMethodDefinition b = new DynamicMethodDefinition(target);
+        using ScratchMethod a = BodyReader.Open(target);
+        using ScratchMethod b = BodyReader.Open(target);
 
         Instruction instrA = a.Definition.Body.Instructions[0];
         Instruction instrB = b.Definition.Body.Instructions[0];
@@ -121,8 +120,8 @@ public sealed class IlAssertTests {
     [Fact]
     public void BodiesMatch_CallSiteCallingConventionDiffers_Fails() {
         MethodBase target = typeof(EmitTargets).GetMethod(nameof(EmitTargets.Add))!;
-        using DynamicMethodDefinition a = new DynamicMethodDefinition(target);
-        using DynamicMethodDefinition b = new DynamicMethodDefinition(target);
+        using ScratchMethod a = BodyReader.Open(target);
+        using ScratchMethod b = BodyReader.Open(target);
 
         CallSite siteA = new CallSite(b.Definition.Module.ImportReference(typeof(int))) {
             CallingConvention = (MethodCallingConvention)0x0040

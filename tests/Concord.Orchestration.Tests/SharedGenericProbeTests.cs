@@ -1,4 +1,3 @@
-using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Concord.Detour;
@@ -29,24 +28,10 @@ public class ProbeBox<T> {
     }
 }
 
-public sealed class ProbeSub : ProbeBox<string>;
-
 public struct ProbeStructBox<T> {
     [MethodImpl(MethodImplOptions.NoInlining)]
     public string Ping() {
         return "orig";
-    }
-}
-
-public static class ProbeThirdInjection {
-    public static void AfterPing(ControlHandle<string> ch) {
-        ch.ReturnValue = ch.ReturnValue + "+r";
-    }
-}
-
-public static class ProbeOtherInjection {
-    public static void AfterPing(ControlHandle<string> ch) {
-        ch.ReturnValue = ch.ReturnValue + "+q";
     }
 }
 
@@ -57,32 +42,6 @@ public static class ProbeInjection {
 }
 
 public class SharedGenericProbeTests {
-    private static IDetourHandle PatchRaw(MethodBase target) {
-        MethodInfo injectionMethod = typeof(ProbeInjection).GetMethod(nameof(ProbeInjection.AfterPing))!;
-        Injection injection = new Injection(injectionMethod, new InjectAt.Tail(), "probe", 0);
-        return DetourBackend.Current.ApplyComposed(target, new[] { injection });
-    }
-
-    [Fact]
-    public void Guard_InstanceMethodOnGenericType_IsolatesRequestedInstantiation() {
-        if (!WrapperComposer.SharedGenericGuardSupported) {
-            return;
-        }
-
-        MethodBase target = typeof(ProbeBox<string>).GetMethod(nameof(ProbeBox<string>.Ping))!;
-        IDetourHandle handle = PatchRaw(target);
-        try {
-            Assert.Equal("orig+p", new ProbeBox<string>().Ping());
-            Assert.Equal("orig", new ProbeBox<Version>().Ping());
-            Assert.Equal("orig", new ProbeBox<int>().Ping());
-            Assert.Equal("orig+p", new ProbeSub().Ping());
-        } finally {
-            handle.Dispose();
-        }
-
-        Assert.Equal("orig", new ProbeBox<string>().Ping());
-    }
-
     [Fact]
     public void ContextTouchingBody_IsNotGuardable_AndStaysRejected() {
         MethodBase target = typeof(ProbeBox<string>).GetMethod(nameof(ProbeBox<string>.Describe))!;
@@ -125,10 +84,6 @@ public class SharedGenericProbeTests {
 }
 
 public class SharedGenericTwoInstantiationTests {
-    private static IDetourHandle Patch(MethodBase target, MethodInfo injectionMethod, string owner) {
-        return DetourBackend.Current.ApplyComposed(target, [new Injection(injectionMethod, new InjectAt.Tail(), owner, 0)]);
-    }
-
     private static MethodInfo Ping<T>() {
         return typeof(ProbeBox<T>).GetMethod(nameof(ProbeBox<T>.Ping))!;
     }
@@ -140,7 +95,7 @@ public class SharedGenericTwoInstantiationTests {
         }
 
         MethodBase text = MethodIdentity.SharedBodyKey(Ping<string>());
-        MethodBase version = MethodIdentity.SharedBodyKey(Ping<Version>());
+        MethodBase version = MethodIdentity.SharedBodyKey(Ping<System.Version>());
         MethodBase number = MethodIdentity.SharedBodyKey(Ping<int>());
 
         Assert.Equal(text, version);
@@ -154,71 +109,5 @@ public class SharedGenericTwoInstantiationTests {
 
         Assert.False(WrapperComposer.SharesGenericBody(target));
         Assert.Equal(target, MethodIdentity.SharedBodyKey(target));
-    }
-
-    [Fact]
-    public void TwoInstantiationsOfTheSameSharedBody_BothKeepTheirPatches() {
-        if (!WrapperComposer.SharedGenericGuardSupported) {
-            return;
-        }
-
-        IDetourHandle a = Patch(Ping<string>(), typeof(ProbeInjection).GetMethod(nameof(ProbeInjection.AfterPing))!, "probe.a");
-        IDetourHandle b = Patch(Ping<Version>(), typeof(ProbeOtherInjection).GetMethod(nameof(ProbeOtherInjection.AfterPing))!, "probe.b");
-        try {
-            Assert.Equal("orig+p", new ProbeBox<string>().Ping());
-            Assert.Equal("orig+q", new ProbeBox<Version>().Ping());
-            Assert.Equal("orig", new ProbeBox<Guid>().Ping());
-            Assert.Equal("orig", new ProbeBox<int>().Ping());
-        } finally {
-            b.Dispose();
-            a.Dispose();
-        }
-
-        Assert.Equal("orig", new ProbeBox<string>().Ping());
-        Assert.Equal("orig", new ProbeBox<Version>().Ping());
-    }
-
-    [Fact]
-    public void RemovingOneInstantiationsPatch_RecomposesAndKeepsTheRest() {
-        if (!WrapperComposer.SharedGenericGuardSupported) {
-            return;
-        }
-
-        IDetourHandle a = Patch(Ping<string>(), typeof(ProbeInjection).GetMethod(nameof(ProbeInjection.AfterPing))!, "probe.a");
-        IDetourHandle b = Patch(Ping<Version>(), typeof(ProbeOtherInjection).GetMethod(nameof(ProbeOtherInjection.AfterPing))!, "probe.b");
-        try {
-            a.Dispose();
-
-            Assert.Equal("orig", new ProbeBox<string>().Ping());
-            Assert.Equal("orig+q", new ProbeBox<Version>().Ping());
-        } finally {
-            b.Dispose();
-            a.Dispose();
-        }
-
-        Assert.Equal("orig", new ProbeBox<Version>().Ping());
-    }
-
-    [Fact]
-    public void ThreeInstantiations_ValueTypeKeepsItsOwnEntry() {
-        if (!WrapperComposer.SharedGenericGuardSupported) {
-            return;
-        }
-
-        IDetourHandle a = Patch(Ping<string>(), typeof(ProbeInjection).GetMethod(nameof(ProbeInjection.AfterPing))!, "probe.a");
-        IDetourHandle b = Patch(Ping<Version>(), typeof(ProbeOtherInjection).GetMethod(nameof(ProbeOtherInjection.AfterPing))!, "probe.b");
-        IDetourHandle c = Patch(Ping<long>(), typeof(ProbeThirdInjection).GetMethod(nameof(ProbeThirdInjection.AfterPing))!, "probe.c");
-        try {
-            Assert.Equal("orig+p", new ProbeBox<string>().Ping());
-            Assert.Equal("orig+q", new ProbeBox<Version>().Ping());
-            Assert.Equal("orig+r", new ProbeBox<long>().Ping());
-            Assert.Equal("orig", new ProbeBox<int>().Ping());
-        } finally {
-            c.Dispose();
-            b.Dispose();
-            a.Dispose();
-        }
-
-        Assert.Equal("orig", new ProbeBox<long>().Ping());
     }
 }

@@ -13,8 +13,7 @@ internal static class TokenizableOperands {
 
     private const int MaxNesting = 32;
 
-    private const string Tail = "A body-replacement backend has no way to write that as a metadata token, so this target " +
-        "keeps the detour backend.";
+    private const string Tail = "The body cannot be written as metadata tokens, so the target is refused.";
 
     /// <summary>
     ///     Reports the first type in the body that cannot be written as a metadata token. Covers all three
@@ -134,8 +133,8 @@ internal static class TokenizableOperands {
         return null;
     }
 
-    // Depth-capped rather than cycle-tracked: refusing is the safe answer, and a stream that nests
-    // this deep keeps the detour backend instead of being mistaken for encodable.
+    // Depth-capped rather than cycle-tracked: the nesting cap errs on the side of refusing
+    // instead of being mistaken for encodable.
     private static string? DescribeType(Type? type, int depth) {
         if (type is null) {
             return null;

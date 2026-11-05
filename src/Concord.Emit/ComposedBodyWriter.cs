@@ -38,9 +38,16 @@ internal static class ComposedBodyWriter {
         }
 
         CecilCodeConverter.WriteBack(destination, instructions, context);
+        StampOffsets(destination.Body, body);
         Attach(destination, body, module, original);
-        if (original.DeclaringType is { } declaring) {
-            BodyCopier.RewriteExecutingAssembly(destination.Body, declaring);
+    }
+
+    private static void StampOffsets(MethodBody target, ComposedBody body) {
+        int count = Math.Min(target.Instructions.Count, body.Instructions.Count);
+        for (int i = 0; i < count; i++) {
+            if (body.Instructions[i].OriginOffset is { } offset) {
+                target.Instructions[i].Offset = offset;
+            }
         }
     }
 

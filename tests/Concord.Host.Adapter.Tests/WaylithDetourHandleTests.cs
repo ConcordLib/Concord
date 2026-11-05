@@ -223,6 +223,70 @@ public class WaylithDetourHandleTests {
     }
 
     [Fact]
+    public void ARollbackWhoseRepublishTheStageRefusesSurfacesTheMarker() {
+        Runtime runtime = new Runtime();
+        List<string> logged = [];
+        WaylithTargetStack stack = runtime.Stack(logged.Add);
+
+        stack.Add(Target, [Patch("a")]);
+
+        runtime.RefusalOnce = new NotSupportedException("refused the new set");
+        runtime.SoftRefuseNextPublish = true;
+        Assert.Throws<NotSupportedException>(() => stack.Add(Target, [Patch("b")]));
+
+        Assert.Single(logged);
+        Assert.StartsWith(WaylithTargetStack.RepublishFailedMarker, logged[0]);
+        Assert.Contains("stage refused the republished set", logged[0]);
+        Assert.Equal("a", runtime.BodyOf(Target));
+    }
+
+    [Fact]
+    public void AnAddTheStageSoftRefusesRollsBackWithoutLoggingAnything() {
+        Runtime runtime = new Runtime();
+        List<string> logged = [];
+        WaylithTargetStack stack = runtime.Stack(logged.Add);
+
+        WaylithDetourHandle first = stack.Add(Target, [Patch("a")]);
+
+        runtime.SoftRefuseNextPublish = true;
+        WaylithDetourHandle second = stack.Add(Target, [Patch("b")]);
+
+        Assert.False(second.IsApplied);
+        Assert.Equal("a", runtime.BodyOf(Target));
+        Assert.Equal("publish a", runtime.Ops[^1]);
+        Assert.True(first.IsApplied);
+        Assert.Empty(logged);
+    }
+
+    [Fact]
+    public void ARemovalWhoseRemainingSetTheStageRefusesRollsBackAndCanBeRetried() {
+        Runtime runtime = new Runtime();
+        List<string> logged = [];
+        WaylithTargetStack stack = runtime.Stack(logged.Add);
+
+        WaylithDetourHandle first = stack.Add(Target, [Patch("a")]);
+        stack.Add(Target, [Patch("b")]);
+
+        runtime.SoftRefuseNextPublish = true;
+        first.Dispose();
+
+        Assert.IsType<InvalidOperationException>(first.UndoFailure);
+        Assert.True(first.IsApplied);
+        Assert.Equal("a,b", runtime.BodyOf(Target));
+        Assert.Equal(["publish a", "publish a,b", "publish b", "publish a,b"], runtime.Ops);
+        Assert.Single(logged);
+        Assert.StartsWith(WaylithTargetStack.UndoFailedMarker, logged[0]);
+        Assert.Contains("the stage refused the remaining set", logged[0]);
+
+        first.Dispose();
+
+        Assert.Null(first.UndoFailure);
+        Assert.False(first.IsApplied);
+        Assert.Equal("b", runtime.BodyOf(Target));
+        Assert.Single(logged);
+    }
+
+    [Fact]
     public void AFirstAddThatFailsPublishesNothing() {
         Runtime runtime = new Runtime();
         WaylithTargetStack stack = runtime.Stack();
@@ -363,6 +427,10 @@ public class WaylithDetourHandleTests {
 
         internal Exception? RefusalAfterMutating { get; set; }
 
+        internal Exception? RefusalOnce { get; set; }
+
+        internal bool SoftRefuseNextPublish { get; set; }
+
         internal int Published {
             get {
                 lock (gate) {
@@ -371,13 +439,31 @@ public class WaylithDetourHandleTests {
             }
         }
 
-        public void PublishComposed(MethodBase target, IReadOnlyList<Injection> ordered) {
+        public int PublishedTargetCount => Published;
+
+        public bool IsPublished(MethodBase target) {
+            lock (gate) {
+                return bodies.ContainsKey(target);
+            }
+        }
+
+        public bool Rebuild(MethodBase target) {
+            return IsPublished(target);
+        }
+
+        public bool PublishComposed(MethodBase target, IReadOnlyList<Injection> ordered) {
             string body = Describe(ordered);
             lock (gate) {
                 Refuse();
                 bodies[target] = body;
                 Ops.Add("publish " + body);
                 RefuseAfterMutating();
+                if (!SoftRefuseNextPublish) {
+                    return true;
+                }
+
+                SoftRefuseNextPublish = false;
+                return false;
             }
         }
 
@@ -410,6 +496,11 @@ public class WaylithDetourHandleTests {
         }
 
         private void Refuse() {
+            if (RefusalOnce is Exception once) {
+                RefusalOnce = null;
+                throw once;
+            }
+
             if (Refusal is Exception refusal) {
                 throw refusal;
             }

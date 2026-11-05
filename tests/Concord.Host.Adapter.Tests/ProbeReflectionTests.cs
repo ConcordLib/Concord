@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using Concord.Detour;
 using Concord.Host.Adapter;
 using Xunit;
 
@@ -16,7 +17,7 @@ public sealed class ProbeReflectionTests {
     private const BindingFlags Instances = BindingFlags.Public | BindingFlags.Instance;
 
     private static readonly Regex StaticLookup = new Regex(
-        @"\b(Backend|EntryPoint|Attribution)\s*\??\.\s*Get(Property|Method)\(""(\w+)""",
+        @"\b(Backend|EntryPoint|Attribution|DetourBackend)\s*\??\.\s*Get(Property|Method)\(""(\w+)""",
         RegexOptions.Singleline);
 
     private static readonly Regex InstanceLookup = new Regex(
@@ -41,8 +42,8 @@ public sealed class ProbeReflectionTests {
         Assert.Contains(("Backend", "Property", "EmptyMapAlways"), lookups);
         Assert.Contains(("current", "Property", "Waylith"), lookups);
         Assert.Contains(("current", "Property", "Reason"), lookups);
-        Assert.Contains(("writers", "Method", "RecordFor"), lookups);
-        Assert.Contains(("record", "Property", "BodyLength"), lookups);
+        Assert.Contains(("DetourBackend", "Method", "TryGetCurrent"), lookups);
+        Assert.Contains(("backend", "Method", "OwnsBody"), lookups);
 
         List<string> unmapped = lookups
             .Select(lookup => lookup.Receiver)
@@ -62,8 +63,9 @@ public sealed class ProbeReflectionTests {
             }
         }
 
+        Assembly[] loaded = AppDomain.CurrentDomain.GetAssemblies();
         foreach (string name in TypeLookup.Matches(source).Select(match => match.Groups[1].Value).Distinct()) {
-            if (typeof(AdapterEntryPoint).Assembly.GetType(name) == null) {
+            if (!loaded.Any(assembly => assembly.GetType(name) != null)) {
                 missing.Add($"{name} (Type)");
             }
         }
@@ -75,19 +77,13 @@ public sealed class ProbeReflectionTests {
         PropertyInfo? current = typeof(AdapterEntryPoint).GetProperty("Current", Statics);
         Assert.NotNull(current);
 
-        PropertyInfo? writers = typeof(WaylithDetourBackend).GetProperty("Writers", Statics);
-        Assert.NotNull(writers);
-
-        MethodInfo? recordFor = writers.PropertyType.GetMethod("RecordFor", Instances);
-        Assert.NotNull(recordFor);
-
         return new Dictionary<string, (Type, BindingFlags)>(StringComparer.Ordinal) {
             ["Backend"] = (typeof(WaylithDetourBackend), Statics),
             ["EntryPoint"] = (typeof(AdapterEntryPoint), Statics),
             ["Attribution"] = (typeof(FrameAttribution), Statics),
             ["current"] = (current.PropertyType, Instances),
-            ["writers"] = (writers.PropertyType, Instances),
-            ["record"] = (recordFor.ReturnType, Instances),
+            ["DetourBackend"] = (typeof(DetourBackend), Statics),
+            ["backend"] = (typeof(WaylithDetourBackend), Instances),
         };
     }
 

@@ -1,7 +1,6 @@
 using System.Reflection;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using Module = System.Reflection.Module;
 
 namespace Concord.Emit;
@@ -16,29 +15,17 @@ internal static class BodyReader {
     private static readonly Dictionary<(Guid Mvid, int Token), string?> Cache =
         new Dictionary<(Guid Mvid, int Token), string?>();
 
-    internal static DynamicMethodDefinition Open(MethodBase method) {
+    internal static ScratchMethod Open(MethodBase method) {
         Reject(method);
-        return new DynamicMethodDefinition(method);
+        return ScratchMethod.From(method, StockBody.Read(method));
     }
 
-    internal static DynamicMethodDefinition OpenOriginal(MethodBase method) {
+    internal static ScratchMethod OpenOriginal(MethodBase method) {
         Reject(method);
         ComposedBody? declared = OriginalBody.HostOriginalBody?.Invoke(method);
-        if (declared is null) {
-            return new DynamicMethodDefinition(method);
-        }
-
-        DynamicMethodDefinition opened = new DynamicMethodDefinition(
-            "<Declared>" + method.Name,
-            WrapperComposer.ResolveReturnType(method),
-            WrapperComposer.ResolveParameterTypes(method));
-        try {
-            ComposedBodyWriter.Write(opened.Definition, declared, method);
-            return opened;
-        } catch {
-            opened.Dispose();
-            throw;
-        }
+        return declared is null
+            ? ScratchMethod.From(method, StockBody.Read(method))
+            : ScratchMethod.From(method, declared, "<Declared>" + method.Name);
     }
 
     internal static void Reject(MethodBase method) {

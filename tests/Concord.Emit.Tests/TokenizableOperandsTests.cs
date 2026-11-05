@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Reflection.Metadata;
 using Xunit;
 
 namespace Concord.Emit.Tests;
@@ -50,7 +51,7 @@ public sealed class TokenizableOperandsTests {
 
     [Fact]
     public void Calli_IsRefused() {
-        string? rejection = Reject(new CodeInstruction(OpCodes.Calli, new CallSiteSignature(new object())));
+        string? rejection = Reject(new CodeInstruction(OpCodes.Calli, new CallSiteSignature(typeof(void), [], SignatureCallingConvention.Default, false, false)));
 
         Assert.NotNull(rejection);
         Assert.StartsWith("CONC157: ", rejection!);

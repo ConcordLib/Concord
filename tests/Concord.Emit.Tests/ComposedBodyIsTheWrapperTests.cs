@@ -1,6 +1,5 @@
 using System.Reflection;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using Xunit;
 using OpCodes = System.Reflection.Emit.OpCodes;
 
@@ -21,7 +20,7 @@ public sealed class ComposedBodyIsTheWrapperTests {
     }
 
     private static bool TargetStoresToAStaticField(MethodBase target) {
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
         foreach (Instruction instruction in source.Definition.Body.Instructions) {
             if (instruction.OpCode == Mono.Cecil.Cil.OpCodes.Stsfld) {
                 return true;

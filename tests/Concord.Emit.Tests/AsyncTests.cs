@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using Concord.Detour;
 using Xunit;
 
 namespace Concord.Emit.Tests;
@@ -13,37 +12,11 @@ public static class IteratorTarget {
     }
 }
 
-public class InstanceIteratorTarget {
-    public int Seed = 10;
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public IEnumerable<int> Iterate() {
-        yield return Seed;
-        yield return Seed + 1;
-    }
-}
-
 // Shaped against the declared signature, which is what PatchBody.Declared composes onto: the stub
 // hands back the IEnumerable, and this replaces it wholesale.
 public static class IteratorReturnInjection {
     public static void Rewrite(ControlHandle<IEnumerable<int>> ch) {
         ch.ReturnValue = [9];
-    }
-}
-
-// Appends to whatever the target produced instead of discarding it - the shape a "add my gizmos to
-// the vanilla ones" patch actually needs.
-public static class IteratorAppendInjection {
-    public static void Append(ControlHandle<IEnumerable<int>> ch) {
-        ch.ReturnValue = Concat(ch.ReturnValue, 99);
-    }
-
-    private static IEnumerable<int> Concat(IEnumerable<int> source, int extra) {
-        foreach (int value in source) {
-            yield return value;
-        }
-
-        yield return extra;
     }
 }
 
@@ -118,36 +91,6 @@ public sealed class AsyncTests {
         MethodBase target = typeof(PlainTarget).GetMethod(nameof(PlainTarget.Identity))!;
 
         Assert.Same(target, WrapperComposer.ResolveBodyTarget(target, PatchBody.StateMachine));
-    }
-
-    // The whole point of PatchBody.Declared: a static iterator's stub returns the enumerable, so a
-    // Return injection can read and replace it, which is the shape most postfixes want.
-    [Fact]
-    public void Compose_IteratorEntry_ReturnInjectionReplacesTheEnumerable() {
-        MethodBase target = typeof(IteratorTarget).GetMethod(nameof(IteratorTarget.Iterate))!;
-        MethodBase injectionMethod =
-            typeof(IteratorReturnInjection).GetMethod(nameof(IteratorReturnInjection.Rewrite))!;
-        Injection ret = new Injection(injectionMethod, new InjectAt.Return(0), "test", 0);
-
-        ComposeResult result = WrapperComposer.Compose(target, [ret]);
-
-        using IDetourHandle handle = DetourBackend.Current.Apply(target, result.Wrapper);
-
-        Assert.Equal([9], IteratorTarget.Iterate().ToList());
-    }
-
-    [Fact]
-    public void Compose_InstanceIteratorEntry_ReturnInjectionAppendsToTheEnumerable() {
-        MethodBase target = typeof(InstanceIteratorTarget).GetMethod(nameof(InstanceIteratorTarget.Iterate))!;
-        MethodBase injectionMethod =
-            typeof(IteratorAppendInjection).GetMethod(nameof(IteratorAppendInjection.Append))!;
-        Injection ret = new Injection(injectionMethod, new InjectAt.Return(0), "test", 0);
-
-        ComposeResult result = WrapperComposer.Compose(target, [ret]);
-
-        using IDetourHandle handle = DetourBackend.Current.Apply(target, result.Wrapper);
-
-        Assert.Equal([10, 11, 99], new InstanceIteratorTarget().Iterate().ToList());
     }
 
     // The injection's ControlHandle<T> is shaped against the declared return type, but selecting
@@ -245,45 +188,5 @@ public sealed class AsyncTests {
         MethodBase resolved = WrapperComposer.ResolveStateMachineTarget(target);
 
         Assert.Same(target, resolved);
-    }
-
-    [Fact]
-    public async Task Compose_AsyncTarget_AppliedOverMoveNext_StillReturns42() {
-        MethodBase target = typeof(AsyncTarget).GetMethod(nameof(AsyncTarget.Compute))!;
-        MethodBase injectionMethod = typeof(AsyncInjectionMethods).GetMethod(nameof(AsyncInjectionMethods.Observe))!;
-        Injection head = new Injection(injectionMethod, new InjectAt.Head(), "test", 0) {
-            Body = PatchBody.StateMachine,
-        };
-        MethodBase moveNext = WrapperComposer.ResolveBodyTarget(target, head.Body);
-
-        ComposeResult result = WrapperComposer.Compose(moveNext, [head]);
-
-        using IDetourHandle handle = DetourBackend.Current.Apply(moveNext, result.Wrapper);
-
-        AsyncTarget.SideEffectLog = 0;
-        int value = await new AsyncTarget().Compute();
-
-        Assert.Equal(42, value);
-        Assert.Equal(1, AsyncTarget.SideEffectLog);
-    }
-
-    [Fact]
-    public async Task Compose_AsyncTarget_HeadObservesMoveNextStep() {
-        MethodBase target = typeof(AsyncTarget).GetMethod(nameof(AsyncTarget.Compute))!;
-        MethodBase injectionMethod = typeof(AsyncInjectionMethods).GetMethod(nameof(AsyncInjectionMethods.Observe))!;
-        Injection head = new Injection(injectionMethod, new InjectAt.Head(), "test", 0) {
-            Body = PatchBody.StateMachine,
-        };
-        MethodBase moveNext = WrapperComposer.ResolveBodyTarget(target, head.Body);
-
-        ComposeResult result = WrapperComposer.Compose(moveNext, [head]);
-
-        using IDetourHandle handle = DetourBackend.Current.Apply(moveNext, result.Wrapper);
-
-        AsyncObservations.MoveNextSteps = 0;
-        int value = await new AsyncTarget().Compute();
-
-        Assert.Equal(42, value);
-        Assert.True(AsyncObservations.MoveNextSteps > 0);
     }
 }

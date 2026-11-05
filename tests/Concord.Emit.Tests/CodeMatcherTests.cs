@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Reflection.Emit;
-using MonoMod.Utils;
 using Xunit;
 
 namespace Concord.Emit.Tests;
@@ -318,9 +317,9 @@ public sealed class CodeMatcherTests {
         ];
     }
 
-    private static DynamicMethodDefinition NewFinallyShapedMethod() {
+    private static ScratchMethod NewFinallyShapedMethod() {
         MethodBase shape = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Finally))!;
-        DynamicMethodDefinition method = new DynamicMethodDefinition(shape);
+        ScratchMethod method = BodyReader.Open(shape);
         method.Definition.Body.Variables.Clear();
         return method;
     }
@@ -343,7 +342,7 @@ public sealed class CodeMatcherTests {
 
         Assert.Contains(output, i => i.blocks.Exists(b => b.blockType == ExceptionBlockType.BeginExceptionBlock));
 
-        using DynamicMethodDefinition method = NewFinallyShapedMethod();
+        using ScratchMethod method = NewFinallyShapedMethod();
         TranspilerContext context = NewFinallyShapedContext();
         CecilCodeConverter.WriteBack(method.Definition, output, context);
 
@@ -368,7 +367,7 @@ public sealed class CodeMatcherTests {
         output.Add(new CodeInstruction(OpCodes.Ldloc_0));
         output.Add(new CodeInstruction(OpCodes.Ret));
 
-        using DynamicMethodDefinition method = NewFinallyShapedMethod();
+        using ScratchMethod method = NewFinallyShapedMethod();
         TranspilerContext context = NewFinallyShapedContext();
         CecilCodeConverter.WriteBack(method.Definition, output, context);
 
@@ -388,7 +387,7 @@ public sealed class CodeMatcherTests {
         Assert.Equal(4, output.Count);
         Assert.Contains(output, i => i.blocks.Exists(b => b.blockType == ExceptionBlockType.BeginExceptionBlock));
 
-        using DynamicMethodDefinition method = NewFinallyShapedMethod();
+        using ScratchMethod method = NewFinallyShapedMethod();
         TranspilerContext context = NewFinallyShapedContext();
 
         ConcordEmitException ex = Assert.Throws<ConcordEmitException>(() => CecilCodeConverter.WriteBack(method.Definition, output, context));

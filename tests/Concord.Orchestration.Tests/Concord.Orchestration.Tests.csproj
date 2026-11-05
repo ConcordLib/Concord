@@ -1,9 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net10.0;net472</TargetFrameworks>
-  </PropertyGroup>
-  <PropertyGroup>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
@@ -12,14 +8,9 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"/>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="../../src/Shared/Polyfills.cs" Link="Polyfills.cs"/>
     <!-- PublicSurfaceTests reads the ref project's own Compile globs, so the list of assemblies it
          scans comes from the file that decides that list rather than a copy of it. -->
     <None Include="../../src/Concord.Ref/Concord.Ref.csproj" Link="Concord.Ref.csproj" CopyToOutputDirectory="PreserveNewest"/>
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
-    <PackageReference Include="xunit.runner.console" Version="2.9.3" PrivateAssets="all"/>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Concord.Orchestration/Concord.Orchestration.csproj"/>

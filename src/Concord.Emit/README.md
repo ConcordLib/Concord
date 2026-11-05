@@ -16,6 +16,6 @@ The IL composition layer, one of the core libraries internal to Concord.
 
 You don't reference it directly. It compiles separately but merges into the Concord Assembly (`Concord.dll`), so mods and runtime adapters get it through that assembly. Work here if you are developing Concord's IL composition.
 
-Depends on MonoMod.Utils for Cecil.
+Depends on Mono.Cecil 0.11.6, referenced directly.
 
 See [Packages](../../docs/packages.md) for how this fits with the other projects, and [Contributor Architecture](../../docs/architecture.md) for the composition flow.

@@ -1,7 +1,6 @@
 using System.Reflection;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using Xunit;
 using MethodBody = Mono.Cecil.Cil.MethodBody;
 
@@ -23,7 +22,7 @@ public sealed class ComposedBodyFactoryTests {
     [InlineData(nameof(TranspilerTargets.Fault))]
     public void Clauses_RebuildTheSameCecilRegions(string name) {
         MethodBase target = typeof(TranspilerTargets).GetMethod(name)!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
 
         ComposedBody composed = ComposedBodyFactory.Create(source.Definition, new TranspilerContext(target));
 
@@ -35,7 +34,7 @@ public sealed class ComposedBodyFactoryTests {
     [InlineData(nameof(TranspilerTargets.AlwaysThrowsFinally))]
     public void HandlerRunningToEndOfBody_HasHandlerEndAtInstructionCount(string name) {
         MethodBase target = typeof(TranspilerTargets).GetMethod(name)!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
         MethodBody body = source.Definition.Body;
 
         ExceptionHandler endOfBody = body.ExceptionHandlers[body.ExceptionHandlers.Count - 1];
@@ -52,7 +51,7 @@ public sealed class ComposedBodyFactoryTests {
     [Fact]
     public void HandBuiltHandlerRunningToEndOfBody_HasHandlerEndAtInstructionCount() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Priced))!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
         BuildNullEndedFinally(source.Definition);
 
         ComposedBody composed = ComposedBodyFactory.Create(source.Definition, new TranspilerContext(target));
@@ -66,7 +65,7 @@ public sealed class ComposedBodyFactoryTests {
     [Fact]
     public void TryRegionEndingAtTheLastInstruction_KeepsTheExclusiveEnd() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Priced))!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
         BuildTryEndingAtLastInstruction(source.Definition);
 
         ComposedBody composed = ComposedBodyFactory.Create(source.Definition, new TranspilerContext(target));
@@ -82,7 +81,7 @@ public sealed class ComposedBodyFactoryTests {
     [Fact]
     public void FilterClause_PutsTheFilterBeforeTheHandler() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Filtered))!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
 
         ComposedBody composed = ComposedBodyFactory.Create(source.Definition, new TranspilerContext(target));
 
@@ -94,7 +93,7 @@ public sealed class ComposedBodyFactoryTests {
     [Fact]
     public void NonFilterClauses_HaveNoFilterStart() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.TryCatchCatchFinally))!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
 
         ComposedBody composed = ComposedBodyFactory.Create(source.Definition, new TranspilerContext(target));
 
@@ -113,7 +112,7 @@ public sealed class ComposedBodyFactoryTests {
     [Fact]
     public void NestedClauses_KeepTheirEnclosingRanges() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.TryNestedInFinally))!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
 
         ComposedBody composed = ComposedBodyFactory.Create(source.Definition, new TranspilerContext(target));
 
@@ -126,7 +125,7 @@ public sealed class ComposedBodyFactoryTests {
     [Fact]
     public void Locals_MatchTheBodySlotForSlot() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.TwoLocals))!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
 
         ComposedBody composed = ComposedBodyFactory.Create(source.Definition, new TranspilerContext(target));
 
@@ -141,7 +140,7 @@ public sealed class ComposedBodyFactoryTests {
     [Fact]
     public void PinnedLocal_IsFlaggedAndCarriesTheUnpinnedType() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Fault))!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
         MethodBody body = source.Definition.Body;
 
         int slot = body.Variables.ToList().FindIndex(v => v.IsPinned);
@@ -157,7 +156,7 @@ public sealed class ComposedBodyFactoryTests {
     [Fact]
     public void HandBuiltPinnedAndModifiedLocals_ResolveToTheTypeUnderneath() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Priced))!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
         ModuleDefinition module = source.Definition.Module;
         MethodBody body = source.Definition.Body;
 
@@ -178,7 +177,7 @@ public sealed class ComposedBodyFactoryTests {
     [Fact]
     public void Instructions_MirrorTheBodyOpcodeForOpcode() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Switched))!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
         MethodBody body = source.Definition.Body;
 
         ComposedBody composed = ComposedBodyFactory.Create(source.Definition, new TranspilerContext(target));
@@ -194,7 +193,7 @@ public sealed class ComposedBodyFactoryTests {
     [Fact]
     public void Origins_AreNullWhereNothingWasRecorded() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Simple))!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
 
         ComposedBody composed = ComposedBodyFactory.Create(source.Definition, new TranspilerContext(target));
 
@@ -207,7 +206,7 @@ public sealed class ComposedBodyFactoryTests {
     [Fact]
     public void Origins_LandOnTheInstructionTheyWereRecordedFor() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Finally))!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
         MethodBody body = source.Definition.Body;
 
         List<int?> expected = new List<int?>();

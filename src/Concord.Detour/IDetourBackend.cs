@@ -4,16 +4,20 @@ using Concord.Emit;
 namespace Concord.Detour;
 
 /// <summary>
-///     Applies native method detours for Concord.
+///     Puts a composed body on a live method for Concord, and takes it back off.
 /// </summary>
 public interface IDetourBackend {
     /// <summary>
-    ///     Redirects calls from a target method to its wrapper.
+    ///     How many methods this backend currently has a body on.
     /// </summary>
-    /// <param name="original">The method to redirect.</param>
-    /// <param name="replacement">The wrapper to execute instead.</param>
-    /// <returns>A handle that reports detour state and restores the original method when disposed.</returns>
-    IDetourHandle Apply(MethodBase original, MethodInfo replacement);
+    int PatchedTargetCount { get; }
+
+    /// <summary>
+    ///     Lists every patch owner this backend has live on <paramref name="target" />, in run order.
+    /// </summary>
+    /// <param name="target">The method to inspect.</param>
+    /// <returns>Distinct owner ids in run order, empty when this backend has nothing on the method.</returns>
+    IReadOnlyList<string> OwnersOf(MethodBase target);
 
     /// <summary>
     ///     Installs or replaces the single detour for <paramref name="target" />, composing one wrapper from
@@ -27,7 +31,7 @@ public interface IDetourBackend {
 }
 
 /// <summary>
-///     Lets a caller ask a backend whether it owns a target's body without assuming MonoMod.Core.
+///     Lets a caller ask a backend whether it owns a target's body.
 /// </summary>
 public interface IOwnsBodyQuery {
     /// <summary>
@@ -39,8 +43,8 @@ public interface IOwnsBodyQuery {
 }
 
 /// <summary>
-///     Lets a caller ask a backend to rebuild a target's composed body from the injections already live on it,
-///     adding and removing nothing, without assuming MonoMod.Core.
+///     Lets a caller ask a backend to rebuild a target's composed body from the injections already live
+///     on it, adding and removing nothing.
 /// </summary>
 public interface IRecomposeTarget {
     /// <summary>
@@ -53,23 +57,4 @@ public interface IRecomposeTarget {
     ///     <see langword="false" /> for no live injections, a foreign owner, a logged failure left on the original body, or a body this backend wrote in place.
     /// </returns>
     bool Recompose(MethodBase target);
-}
-
-/// <summary>
-///     Lets a backend tell a foreign patch host whether Concord may keep a target's body instead of letting
-///     that host rebuild it. A backend that does not implement this leaves suppression off.
-/// </summary>
-public interface ISuppressionProbes {
-    /// <summary>
-    ///     Reports why a body cannot be replaced in place on this host.
-    /// </summary>
-    /// <returns><see langword="null" /> when bodies can be replaced here, otherwise the reason they cannot.</returns>
-    string? BodyReplacementUnavailable();
-
-    /// <summary>
-    ///     Reports whether a profiler may rewrite method bodies in this process, which would delete anything
-    ///     folded into a body Concord owns.
-    /// </summary>
-    /// <returns><see langword="true" /> while a profiler is attached.</returns>
-    bool ProfilerMayRewriteBodies();
 }

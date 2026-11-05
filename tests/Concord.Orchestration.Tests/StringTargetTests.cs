@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Concord.Detour;
+using Concord.Emit;
 using Xunit;
 
 namespace Concord.Orchestration.Tests;
@@ -73,22 +75,6 @@ internal static class InternalStringTarget {
     }
 }
 
-// Separate target used ONLY by the Patcher.Patch integration test — no [Patch] declaration
-// references this type, so Patcher.Apply(assembly) never applies a detour here.
-internal static class InternalStringPatchTarget {
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public static int Compute() {
-        return 1;
-    }
-}
-
-internal static class InternalStringPatchInjectionMethod {
-    public static void OnCompute(ControlHandle<int> ch) {
-        ch.ReturnValue = 77;
-        ch.Cancel();
-    }
-}
-
 [Patch("Concord.Orchestration.Tests.InternalStringTarget")]
 internal static class StringTargetDeclaration {
     [Inject(At.Head, nameof(InternalStringTarget.Compute))]
@@ -114,8 +100,18 @@ internal static class MissingMethodDeclaration {
 }
 
 [Collection(SharedAssemblyApplyCollection.Name)]
-public sealed class StringTargetTests {
+public sealed class StringTargetTests : IDisposable {
     internal static int InvokeInjectionMethodHits;
+
+    private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
+
+    public StringTargetTests() {
+        DetourBackend.Current = backend;
+    }
+
+    public void Dispose() {
+        DetourBackend.Reset();
+    }
 
     [Fact]
     public void ScanType_StringTarget_ResolvesTypeAndAppliesPatch() {
@@ -126,23 +122,6 @@ public sealed class StringTargetTests {
 
         PatchCall call = Assert.Single(patches.Calls);
         Assert.Equal(typeof(InternalStringTarget).GetMethod(nameof(InternalStringTarget.Compute)), call.Target);
-    }
-
-    [Fact]
-    public void StringTarget_PatchApplies_ChangesReturnValue_DisposeReverts() {
-        Assert.Equal(1, InternalStringPatchTarget.Compute());
-
-        MethodBase target = typeof(InternalStringPatchTarget).GetMethod(nameof(InternalStringPatchTarget.Compute))!;
-        MethodBase injectionMethod = typeof(InternalStringPatchInjectionMethod).GetMethod(nameof(InternalStringPatchInjectionMethod.OnCompute))!;
-
-        IPatchHandle handle = Patcher.Patch(target, injectionMethod, At.Head);
-        try {
-            Assert.Equal(77, InternalStringPatchTarget.Compute());
-        } finally {
-            handle.Dispose();
-        }
-
-        Assert.Equal(1, InternalStringPatchTarget.Compute());
     }
 
     [Fact]
@@ -200,20 +179,14 @@ public sealed class StringTargetTests {
 
         IPatchHandle handle = builder.Head(injectionMethod).Apply();
         try {
-            Assert.Equal(55, OverloadDisambiguationTarget.Compute(3));
-            Assert.Equal(5, OverloadDisambiguationTarget.Compute("hello"));
+            Assert.Equal(expected, Assert.Single(backend.Applied).Target);
         } finally {
             handle.Dispose();
         }
-
-        Assert.Equal(13, OverloadDisambiguationTarget.Compute(3));
-        Assert.Equal(5, OverloadDisambiguationTarget.Compute("hello"));
     }
 
     [Fact]
     public void InvokeBuilder_CallSiteParameterTypes_SelectsIntOverloadCallSite() {
-        InvokeInjectionMethodHits = 0;
-
         MethodBase target = typeof(InvokeDisambiguationCallsite).GetMethod(nameof(InvokeDisambiguationCallsite.Run))!;
         MethodInfo injectionMethod = typeof(InvokeDisambiguationInjectionMethod).GetMethod(nameof(InvokeDisambiguationInjectionMethod.BeforeIntProcess))!;
 
@@ -223,8 +196,13 @@ public sealed class StringTargetTests {
             .Apply();
 
         try {
-            InvokeDisambiguationCallsite.Run();
-            Assert.Equal(1, InvokeInjectionMethodHits);
+            AppliedInjection applied = Assert.Single(backend.Applied);
+            InjectAt.Invoke at = Assert.IsType<InjectAt.Invoke>(applied.Injection.At);
+
+            Assert.Equal(target, applied.Target);
+            Assert.Equal(typeof(OverloadedHelper), at.DeclaringType);
+            Assert.Equal(nameof(OverloadedHelper.Process), at.Method);
+            Assert.Equal([typeof(int)], at.ParameterTypes);
         } finally {
             handle.Dispose();
         }

@@ -1,25 +1,30 @@
+using Concord.Tests.Shared;
 using Xunit;
 
 namespace Concord.Detour.Tests;
 
 public class DetourBackendTests {
     [Fact]
-    public void Default_is_the_monomod_backend() {
-        Assert.IsType<MonoModDetourBackend>(DetourBackend.Current);
-    }
-
-    [Fact]
     public void Current_can_be_swapped_and_reset() {
-        IDetourBackend original = DetourBackend.Current;
         try {
-            FakeDetourBackend fake = new FakeDetourBackend();
+            RecordingDetourBackend fake = new RecordingDetourBackend();
             DetourBackend.Current = fake;
             Assert.Same(fake, DetourBackend.Current);
         } finally {
-            DetourBackend.Current = original;
+            DetourBackend.Reset();
         }
+    }
 
-        Assert.IsType<MonoModDetourBackend>(DetourBackend.Current);
+    [Fact]
+    public void Current_throws_before_anything_set_it() {
+        DetourBackend.Reset();
+
+        InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(() => DetourBackend.Current);
+        Assert.Contains("WaylithCLR 10.0.15", thrown.Message, StringComparison.Ordinal);
+        Assert.Contains("AdapterEntryPoint.Install", thrown.Message, StringComparison.Ordinal);
+        Assert.Contains("refused", thrown.Message, StringComparison.Ordinal);
+        Assert.Contains("switched off", thrown.Message, StringComparison.Ordinal);
+        Assert.Contains("[Concord.Waylith] backend:", thrown.Message, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -73,7 +73,7 @@ public sealed class CatchRegionTests : IDisposable {
 
     public void Dispose() {
         foreach (MethodBase target in written) {
-            ForkBodyWriter.Shared.Restore(target);
+            ForkRuntime.Restore(target);
         }
     }
 
@@ -186,7 +186,7 @@ public sealed class CatchRegionTests : IDisposable {
         Write(target, Swallowing(target));
         Assert.Equal(FromHandler, Guard.Restored());
 
-        ForkBodyWriter.Shared.Restore(target);
+        ForkRuntime.Restore(target);
         written.Remove(target);
 
         Assert.Equal(1, Guard.Restored());
@@ -234,7 +234,7 @@ public sealed class CatchRegionTests : IDisposable {
     }
 
     private void Write(MethodBase target, byte[] body) {
-        ForkBodyWriter.Shared.Write(target, body, []);
+        ForkRuntime.Write(target, body, []);
         written.Add(target);
     }
 }

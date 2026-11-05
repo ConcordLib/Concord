@@ -74,7 +74,6 @@ public static class Probe {
                     " selected=" + Adapter.Selected() +
                     " md5=" + Adapter.Identity() +
                     " empty-map=" + Adapter.EmptyMapAlways() +
-                    " switch=" + (Environment.GetEnvironmentVariable("CONCORD_WAYLITH_BACKEND") ?? "<unset>") +
                     " reason=" + Adapter.SelectionReason());
         Report.Line("adapted band original-bytes=" + band.ToString(CultureInfo.InvariantCulture) +
                     " head-owner=" + typeof(HeadPatch).FullName +
@@ -89,7 +88,7 @@ public static class Probe {
         }
 
         Report.Line("adapted published original-bytes=" + band.ToString(CultureInfo.InvariantCulture) +
-                    " published-bytes=" + Adapter.PublishedBytes(target) +
+                    " owns-body=" + Adapter.OwnsBody(target) +
                     " replaced=" + Adapter.Replaced(target).ToString().ToLowerInvariant() +
                     " owners=" + string.Join("/", Adapter.Owners(target)));
 

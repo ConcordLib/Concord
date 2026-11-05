@@ -1,13 +1,36 @@
 #!/usr/bin/env bash
 set -u
 
+usage() {
+    echo "usage: run-fork-tests.sh [-p:Name=Value ...] [-- exe-arg ...]" >&2
+    echo "  args before -- go to dotnet build; args after -- go to the test exe" >&2
+    echo "  (e.g. -- --report-trx --report-trx-filename fork-facts.trx)" >&2
+}
+
+case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+esac
+
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project="$script_dir/Concord.Host.Adapter.ForkTests.csproj"
 configuration="${CONFIGURATION:-Release}"
 tfm="net10.0"
 rid="linux-x64"
 
-dotnet build "$project" --nologo -c "$configuration" -tl:false "$@"
+build_args=()
+exe_args=()
+past_separator=0
+for arg in "$@"; do
+    if [ "$past_separator" -eq 1 ]; then
+        exe_args+=("$arg")
+    elif [ "$arg" = "--" ]; then
+        past_separator=1
+    else
+        build_args+=("$arg")
+    fi
+done
+
+dotnet build "$project" --nologo -c "$configuration" -tl:false "${build_args[@]}"
 build_status=$?
 if [ "$build_status" -ne 0 ]; then
     echo "run-fork-tests: build failed with exit $build_status" >&2
@@ -20,31 +43,37 @@ if [ ! -x "$exe" ]; then
     exit 1
 fi
 
-output="$("$exe")"
+output="$("$exe" "${exe_args[@]}")"
 run_status=$?
 printf '%s\n' "$output"
 
-summary="$(printf '%s\n' "$output" | sed 's/\x1b\[[0-9;]*m//g' | grep -o 'Total: [0-9]*, Errors: [0-9]*, Failed: [0-9]*, Skipped: [0-9]*' | tail -1)"
-if [ -z "$summary" ]; then
+clean="$(printf '%s\n' "$output" | sed 's/\x1b\[[0-9;]*m//g')"
+total=$(printf '%s\n' "$clean" | sed -n 's/^[[:space:]]*total: \([0-9]*\)$/\1/p' | tail -1)
+failed=$(printf '%s\n' "$clean" | sed -n 's/^[[:space:]]*failed: \([0-9]*\)$/\1/p' | tail -1)
+passed=$(printf '%s\n' "$clean" | sed -n 's/^[[:space:]]*succeeded: \([0-9]*\)$/\1/p' | tail -1)
+skipped=$(printf '%s\n' "$clean" | sed -n 's/^[[:space:]]*skipped: \([0-9]*\)$/\1/p' | tail -1)
+if [ -z "$total" ]; then
     echo "run-fork-tests: no test summary line in the run output" >&2
     exit 1
 fi
 
-total=$(printf '%s' "$summary" | sed -n 's/.*Total: \([0-9]*\).*/\1/p')
-errors=$(printf '%s' "$summary" | sed -n 's/.*Errors: \([0-9]*\).*/\1/p')
-failed=$(printf '%s' "$summary" | sed -n 's/.*Failed: \([0-9]*\).*/\1/p')
-skipped=$(printf '%s' "$summary" | sed -n 's/.*Skipped: \([0-9]*\).*/\1/p')
-passed=$((total - errors - failed - skipped))
+echo "run-fork-tests: passed=$passed failed=$failed skipped=$skipped total=$total"
 
-echo "run-fork-tests: passed=$passed failed=$((errors + failed)) skipped=$skipped total=$total"
+gap="$(printf '%s\n' "$output" | sed 's/\x1b\[[0-9;]*m//g' | grep -o 'fork-gap:.*' | head -1)"
+if [ -n "$gap" ]; then
+    echo "run-fork-tests: $gap" >&2
+    echo "run-fork-tests: every body-replacement fact stands down on this runtime, so a green run here would only" >&2
+    echo "run-fork-tests: be the pure encoder facts passing. Point ForkRuntimeDir at a pipeline runtime." >&2
+    exit 1
+fi
 
 if [ "$run_status" -ne 0 ]; then
     echo "run-fork-tests: exe exited $run_status" >&2
     exit "$run_status"
 fi
 
-if [ "$total" -eq 0 ] || [ "$skipped" -eq "$total" ]; then
-    echo "run-fork-tests: every fact skipped, the fork overlay did not take" >&2
+if [ "$total" -eq 0 ]; then
+    echo "run-fork-tests: the run reported no facts at all" >&2
     exit 1
 fi
 

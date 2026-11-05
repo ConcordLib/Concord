@@ -1,36 +1,36 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Concord.Detour;
 
 namespace Concord.Host.Adapter;
 
 /// <summary>What an environment variable's raw text asked for, once read.</summary>
 public enum SwitchState {
-    /// <summary>The variable is missing or blank, so whatever the host or the default decides wins.</summary>
+    /// <summary>The variable is missing or blank, so it asks for nothing.</summary>
     Unset,
 
     /// <summary>The text reads as on, one of <c>1</c>, <c>true</c>, <c>on</c>, <c>yes</c> or <c>enabled</c>.</summary>
-    ForceWaylith,
+    On,
 
     /// <summary>The text reads as off, one of <c>0</c>, <c>false</c>, <c>off</c>, <c>no</c> or <c>disabled</c>.</summary>
-    ForceDetour,
+    Off,
 
     /// <summary>The text is neither on nor off. It is logged once and then treated as unset.</summary>
     Unreadable,
 }
 
 /// <summary>
-///     What a host mod calls to put the body-replacement backend in front of the native detour. Call it once, before
+///     What a host mod calls to install the body-replacement backend. Call it once, before
 ///     the first patch applies: a swap after that would strand every patched target on the old backend.
 /// </summary>
 public static class AdapterEntryPoint {
-    /// <summary>Environment variable that forces the backend either way, overriding the host's setting.</summary>
-    public const string SwitchVariable = "CONCORD_WAYLITH_BACKEND";
-
     /// <summary>Environment variable that drops the offset map from every written body, so frames report raw offsets.</summary>
     public const string EmptyMapVariable = "CONCORD_WAYLITH_EMPTY_MAP";
 
     internal const string DeclaredBodyRefusalCode = "CONC178";
+
+    internal static readonly Func<bool> ConcordDeclaredBodyReads = ProbeDeclaredBodyReader;
 
     private static readonly string[] On = ["1", "true", "on", "yes", "enabled"];
 
@@ -40,25 +40,10 @@ public static class AdapterEntryPoint {
 
     private static readonly Func<int> ConcordPatchedTargets = static () => Patcher.PatchedTargetCount;
 
-    private static readonly Func<bool> ConcordDeclaredBodyReads =
-        static () => !ForkBodyWriter.Shared.IsAvailable || RegisterDeclaredBodyReader();
-
-    private static readonly Func<Action<string>, InjectionCapabilityGap> ConcordStaleHandler = static write => {
-        if (InjectionCapability.Unavailable) {
-            return InjectionCapability.Gap;
-        }
-
-        StaleBodyHandler.Install(write);
-        return InjectionCapabilityGap.None;
-    };
-
-    private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(5);
-
-    private static bool staleHandlerAsked;
+    [ThreadStatic]
+    private static StageInputSlot? transformInput;
 
     private static string? warnedEmptyMap;
-
-    private static Timer? poll;
 
     /// <summary>The choice a completed install made, or <c>null</c> before the first install. A second install returns this one unchanged.</summary>
     public static Selection? Current { get; private set; }
@@ -69,34 +54,27 @@ public static class AdapterEntryPoint {
     /// <summary>Overrides whether a runtime that replaces bodies will also read a declared one back. Left <c>null</c>, the real bind result is used.</summary>
     public static Func<bool>? DeclaredBodyReads { get; set; }
 
-    /// <summary>Overrides registering the handler this runtime reports a stale method to, returning <see cref="InjectionCapabilityGap.None" /> once it is registered or the gap that stopped it. Left <c>null</c>, the real probe and registration are used.</summary>
-    public static Func<Action<string>, InjectionCapabilityGap>? StaleHandler { get; set; }
-
-    /// <summary>How often to re-check for a foreign patcher taking a target. Set it to zero before installing to skip the poll. Defaults to five seconds.</summary>
-    public static TimeSpan PollInterval { get; set; } = DefaultPollInterval;
+    internal static Func<MethodBase, RuntimeMethodHandle>? DefinitionHandle { get; set; }
 
     /// <summary>Installs the backend, probing this runtime for body-replacement support.</summary>
-    /// <param name="log">Where to write the one selection line. <c>null</c> sends it to <see cref="Trace" />.</param>
-    /// <param name="setting">The host's own preference, or <c>null</c> to take the default for this runtime.</param>
+    /// <param name="log">Where to write the one install line. <c>null</c> sends it to <see cref="Trace" />.</param>
     /// <param name="assemblyDirectories">Directories to find a byte-loaded mod assembly's file in. Empty or <c>null</c> logs a warning and leaves [Local(Name)] unresolvable.</param>
-    /// <returns>The choice made. Inspect <see cref="Selection.Waylith" /> to see whether body replacement is live.</returns>
-    public static Selection Install(Action<string>? log, bool? setting, string[]? assemblyDirectories) {
-        return Install(log, setting, assemblyDirectories, RuntimeCapability.Support, null);
+    /// <returns>The outcome. Inspect <see cref="Selection.Waylith" /> to see whether body replacement is live.</returns>
+    public static Selection Install(Action<string>? log, string[]? assemblyDirectories) {
+        return Install(log, assemblyDirectories, RuntimeCapability.Support, null);
     }
 
     /// <summary>Installs the backend with the capability verdict and the backend factory supplied, for tests and unusual hosts.</summary>
-    /// <param name="log">Where to write the one selection line. <c>null</c> sends it to <see cref="Trace" />.</param>
-    /// <param name="setting">The host's own preference, or <c>null</c> to take the default for this runtime.</param>
+    /// <param name="log">Where to write the one install line. <c>null</c> sends it to <see cref="Trace" />.</param>
     /// <param name="assemblyDirectories">Directories to find a byte-loaded mod assembly's file in.</param>
     /// <param name="support">The capability verdict to trust instead of probing the runtime.</param>
-    /// <param name="backend">Wraps the current native backend into the one to install. <c>null</c> builds the standard one, which needs a registered body publisher.</param>
-    /// <returns>The choice made, which falls back to the native detour when a target is already patched, another backend is installed, or no publisher is registered.</returns>
+    /// <param name="backend">Builds the backend to install, or <c>null</c> for the standard one, which needs a registered body publisher.</param>
+    /// <returns>The outcome, which installs nothing when a target is already patched or no publisher is registered.</returns>
     public static Selection Install(
         Action<string>? log,
-        bool? setting,
         string[]? assemblyDirectories,
         BodyReplacement support,
-        Func<IDetourBackend, IDetourBackend>? backend) {
+        Func<IDetourBackend>? backend) {
         lock (Gate) {
             if (Current is { } already) {
                 return already;
@@ -105,18 +83,13 @@ public static class AdapterEntryPoint {
             Action<string> write = log ?? (message => Trace.WriteLine(message));
             RegisterLocalNameResolver(assemblyDirectories, write);
 
-            Selection chosen = Choose(setting, support, write);
+            Selection chosen = Choose(support);
             if (chosen.Waylith) {
                 chosen = Swap(chosen, backend, write);
             }
 
             write(chosen.Message);
-            RegisterStaleHandler(write, support);
             Current = chosen;
-            if (chosen.Waylith && PollInterval > TimeSpan.Zero) {
-                poll = new Timer(_ => Report(write), null, PollInterval, PollInterval);
-            }
-
             return chosen;
         }
     }
@@ -135,7 +108,7 @@ public static class AdapterEntryPoint {
 
     /// <summary>Reads one environment variable's text, case-insensitively and ignoring surrounding space.</summary>
     /// <param name="raw">The variable's value, or <c>null</c> when it is not set.</param>
-    /// <returns>Unset for null or blank, ForceWaylith or ForceDetour for a word it knows, Unreadable for anything else.</returns>
+    /// <returns>Unset for null or blank, On or Off for a word it knows, Unreadable for anything else.</returns>
     public static SwitchState ReadSwitch(string? raw) {
         if (raw is null) {
             return SwitchState.Unset;
@@ -147,10 +120,10 @@ public static class AdapterEntryPoint {
         }
 
         if (Matches(On, trimmed)) {
-            return SwitchState.ForceWaylith;
+            return SwitchState.On;
         }
 
-        return Matches(Off, trimmed) ? SwitchState.ForceDetour : SwitchState.Unreadable;
+        return Matches(Off, trimmed) ? SwitchState.Off : SwitchState.Unreadable;
     }
 
     /// <summary>Whether <see cref="EmptyMapVariable" /> asks for bodies to be written with no offset map.</summary>
@@ -161,7 +134,7 @@ public static class AdapterEntryPoint {
         SwitchState requested = ReadSwitch(raw);
 
         if (requested != SwitchState.Unreadable) {
-            return requested == SwitchState.ForceWaylith;
+            return requested == SwitchState.On;
         }
 
         if (!string.Equals(warnedEmptyMap, raw, StringComparison.Ordinal)) {
@@ -195,155 +168,65 @@ public static class AdapterEntryPoint {
         };
     }
 
-    /// <summary>Forgets the installed selection, stops the poll waiting for a callback already running, and lets the stale-method handler be registered again. For tests, never for a running game.</summary>
+    /// <summary>Forgets the installed selection. For tests, never for a running game.</summary>
     public static void ResetForTests() {
         lock (Gate) {
-            Timer? running = Interlocked.Exchange(ref poll, null);
-            if (running is not null) {
-                using ManualResetEvent drained = new ManualResetEvent(false);
-                if (running.Dispose(drained)) {
-                    drained.WaitOne();
-                }
-            }
-
             Current = null;
-            staleHandlerAsked = false;
             warnedEmptyMap = null;
-            PollInterval = DefaultPollInterval;
         }
     }
 
-    /// <summary>Weighs the environment variable, the host setting and the runtime's support into one choice, installing nothing.</summary>
-    /// <param name="setting">The host's own preference, or <c>null</c> to default to on.</param>
+    /// <summary>Judges a capability verdict, installing nothing.</summary>
     /// <param name="support">What this runtime can do, as probed.</param>
-    /// <param name="log">Where to warn about unreadable variable text. <c>null</c> sends it to <see cref="Trace" />.</param>
-    /// <returns>The choice, with a reason naming which of the three decided it.</returns>
-    public static Selection Choose(bool? setting, BodyReplacement support, Action<string>? log) {
-        Action<string> write = log ?? (message => Trace.WriteLine(message));
-        string raw = Environment.GetEnvironmentVariable(SwitchVariable) ?? string.Empty;
-        SwitchState requested = ReadSwitch(raw);
-
-        if (requested == SwitchState.Unreadable) {
-            write(
-                Selection.Prefix + SwitchVariable + " is set to '" + raw + "', which is neither " +
-                string.Join("/", On) + " nor " + string.Join("/", Off) + ". Ignoring it.");
-            requested = SwitchState.Unset;
-        }
-
-        string source = requested switch {
-            SwitchState.ForceWaylith or SwitchState.ForceDetour => SwitchVariable + "=" + raw.Trim(),
-            _ => setting.HasValue ? "the mod setting" : "the default for this runtime",
-        };
-
-        bool wanted = requested switch {
-            SwitchState.ForceWaylith => true,
-            SwitchState.ForceDetour => false,
-            _ => setting ?? true,
-        };
-
-        if (!wanted) {
-            return new Selection(false, "turned off by " + source + ".");
-        }
-
-        string explained = RuntimeCapability.Explain(support, RuntimeCapability.ProbeFailure) + ".";
-        if (support == BodyReplacement.Available) {
-            return new Selection(true, "turned on by " + source + ", and " + explained);
-        }
-
+    /// <returns>Body replacement when the verdict stages a composed body, else a refusal carrying the verdict's explanation.</returns>
+    public static Selection Choose(BodyReplacement support) {
         return new Selection(
-            false,
-            requested == SwitchState.ForceWaylith
-                ? source + " asked for it, but it cannot run here: " + explained
-                : explained);
+            RuntimeCapability.Stages(support),
+            RuntimeCapability.Explain(support, RuntimeCapability.ProbeFailure) + ".");
     }
 
-    private static void RegisterStaleHandler(Action<string> write, BodyReplacement support) {
-        if (staleHandlerAsked) {
-            return;
-        }
-
-        staleHandlerAsked = true;
-        InjectionCapabilityGap gap = (StaleHandler ?? ConcordStaleHandler)(write);
-        if (gap == InjectionCapabilityGap.None || support != BodyReplacement.Available) {
-            return;
-        }
-
-        write(
-            Selection.Prefix + "no stale-method handler: " +
-            InjectionCapability.Explain(gap, InjectionCapability.ProbeFailure) + ". Patching still works, but if " +
-            "another mod adds a field to a type one of Concord's patched methods touches, every wrapper Concord " +
-            "compiled against the old layout is thrown out, and the patches behind them stop running until the " +
-            "game is restarted.");
+    internal static StageInputSlot? StageInput(RuntimeMethodHandle method, ComposedBody input) {
+        StageInputSlot? outer = transformInput;
+        transformInput = new StageInputSlot(method, input);
+        return outer;
     }
 
-    private static void Report(Action<string> write) {
-        try {
-            foreach (string line in ForeignPatcherPolicy.Contentions()) {
-                write(line);
-            }
-        } catch (Exception failure) when (failure is not OutOfMemoryException) {
-            Stop();
-            Trace.WriteLine(
-                Selection.Prefix + "the poll that asks whether a foreign patcher has taken a method Concord " +
-                "published a body to threw " + failure.GetType().Name + ", " + failure.Message.TrimEnd('.') +
-                ". It is stopped, so a foreign patcher arriving from here on is not reported.");
-        }
+    internal static void RestoreStageInput(StageInputSlot? outer) {
+        transformInput = outer;
     }
 
-    private static void Stop() {
-        Timer? existing = Interlocked.Exchange(ref poll, null);
-        existing?.Dispose();
-    }
-
-    private static Selection Swap(
-        Selection chosen, Func<IDetourBackend, IDetourBackend>? backend, Action<string> write) {
+    private static Selection Swap(Selection chosen, Func<IDetourBackend>? backend, Action<string> write) {
         int patched = (PatchedTargets ?? ConcordPatchedTargets)();
         if (patched != 0) {
             return new Selection(
                 false,
-                patched + " target(s) already carry a composed wrapper, and a swap now strands every one of them on " +
-                "the native detour with nothing recording that it happened. Install before the first patch applies. " +
-                chosen.Reason);
-        }
-
-        IDetourBackend existing = DetourBackend.Current;
-        RoutingDetourBackend? router = existing as RoutingDetourBackend;
-        IDetourBackend inner = router is null ? existing : router.Inner;
-
-        if (inner is not MonoModDetourBackend) {
-            return new Selection(
-                false,
-                "another backend, '" + inner.GetType().FullName + "', is already installed" +
-                (router is null ? string.Empty : " under '" + typeof(RoutingDetourBackend).FullName + "'") +
-                ", and installing over it would strip whatever wrapped it. " + chosen.Reason);
-        }
-
-        if (backend is null && WaylithDetourBackend.Publisher is null) {
-            return new Selection(
-                false,
-                "no body publisher is registered on " + nameof(WaylithDetourBackend) + ", so the backend has " +
-                "nothing to write a method body with. " + chosen.Reason);
+                patched + " target(s) already carry a composed body, and a swap now strands every one of them on " +
+                "the backend installed before this one with nothing recording that it happened. Install before the " +
+                "first patch applies.");
         }
 
         if (!(DeclaredBodyReads ?? ConcordDeclaredBodyReads)()) {
             return new Selection(
                 false,
                 "this runtime replaces method bodies but will not read a declared one back, so every read of a " +
-                "target's original body would return whatever body Concord last wrote over it. " + chosen.Reason);
+                "target's original body would return whatever body Concord last staged over it.");
         }
 
         WaylithDetourBackend.Log = write;
-        IDetourBackend installed = backend is null ? new WaylithDetourBackend(inner) : backend(inner);
-        if (router is null) {
-            DetourBackend.Current = installed;
-        } else {
-            router.ReplaceInner(installed);
-        }
-
+        DetourBackend.Current = backend is null ? StagedBackend() : backend();
         return chosen;
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static IDetourBackend StagedBackend() {
+        return new WaylithDetourBackend(ConcordStage.Install());
+    }
+
     private static ComposedBody? DeclaredBody(MethodBase method) {
+        if (transformInput is { } staged && DefinitionHandle is { } resolve && resolve(method).Equals(staged.Method)) {
+            return staged.Input;
+        }
+
         HostBody? read = ForkBodyReader.Shared.Read(method);
         if (read is null) {
             throw Refuse(method, "this host would not read its declared body back");
@@ -359,15 +242,8 @@ public static class AdapterEntryPoint {
             throw Refuse(method, "this host would not read its declared body back");
         }
 
-        Type[]? typeArguments = method.DeclaringType is { IsGenericType: true } declaring
-            ? declaring.GetGenericArguments()
-            : null;
-        Type[]? methodArguments = method is MethodInfo { IsGenericMethod: true } generic
-            ? generic.GetGenericArguments()
-            : null;
-
         ComposedLocal[]? locals = LocalSignatureDecoder.Decode(
-            read.LocalSignature.ToArray(), method.Module, typeArguments, methodArguments, out string? refusal);
+            read.LocalSignature.ToArray(), method, out string? refusal);
         if (locals is null) {
             throw Refuse(method, "Concord could not decode the local signature this host read back: " + refusal);
         }
@@ -378,7 +254,7 @@ public static class AdapterEntryPoint {
     private static ConcordEmitException Refuse(MethodBase method, string because) {
         return new ConcordEmitException(
             DeclaredBodyRefusalCode,
-            $"'{method.DeclaringType?.FullName ?? "<no declaring type>"}.{method.Name}' cannot be read as it was " +
+            $"'{WaylithDetourBackend.Describe(method)}' cannot be read as it was " +
             $"declared: {because}. This runtime reports a replaced body through reflection, so falling back to " +
             "that read would hand out a patched body as though it were the original, and Concord refuses the " +
             "method instead.");
@@ -405,9 +281,18 @@ public static class AdapterEntryPoint {
 
         return false;
     }
+
+    private static bool ProbeDeclaredBodyReader() {
+        if (!RegisterDeclaredBodyReader()) {
+            return false;
+        }
+
+        MethodInfo probe = typeof(AdapterEntryPoint).GetMethod(nameof(ReadSwitch))!;
+        return ForkBodyReader.Shared.Read(probe) is not null;
+    }
 }
 
-/// <summary>Which backend <see cref="AdapterEntryPoint.Install(System.Action{string},bool?,string[])" /> settled on, and why.</summary>
+/// <summary>Which backend <see cref="AdapterEntryPoint.Install(System.Action{string},string[])" /> settled on, and why.</summary>
 public sealed class Selection {
     internal const string Prefix = "[Concord.Waylith] ";
 
@@ -419,12 +304,26 @@ public sealed class Selection {
         Reason = reason;
     }
 
-    /// <summary>Whether bodies get replaced in place. When <c>false</c>, patches go through the native detour backend instead.</summary>
+    /// <summary>Whether bodies get replaced in place. When <c>false</c>, no backend is installed at all.</summary>
     public bool Waylith { get; }
 
-    /// <summary>Why this backend was picked, or why the one asked for could not run here.</summary>
+    /// <summary>Why body replacement was picked, or why this runtime could not run it.</summary>
     public string Reason { get; }
 
-    /// <summary>The single line a host logs: marker, which backend, then <see cref="Reason" />.</summary>
-    public string Message => Prefix + "backend: " + (Waylith ? "body replacement" : "native detour") + ". " + Reason;
+    /// <summary>The single line a host logs. Body replacement names only this runtime; a refusal carries <see cref="Reason" />.</summary>
+    public string Message => Prefix +
+        (Waylith
+            ? "backend: body replacement on '" + RuntimeCapability.Runtime + "'."
+            : "no backend installed, so nothing Concord is asked to patch will be patched. " + Reason);
+}
+
+internal sealed class StageInputSlot {
+    internal StageInputSlot(RuntimeMethodHandle method, ComposedBody input) {
+        Method = method;
+        Input = input;
+    }
+
+    internal RuntimeMethodHandle Method { get; }
+
+    internal ComposedBody Input { get; }
 }

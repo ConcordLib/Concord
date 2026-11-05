@@ -1,8 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net10.0;netstandard2.0;net472</TargetFrameworks>
     <AssemblyName>Concord</AssemblyName>
     <RootNamespace>Concord</RootNamespace>
     <OutputPath>../../Assemblies</OutputPath>
@@ -10,7 +8,7 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
-    <!-- Packs the ILRepack-merged Assemblies/Concord.dll (MonoMod folded in), so the
+    <!-- Packs the ILRepack-merged Assemblies/Concord.dll (Mono.Cecil folded in), so the
          package carries no dependency group and no raw build output. The 'Concord' id
          on nuget.org is taken by an unrelated abandoned package. -->
     <IsPackable>true</IsPackable>
@@ -20,21 +18,11 @@
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <WarningsNotAsErrors>NU5128</WarningsNotAsErrors>
-    <NoWarn>$(NoWarn);NETSDK1023</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath=""/>
     <None Include="../../Assemblies/net10.0/Concord.dll" Pack="true" PackagePath="lib/net10.0" Visible="false"/>
-    <None Include="../../Assemblies/netstandard2.0/Concord.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false"/>
-    <None Include="../../Assemblies/net472/Concord.dll" Pack="true" PackagePath="lib/net472" Visible="false"/>
-
-    <!-- The netstandard2.0 leg binds System.Reflection.Emit.OpCode through these facades, and
-         SuppressDependenciesWhenPacking means the package declares no dependency group to
-         restore them from. Ship them beside Concord.dll or the assembly reference dangles.
-         net10.0 and net472 resolve OpCode from the shared framework and mscorlib respectively. -->
-    <None Include="../../Assemblies/netstandard2.0/System.Reflection.Emit.ILGeneration.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false"/>
-    <None Include="../../Assemblies/netstandard2.0/System.Reflection.Emit.Lightweight.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false"/>
   </ItemGroup>
 
   <ItemGroup>
@@ -47,14 +35,6 @@
 
   <ItemGroup>
     <PackageReference Include="ILRepack.Lib.MSBuild.Task" Version="2.0.45" PrivateAssets="all"/>
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="NETStandard.Library" Version="2.0.3" PrivateAssets="all"/>
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
   </ItemGroup>
 
 </Project>

@@ -1,7 +1,6 @@
 using System.Reflection;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 
 namespace Concord.Emit;
 
@@ -28,14 +27,14 @@ public static class ReversePatchFactory {
     private static MethodInfo LiveBody(MethodBase original) {
         Type[] parameterTypes = WrapperComposer.ResolveParameterTypes(original);
         Type returnType = WrapperComposer.ResolveReturnType(original);
-        using DynamicMethodDefinition dmd = new DynamicMethodDefinition("<ReversePatch>" + original.Name, returnType, parameterTypes);
-        ILProcessor il = dmd.GetILProcessor();
-        foreach (ParameterDefinition parameter in dmd.Definition.Parameters) {
+        using ScratchMethod scratch = new ScratchMethod("<ReversePatch>" + original.Name, returnType, parameterTypes, original);
+        ILProcessor il = scratch.GetILProcessor();
+        foreach (ParameterDefinition parameter in scratch.Definition.Parameters) {
             il.Emit(OpCodes.Ldarg, parameter);
         }
 
-        il.Emit(OpCodes.Call, dmd.Module.ImportReference(original));
+        il.Emit(OpCodes.Call, scratch.Module.ImportReference(original));
         il.Emit(OpCodes.Ret);
-        return dmd.Generate();
+        return scratch.Generate();
     }
 }

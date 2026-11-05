@@ -1,9 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net10.0;net472</TargetFrameworks>
-  </PropertyGroup>
-  <PropertyGroup>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
@@ -12,11 +8,7 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"/>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="../../src/Shared/Polyfills.cs" Link="Polyfills.cs"/>
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
-    <PackageReference Include="xunit.runner.console" Version="2.9.3" PrivateAssets="all"/>
+    <Compile Include="../Shared/RecordingDetourBackend.cs" Link="RecordingDetourBackend.cs"/>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Concord.Detour/Concord.Detour.csproj"/>

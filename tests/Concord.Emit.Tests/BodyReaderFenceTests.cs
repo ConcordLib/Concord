@@ -139,14 +139,6 @@ public sealed class BodyReaderFenceTests {
         Assert.NotNull(OriginalBody.Clone(Target(name)));
     }
 
-    [MonoOnlyTheory]
-    [MemberData(nameof(Refused))]
-    public void Clone_ShapeTheFenceRefuses_ThrowsTheRefusalOnMono(string name) {
-        ConcordEmitException failure = Assert.Throws<ConcordEmitException>(() => OriginalBody.Clone(Target(name)));
-
-        Assert.Equal(BodyReader.RefusalCode, failure.Code);
-    }
-
     [Theory]
     [MemberData(nameof(Refused))]
     public void Reject_ShapeTheFenceRefuses_OnlyThrowsOnMono(string name) {

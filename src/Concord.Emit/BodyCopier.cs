@@ -2,7 +2,6 @@ using System.Reflection;
 using Concord.AttachedData;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using MethodBody = Mono.Cecil.Cil.MethodBody;
 
 namespace Concord.Emit;
@@ -23,8 +22,8 @@ internal static class BodyCopier {
     /// </summary>
     /// <param name="source">The source target method definition.</param>
     /// <param name="destination">The destination wrapper method definition.</param>
-    /// <param name="declaringType">The type declaring the source method, so copied <c>GetExecutingAssembly</c> calls keep observing it.</param>
-    public static void CopySpine(MethodDefinition source, MethodDefinition destination, Type declaringType) {
+    /// <param name="declaringType">The type declaring the source method, so copied <c>GetExecutingAssembly</c> calls keep observing it. Null for a target that declares no type, such as a <c>DynamicMethod</c>.</param>
+    public static void CopySpine(MethodDefinition source, MethodDefinition destination, Type? declaringType) {
         MethodBody sourceBody = source.Body;
         MethodBody destinationBody = destination.Body;
 
@@ -48,7 +47,9 @@ internal static class BodyCopier {
             il.Append(copy);
         }
 
-        RewriteExecutingAssembly(destinationBody, declaringType);
+        if (declaringType is not null) {
+            RewriteExecutingAssembly(destinationBody, declaringType);
+        }
 
         foreach (Instruction copy in destinationBody.Instructions) {
             RemapBranchTargets(copy, instructionMap);

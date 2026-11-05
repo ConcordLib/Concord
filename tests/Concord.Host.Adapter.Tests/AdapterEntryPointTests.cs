@@ -1,6 +1,4 @@
-using System.Collections.Concurrent;
 using System.Reflection;
-using Concord.Detour;
 using Xunit;
 
 namespace Concord.Host.Adapter.Tests;
@@ -22,7 +20,32 @@ public sealed class EmptyMapSwitchTests : IDisposable {
     [Fact]
     public void TheVariableTheFallbackReadsIsTheOneDocumentedOutsideTheProcess() {
         Assert.Equal("CONCORD_WAYLITH_EMPTY_MAP", AdapterEntryPoint.EmptyMapVariable);
-        Assert.NotEqual(AdapterEntryPoint.SwitchVariable, AdapterEntryPoint.EmptyMapVariable);
+    }
+
+    [Fact]
+    public void ATransformNestedOnOneThreadPutsTheOuterStagedBodyBack() {
+        RuntimeMethodHandle outerMethod = typeof(EmptyMapSwitchTests).GetMethod(nameof(Sink), BindingFlags.NonPublic | BindingFlags.Static)!.MethodHandle;
+        RuntimeMethodHandle innerMethod = typeof(EmptyMapSwitchTests).GetMethod(nameof(Set), BindingFlags.NonPublic | BindingFlags.Static)!.MethodHandle;
+        ComposedBody outerBody = Empty();
+        ComposedBody innerBody = Empty();
+
+        Assert.Null(AdapterEntryPoint.StageInput(outerMethod, outerBody));
+
+        StageInputSlot? displaced = AdapterEntryPoint.StageInput(innerMethod, innerBody);
+        Assert.NotNull(displaced);
+        Assert.Equal(outerMethod, displaced!.Method);
+        Assert.Same(outerBody, displaced.Input);
+
+        AdapterEntryPoint.RestoreStageInput(displaced);
+
+        StageInputSlot? afterInner = AdapterEntryPoint.StageInput(innerMethod, innerBody);
+        Assert.NotNull(afterInner);
+        Assert.Equal(outerMethod, afterInner!.Method);
+        Assert.Same(outerBody, afterInner.Input);
+
+        AdapterEntryPoint.RestoreStageInput(null);
+        Assert.Null(AdapterEntryPoint.StageInput(outerMethod, outerBody));
+        AdapterEntryPoint.RestoreStageInput(null);
     }
 
     [Fact]
@@ -158,160 +181,11 @@ public sealed class EmptyMapSwitchTests : IDisposable {
         };
     }
 
+    private static ComposedBody Empty() {
+        return new ComposedBody([], [], [], false);
+    }
+
     private static void Set(string? value) {
         Environment.SetEnvironmentVariable("CONCORD_WAYLITH_EMPTY_MAP", value);
-    }
-}
-
-public static class Polled {
-    public static int Late() {
-        return 1;
-    }
-
-    public static int Quiet() {
-        return 2;
-    }
-}
-
-[Collection("AdapterStatics")]
-public sealed class ContentionPollTests : IDisposable {
-    private static readonly MethodBase Late = typeof(Polled).GetMethod(nameof(Polled.Late))!;
-
-    private static readonly MethodBase Quiet = typeof(Polled).GetMethod(nameof(Polled.Quiet))!;
-
-    private static readonly TimeSpan Appears = TimeSpan.FromSeconds(6);
-
-    private static readonly TimeSpan Silence = TimeSpan.FromMilliseconds(400);
-
-    private readonly string? before = Environment.GetEnvironmentVariable(AdapterEntryPoint.SwitchVariable);
-
-    private readonly IDetourBackend backendBefore = DetourBackend.Current;
-
-    private readonly ConcurrentQueue<string> written = new ConcurrentQueue<string>();
-
-    public ContentionPollTests() {
-        Environment.SetEnvironmentVariable(AdapterEntryPoint.SwitchVariable, null);
-        DetourBackend.Current = new MonoModDetourBackend();
-        ForeignPatcherPolicy.ResetForTests();
-        AdapterEntryPoint.ResetForTests();
-        AdapterEntryPoint.PatchedTargets = static () => 0;
-        AdapterEntryPoint.PollInterval = TimeSpan.FromMilliseconds(25);
-    }
-
-    public void Dispose() {
-        Environment.SetEnvironmentVariable(AdapterEntryPoint.SwitchVariable, before);
-        DetourBackend.Current = backendBefore;
-        AdapterEntryPoint.ResetForTests();
-        AdapterEntryPoint.PatchedTargets = null;
-        ForeignPatcherPolicy.ResetForTests();
-        Patcher.UseLocalNameResolver(null);
-    }
-
-    [Fact]
-    public void AForeignPatcherTakingAPublishedTargetIsReportedWithNothingElsePatching() {
-        Dictionary<MethodBase, string[]> held = [];
-        ForeignPatcherPolicy.Owners = target => held.TryGetValue(target, out string[]? owners) ? owners : null;
-
-        Selection chosen = InstallWith(BodyReplacement.Available);
-
-        Assert.True(chosen.Waylith, chosen.Reason);
-        Assert.Equal(ForeignHandling.Allow, ForeignPatcherPolicy.Judge(Late).Handling);
-
-        held[Late] = ["com.example.late"];
-
-        Assert.True(Wait(() => Contested() > 0, Appears), Lines());
-        Assert.Contains("com.example.late", Lines(), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ASecondPollDoesNotRepeatAContentionTheFirstOneReported() {
-        Dictionary<MethodBase, string[]> held = [];
-        ForeignPatcherPolicy.Owners = target => held.TryGetValue(target, out string[]? owners) ? owners : null;
-
-        _ = InstallWith(BodyReplacement.Available);
-        ForeignPatcherPolicy.Judge(Late);
-        held[Late] = ["com.example.late"];
-
-        Assert.True(Wait(() => Contested() > 0, Appears), Lines());
-        _ = Wait(() => Contested() > 1, Silence);
-
-        Assert.Equal(1, Contested());
-    }
-
-    [Fact]
-    public void NoContentionWritesNothingAfterTheInstallLine() {
-        ForeignPatcherPolicy.Owners = static _ => null;
-
-        Selection chosen = InstallWith(BodyReplacement.Available);
-
-        Assert.Equal(ForeignHandling.Allow, ForeignPatcherPolicy.Judge(Quiet).Handling);
-        _ = Wait(() => written.Count > 1, Silence);
-
-        Assert.Equal(chosen.Message, Assert.Single(written));
-    }
-
-    [Fact]
-    public void ADetourSelectionNeverPollsBecauseTheBridgeOwnsCoexistenceThere() {
-        Dictionary<MethodBase, string[]> held = [];
-        ForeignPatcherPolicy.Owners = target => held.TryGetValue(target, out string[]? owners) ? owners : null;
-
-        Selection chosen = InstallWith(BodyReplacement.ApiAbsent);
-
-        Assert.False(chosen.Waylith);
-        ForeignPatcherPolicy.Judge(Late);
-        held[Late] = ["com.example.late"];
-        _ = Wait(() => Contested() > 0, Silence);
-
-        Assert.Equal(0, Contested());
-    }
-
-    [Fact]
-    public void WithThePollTurnedOffTheSameContentionIsNeverReported() {
-        Dictionary<MethodBase, string[]> held = [];
-        ForeignPatcherPolicy.Owners = target => held.TryGetValue(target, out string[]? owners) ? owners : null;
-        AdapterEntryPoint.PollInterval = TimeSpan.Zero;
-
-        Selection chosen = InstallWith(BodyReplacement.Available);
-
-        Assert.True(chosen.Waylith, chosen.Reason);
-        ForeignPatcherPolicy.Judge(Late);
-        held[Late] = ["com.example.late"];
-        _ = Wait(() => Contested() > 0, Silence);
-
-        Assert.Equal(0, Contested());
-        Assert.Single(ForeignPatcherPolicy.Contentions());
-    }
-
-    private static bool Wait(Func<bool> until, TimeSpan limit) {
-        DateTime deadline = DateTime.UtcNow + limit;
-        while (DateTime.UtcNow < deadline) {
-            if (until()) {
-                return true;
-            }
-
-            Thread.Sleep(10);
-        }
-
-        return until();
-    }
-
-    private Selection InstallWith(BodyReplacement support) {
-        return AdapterEntryPoint.Install(
-            written.Enqueue, null, [AppContext.BaseDirectory], support, _ => new StandInBackend());
-    }
-
-    private int Contested() {
-        int found = 0;
-        foreach (string line in written) {
-            if (line.Contains(ForeignPatcherPolicy.ContestedMarker, StringComparison.Ordinal)) {
-                found++;
-            }
-        }
-
-        return found;
-    }
-
-    private string Lines() {
-        return string.Join(" | ", written);
     }
 }

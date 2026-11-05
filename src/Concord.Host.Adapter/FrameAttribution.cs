@@ -29,14 +29,7 @@ public static class FrameAttribution {
         ArgumentNullException.ThrowIfNull(encoded);
         ArgumentNullException.ThrowIfNull(ordered);
 
-        if (body.Instructions.Count != encoded.InstructionOffsets.Count) {
-            throw new ArgumentException(
-                $"The composed body holds {body.Instructions.Count} instructions and the encoded body reports " +
-                $"{encoded.InstructionOffsets.Count} offsets, so the two cannot be paired into an attribution table.",
-                nameof(encoded));
-        }
-
-        Registered[Key(target)] = Build(target, body, encoded, ordered);
+        Register(target, body, encoded, ordered, WaylithDetourBackend.Band(target, encoded));
     }
 
     /// <summary>Drops the table for <paramref name="target" />, so its frames stop being attributed. A no-op when none is held.</summary>
@@ -80,16 +73,28 @@ public static class FrameAttribution {
             : [];
     }
 
+    internal static void Register(
+        MethodBase target,
+        ComposedBody body,
+        EncodedBody encoded,
+        IReadOnlyList<Injection> ordered,
+        int band) {
+        WaylithDetourBackend.RequirePairable(body, encoded, "an attribution table");
+
+        Registered[Key(target)] = Build(body, encoded, ordered, band);
+    }
+
     private static MethodBase Key(MethodBase target) {
         return BodyScope.KeyOf(target);
     }
 
     private static Attributed Build(
-        MethodBase target,
         ComposedBody body,
         EncodedBody encoded,
-        IReadOnlyList<Injection> ordered) {
-        string[] registered = OwnersOf(ordered, out Dictionary<MethodBase, string> byInjection);
+        IReadOnlyList<Injection> ordered,
+        int band) {
+        IReadOnlyList<string> registered = WaylithDetourBackend.DistinctOwners(ordered);
+        Dictionary<MethodBase, string> byInjection = OwnerByInjection(ordered);
         List<int> starts = new List<int>();
         List<string?> owners = new List<string?>();
 
@@ -112,24 +117,16 @@ public static class FrameAttribution {
             owners.Add(null);
         }
 
-        return new Attributed(
-            [.. starts], [.. owners], registered, WaylithDetourBackend.Band(target, encoded, ordered));
+        return new Attributed([.. starts], [.. owners], registered, band);
     }
 
-    private static string[] OwnersOf(IReadOnlyList<Injection> ordered, out Dictionary<MethodBase, string> byInjection) {
-        List<string> owners = new List<string>();
-        HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
-        byInjection = new Dictionary<MethodBase, string>();
-
+    private static Dictionary<MethodBase, string> OwnerByInjection(IReadOnlyList<Injection> ordered) {
+        Dictionary<MethodBase, string> byInjection = new Dictionary<MethodBase, string>();
         foreach (Injection injection in ordered) {
-            if (seen.Add(injection.Owner)) {
-                owners.Add(injection.Owner);
-            }
-
             byInjection.TryAdd(injection.InjectionMethod, injection.Owner);
         }
 
-        return [.. owners];
+        return byInjection;
     }
 
     private sealed class Attributed {
@@ -139,7 +136,7 @@ public static class FrameAttribution {
 
         private readonly int band;
 
-        internal Attributed(int[] starts, string?[] owners, string[] registered, int band) {
+        internal Attributed(int[] starts, string?[] owners, IReadOnlyList<string> registered, int band) {
             this.starts = starts;
             this.owners = owners;
             this.band = band;

@@ -54,6 +54,24 @@ reverse patches; attached data on target instances; the `[Patch]` declaration
 model; and the apply/undo API. The
 [Roadmap](https://concordlib.dev/docs/roadmap.html) covers what comes next.
 
+## Building against the fork
+
+The host adapter compiles against the WaylithCLR fork's own framework
+assemblies, not stock .NET. `ForkRuntimeDir` names the directory that holds
+them. `scripts/fork-refs.sh` resolves it for you, in order: the
+`FORK_RUNTIME_DIR` environment variable, `gamecrate refs`, or a local game
+build. Fork facts need the fork's native runtime, so they run separately
+from the stock unit tests and must print the WaylithCLR version the runner
+actually used:
+
+```bash
+scripts/fork-refs.sh
+dotnet run --project tests/Concord.Host.Adapter.ForkTests/Concord.Host.Adapter.ForkTests.csproj -c Release -f net10.0 -p:ForkRuntimeDir=<dir>
+```
+
+CI builds the game image that backs this with the steam image action, so
+the fork facts run on a real WaylithCLR build instead of a stub.
+
 ## Contributing
 
 PRs are welcome. If you want to dig into the internals, the

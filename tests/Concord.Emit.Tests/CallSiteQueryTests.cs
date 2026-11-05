@@ -1,6 +1,5 @@
 using System.Reflection;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using Xunit;
 
 namespace Concord.Emit.Tests;
@@ -44,7 +43,7 @@ public class NewObjQueryHost {
 
 public sealed class CallSiteQueryTests {
     private static List<Instruction> SpineOf(MethodBase target) {
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
         return [.. source.Definition.Body.Instructions];
     }
 

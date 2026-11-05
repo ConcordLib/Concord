@@ -22,34 +22,15 @@ public static class Patcher {
     private static readonly FanOutRegistry Properties = new FanOutRegistry();
 
     /// <summary>
-    ///     How many wrappers have ever been composed in this process, counting disposed ones, because the
-    ///     rooted list is never released. Non-zero means patching has started, which is all a backend swap needs.
+    ///     How many methods the active <see cref="DetourBackend.Current" /> currently has a body on.
     /// </summary>
     public static int PatchedTargetCount {
         get {
-            return TargetDetourRegistry.RootedWrapperCount;
+            return DetourBackend.TryGetCurrent(out IDetourBackend? backend) ? backend!.PatchedTargetCount : 0;
         }
     }
 
-    /// <summary>
-    ///     Whether a composed wrapper is compiled at compose time rather than on its first call.
-    ///     Off by default.
-    /// </summary>
-    public static bool PrecompileWrappers {
-        get => WrapperPrecompile.Enabled;
-        set => WrapperPrecompile.Enabled = value;
-    }
-
     internal static IAttachedPropertyRegistry AttachedPropertyFanOut => Properties;
-
-    /// <summary>
-    ///     Registers a scope opened around every wrapper compile, including a recompose any patcher
-    ///     triggers.
-    /// </summary>
-    /// <param name="guard">Opens the scope, or null to clear.</param>
-    public static void UseCompileGuard(Func<IDisposable?>? guard) {
-        WrapperPrecompile.UseGuard(guard);
-    }
 
     /// <summary>
     ///     Registers the host's log, so Concord's non-fatal patch reports reach the game log instead of
@@ -197,20 +178,17 @@ public static class Patcher {
     }
 
     /// <summary>
-    ///     Lists every patch owner live on <paramref name="target" />, in the order they run. Covers both
-    ///     targets Concord detoured itself and targets handed to a foreign patch host such as Harmony.
+    ///     Lists every patch owner live on <paramref name="target" />, in the order they run.
     /// </summary>
     /// <param name="target">The method to inspect.</param>
     /// <returns>Distinct owner ids in run order, empty when Concord has no injections on the method.</returns>
     public static IReadOnlyList<string> OwnersOf(MethodBase target) {
-        return PatchOwners.Of(target);
+        return DetourBackend.TryGetCurrent(out IDetourBackend? backend) ? backend!.OwnersOf(target) : [];
     }
 
     /// <summary>
-    ///     Lists every patch owner live on the method a stack frame is running, in the order they run. A
-    ///     detoured target does not run under its own name, so the frame reports Concord's composed wrapper
-    ///     instead: this resolves the wrapper back to its target first. Reading the method off the frame and
-    ///     passing it to <see cref="OwnersOf" /> asks about the wrapper and always comes back empty.
+    ///     Lists every patch owner live on the method a stack frame is running, in the order they run. The
+    ///     composed body is installed on the target itself, so the frame reports the target.
     /// </summary>
     /// <param name="frame">The stack frame to inspect.</param>
     /// <returns>
@@ -228,7 +206,7 @@ public static class Patcher {
             return [];
         }
 
-        return OwnersOf(MethodIdentity.ResolveOriginal(method) ?? method);
+        return OwnersOf(method);
     }
 
     /// <summary>

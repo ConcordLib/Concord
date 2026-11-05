@@ -22,7 +22,7 @@ public sealed class SharedGenericVerdictTests : IDisposable {
     private static readonly FieldInfo Recorded =
         typeof(PatchBuilder).GetField("injections", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
-    private static readonly MethodInfo First = typeof(Holder<string>).GetMethod(nameof(Holder<string>.Count))!;
+    private static readonly MethodInfo Reference = typeof(Holder<string>).GetMethod(nameof(Holder<string>.Count))!;
 
     private bool published;
 
@@ -30,32 +30,28 @@ public sealed class SharedGenericVerdictTests : IDisposable {
 
     public void Dispose() {
         if (published) {
-            ForkBodyWriter.Shared.Restore(First);
-            WaylithDetourBackend.Writers.Release(First);
+            ForkRuntime.Restore(Reference);
         }
     }
 
     [Fact(Skip = NoFork, SkipWhen = nameof(Unavailable))]
     public void PublishingABodyDoesNotShiftTheVerdictOnWhetherAGenericBodyIsShared() {
         MethodInfo second = typeof(Holder<object>).GetMethod(nameof(Holder<object>.Count))!;
-        RefusingBackend fallback = new RefusingBackend();
-        ComposedBodyPublisher publisher = new ComposedBodyPublisher(fallback);
+        bool before = Shared(Reference);
 
-        bool before = Shared(First);
-
-        publisher.PublishComposed(First, [Only(First)]);
+        ForkRuntime.Write(Reference, 0);
         published = true;
-        Assert.True(fallback.HandedOff.Count == 0, "the publisher conceded the target, so nothing was published");
 
         bool after = Shared(second);
 
         Assert.True(
             before == after,
-            $"'{First.DeclaringType}' answered shared={before} with no body published, and " +
-            $"'{second.DeclaringType}' answered shared={after} after Concord published one. Both instantiations " +
-            "are reference types sharing one body, so the answer must not depend on whether Concord has written " +
-            "to it. IsSharedBodyGenericContextFree compares the two bodies, and a read that reports the installed " +
-            "body instead of the declared one makes that comparison answer from patched IL.");
+            $"'{Reference.DeclaringType}' answered shared={before} with no body installed, and " +
+            $"'{second.DeclaringType}' answered shared={after} after a body was staged over " +
+            $"'{Reference.DeclaringType}'. Both instantiations are reference types sharing one body, so the " +
+            "answer must not depend on whether anything has written to it. IsSharedBodyGenericContextFree " +
+            "compares the two bodies, and a read that reports the installed body instead of the declared one " +
+            "makes that comparison answer from staged IL.");
     }
 
     private static bool Shared(MethodInfo target) {

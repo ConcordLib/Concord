@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="../../build/Fork.targets"/>
+
   <PropertyGroup>
     <RootNamespace>Concord.Host.Adapter.Tests</RootNamespace>
     <AssemblyName>Concord.Host.Adapter.Tests</AssemblyName>

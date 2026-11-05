@@ -1,7 +1,6 @@
 using System.Reflection;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using MethodBody = Mono.Cecil.Cil.MethodBody;
 
 namespace Concord.Emit;

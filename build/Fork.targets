@@ -1,0 +1,55 @@
+<Project>
+
+  <PropertyGroup>
+    <ForkRefsScript>$(MSBuildThisFileDirectory)../scripts/fork-refs.sh</ForkRefsScript>
+
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <!-- Sets ForkRuntimeDir from scripts/fork-refs.sh when it is unset and adds the fork's framework
+       References. Anything reading ForkRuntimeDir must DependsOnTargets this, not share its hook. -->
+  <Target Name="ResolveForkRuntimeDir">
+    <Exec Command="bash &quot;$(ForkRefsScript)&quot; $(ForkRefsArgs)"
+          Condition="'$(ForkRuntimeDir)' == ''"
+          ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="ForkRefsOutput"/>
+      <Output TaskParameter="ExitCode" PropertyName="ForkRefsExitCode"/>
+    </Exec>
+    <PropertyGroup Condition="'$(ForkRuntimeDir)' == '' And '$(ForkRefsExitCode)' == '0'">
+      <ForkRuntimeDir>$(ForkRefsOutput.Trim())</ForkRuntimeDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <Reference Include="$(ForkRuntimeDir)/System.*.dll;$(ForkRuntimeDir)/Microsoft.*.dll;$(ForkRuntimeDir)/netstandard.dll;$(ForkRuntimeDir)/mscorlib.dll"
+                 Exclude="$(ForkRuntimeDir)/Microsoft.Extensions.*.dll"
+                 Condition="'$(ForkRuntimeDir)' != ''">
+        <Private>false</Private>
+      </Reference>
+      <!-- Microsoft.Extensions.* ships as a NuGet package, not part of the fork framework,
+           so Waylith.Injection's logger needs these copied to OutDir to resolve at runtime. -->
+      <Reference Include="$(ForkRuntimeDir)/Microsoft.Extensions.*.dll" Condition="'$(ForkRuntimeDir)' != ''">
+        <Private>true</Private>
+      </Reference>
+    </ItemGroup>
+  </Target>
+
+  <!-- _HandlePackageFileConflicts sits in ResolveAssemblyReferencesDependsOn, so the fork
+       References have to exist before it or the NuGet copy of a framework assembly survives
+       conflict resolution and RAR warns it cannot pick a version. -->
+  <Target Name="RequireForkFrameworkAssemblies" DependsOnTargets="ResolveForkRuntimeDir"
+          BeforeTargets="_HandlePackageFileConflicts;ResolveAssemblyReferences;CoreCompile">
+    <Error Condition="!Exists('$(ForkRuntimeDir)/System.Private.CoreLib.dll')"
+           Text="ForkRuntimeDir '$(ForkRuntimeDir)' has no System.Private.CoreLib.dll, so this project has no framework to compile against and every type from System.Object up would be missing. Pass -p:ForkRuntimeDir=&lt;path&gt; pointing at a WaylithCLR runtime layout."/>
+  </Target>
+
+  <!-- A self-contained fork test app needs the real Microsoft.NETCore.App runtime pack
+       (apphost, hostfxr, hostpolicy, deps.json) so OverlayForkRuntime has files to replace.
+       Dropping the implicit FrameworkReference entirely, as before, took the runtime pack
+       with it. Keep the FrameworkReference; strip only the ref-pack compile references it
+       adds, so csc sees the fork's own System.*.dll as the sole framework. -->
+  <Target Name="UseForkCompileReferences" AfterTargets="ResolveTargetingPackAssets">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="'%(Reference.FrameworkReferenceName)' == 'Microsoft.NETCore.App'"/>
+    </ItemGroup>
+  </Target>
+
+</Project>

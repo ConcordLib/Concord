@@ -6,9 +6,6 @@
        the Concord Assembly at runtime. The package contributes no runtime assets. -->
 
   <PropertyGroup>
-    <!-- net10 for CoreCLR mods, netstandard2.0 as the floor for net472 mods (RimWorld). -->
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net10.0;netstandard2.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
@@ -66,19 +63,15 @@
     <Compile Include="..\Concord.AttachedData\*.cs"       Link="AttachedData\%(Filename)"/>
     <Compile Include="..\Concord.Orchestration\*.cs"      Link="Orchestration\%(Filename)"/>
     <Compile Include="..\Concord.Enums\*.cs"              Link="Enums\%(Filename)"/>
-    <Compile Include="..\Shared\Polyfills.cs" Link="Polyfills.cs"/>
   </ItemGroup>
 
-  <!-- MonoMod is referenced only so the source type-checks during the ref compile. Because the
-       public API never exposes MonoMod types in member signatures, the ref assembly's *public*
-       metadata is clean of MonoMod. MonoMod therefore never reaches the mod's runtime graph:
-       the ref package's ref/ dependencies are compile-time-only by NuGet convention, and the
-       target runtime's Concord Assembly supplies the real implementation. -->
+  <!-- Mono.Cecil is referenced only so the linked source type-checks during the ref compile:
+       it is the composer's IL model. No Cecil type appears in a public member signature, so the
+       ref assembly's *public* metadata and the package's dependency group carry none, and Cecil
+       never reaches the mod's runtime graph. The target runtime's Concord Assembly supplies the
+       implementation. -->
   <ItemGroup>
-    <PackageReference Include="MonoMod.Core"  Version="1.3.4">
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="MonoMod.Utils" Version="25.0.12">
+    <PackageReference Include="Mono.Cecil" Version="0.11.6">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>

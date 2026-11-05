@@ -8,18 +8,15 @@ using Xunit;
 namespace Concord.Orchestration.Tests;
 
 [Collection(SharedAssemblyApplyCollection.Name)]
-public class CanonicalTargetTests {
-    private sealed class RecordingBackend : IDetourBackend {
-        public MethodBase? LastTarget;
+public class CanonicalTargetTests : IDisposable {
+    private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
 
-        public IDetourHandle Apply(MethodBase original, MethodInfo replacement) {
-            throw new System.NotSupportedException();
-        }
+    public CanonicalTargetTests() {
+        DetourBackend.Current = backend;
+    }
 
-        public IDetourHandle ApplyComposed(MethodBase target, IReadOnlyList<Injection> added) {
-            LastTarget = target;
-            return new FakeDetourHandle(target);
-        }
+    public void Dispose() {
+        DetourBackend.Reset();
     }
 
     private static async Task<int> AsyncTarget() {
@@ -39,21 +36,14 @@ public class CanonicalTargetTests {
 
     [Fact]
     public void ConstructedGenericAsyncTarget_RawTargetIsRejected() {
-        RecordingBackend backend = new RecordingBackend();
-        IDetourBackend previous = DetourBackend.Current;
-        DetourBackend.Current = backend;
-        try {
-            CollectingPatchApplier applier = new CollectingPatchApplier();
-            MethodBase entry = typeof(GenericAsyncContainer<string>).GetMethod(nameof(GenericAsyncContainer<string>.FooAsync))!;
-            Injection head = new Injection(typeof(CanonicalTargetTests).GetMethod(nameof(Head), BindingFlags.Static | BindingFlags.NonPublic)!, new InjectAt.Head(), "test", 0);
+        CollectingPatchApplier applier = new CollectingPatchApplier();
+        MethodBase entry = typeof(GenericAsyncContainer<string>).GetMethod(nameof(GenericAsyncContainer<string>.FooAsync))!;
+        Injection head = new Injection(typeof(CanonicalTargetTests).GetMethod(nameof(Head), BindingFlags.Static | BindingFlags.NonPublic)!, new InjectAt.Head(), "test", 0);
 
-            ConcordEmitException ex = Assert.Throws<ConcordEmitException>(() => applier.ApplyPatch(entry, head));
+        ConcordEmitException ex = Assert.Throws<ConcordEmitException>(() => applier.ApplyPatch(entry, head));
 
-            Assert.Equal("CONC061", ex.Code);
-            Assert.Null(backend.LastTarget);
-        } finally {
-            DetourBackend.Current = previous;
-        }
+        Assert.Equal("CONC061", ex.Code);
+        Assert.Empty(backend.Applied);
     }
 
     [Fact]
@@ -68,25 +58,18 @@ public class CanonicalTargetTests {
         Assert.Equal(nameof(AsyncTarget), ApplyAndCaptureTarget(PatchBody.Declared).Name);
     }
 
-    private static MethodBase ApplyAndCaptureTarget(PatchBody body) {
-        RecordingBackend backend = new RecordingBackend();
-        IDetourBackend previous = DetourBackend.Current;
-        DetourBackend.Current = backend;
-        try {
-            CollectingPatchApplier applier = new CollectingPatchApplier();
-            MethodBase entry = typeof(CanonicalTargetTests).GetMethod(nameof(AsyncTarget), BindingFlags.Static | BindingFlags.NonPublic)!;
-            Injection head = new Injection(
-                typeof(CanonicalTargetTests).GetMethod(nameof(Head), BindingFlags.Static | BindingFlags.NonPublic)!,
-                new InjectAt.Head(),
-                "test",
-                0) {
-                Body = body,
-            };
-            applier.ApplyPatch(entry, head);
-            Assert.NotNull(backend.LastTarget);
-            return backend.LastTarget!;
-        } finally {
-            DetourBackend.Current = previous;
-        }
+    private MethodBase ApplyAndCaptureTarget(PatchBody body) {
+        CollectingPatchApplier applier = new CollectingPatchApplier();
+        MethodBase entry = typeof(CanonicalTargetTests).GetMethod(nameof(AsyncTarget), BindingFlags.Static | BindingFlags.NonPublic)!;
+        Injection head = new Injection(
+            typeof(CanonicalTargetTests).GetMethod(nameof(Head), BindingFlags.Static | BindingFlags.NonPublic)!,
+            new InjectAt.Head(),
+            "test",
+            0) {
+            Body = body,
+        };
+        applier.ApplyPatch(entry, head);
+
+        return Assert.Single(backend.Applied).Target;
     }
 }

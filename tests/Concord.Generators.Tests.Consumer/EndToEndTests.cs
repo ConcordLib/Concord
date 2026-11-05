@@ -1,4 +1,6 @@
 using System.Reflection;
+using Concord.Detour;
+using Concord.Tests.Shared;
 using Xunit;
 
 namespace Concord.Generators.Tests.Consumer;
@@ -14,19 +16,27 @@ public sealed class EndToEndTests {
     }
 
     [Fact]
-    public void RegistryAndShadows_ComposeEndToEnd() {
-        SecretCounterPatch.Observed = -1;
+    public void GeneratedRegistry_ComposesEveryDeclaredTarget() {
+        RecordingDetourBackend recorder = new RecordingDetourBackend();
+        DetourBackend.Current = recorder;
+
+        MethodBase tick = typeof(SecretCounter).GetMethod(nameof(SecretCounter.Tick))!;
+        MethodBase ring = typeof(SurfaceRegister).GetMethod(nameof(SurfaceRegister.Ring))!;
 
         using (Patcher.Apply(typeof(SecretCounterPatch).Assembly)) {
-            SecretCounter counter = new SecretCounter();
+            List<MethodBase> targets = recorder.ComposedDetours.Select(entry => entry.Target).ToList();
 
-            counter.Tick();
-            counter.Tick();
-
-            // Second Tick's head injection saw hits == 1 (after the first Tick) via the shadow
-            // field, plus Bump(0) returning 1 via the shadow method stub: 1 + 1.
-            Assert.Equal(2, SecretCounterPatch.Observed);
-            Assert.Equal(2, counter.CurrentHits());
+            Assert.Contains(tick, targets);
+            Assert.Contains(ring, targets);
+            Assert.Equal([typeof(SecretCounterPatch).FullName!], recorder.OwnersOf(tick));
+            Assert.Equal(
+                [
+                    typeof(SurfaceCapturePatch).FullName!,
+                    typeof(SurfaceNewPatch).FullName!,
+                    typeof(SurfaceSlicePatch).FullName!,
+                    typeof(SurfaceStatePatch).FullName!,
+                ],
+                recorder.OwnersOf(ring).OrderBy(owner => owner, StringComparer.Ordinal));
         }
     }
 }

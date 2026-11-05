@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Concord.Detour;
 using Concord.Emit;
 using Xunit;
 
@@ -33,7 +34,17 @@ public static class OwnersInjections {
 }
 
 [Collection(SharedAssemblyApplyCollection.Name)]
-public class PatchOwnersTests {
+public class PatchOwnersTests : IDisposable {
+    private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
+
+    public PatchOwnersTests() {
+        DetourBackend.Current = backend;
+    }
+
+    public void Dispose() {
+        DetourBackend.Reset();
+    }
+
     [Fact]
     public void OwnersOf_UnpatchedMethod_IsEmpty() {
         Assert.Empty(Patcher.OwnersOf(TargetOf(typeof(OwnersUnpatchedTarget))));
@@ -61,6 +72,18 @@ public class PatchOwnersTests {
         removed.Dispose();
 
         Assert.Equal(["mod.kept"], Patcher.OwnersOf(target));
+    }
+
+    [Fact]
+    public void PatchedTargetCount_CountsEachTargetOnce() {
+        MethodBase first = TargetOf(typeof(OwnersOrderTarget));
+        MethodBase second = TargetOf(typeof(OwnersDisposeTarget));
+
+        using IPatchHandle one = Patcher.PatchInjection(first, Bump("mod.one", 0));
+        using IPatchHandle two = Patcher.PatchInjection(first, Bump("mod.two", 0));
+        using IPatchHandle three = Patcher.PatchInjection(second, Bump("mod.three", 0));
+
+        Assert.Equal(2, Patcher.PatchedTargetCount);
     }
 
     private static MethodBase TargetOf(Type type) {

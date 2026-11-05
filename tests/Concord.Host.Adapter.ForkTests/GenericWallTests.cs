@@ -370,7 +370,7 @@ public sealed class GenericWallTests : IDisposable {
     }
 
     private void Publish(MethodBase target, byte[] body) {
-        ForkBodyWriter.Shared.Write(target, body, []);
+        ForkRuntime.Write(target, body, []);
         written.Add(target);
     }
 

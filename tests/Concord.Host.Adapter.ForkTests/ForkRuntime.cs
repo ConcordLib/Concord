@@ -1,38 +1,38 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Reflection.Emit;
+using Concord.Host.Adapter.Tests;
 
 namespace Concord.Host.Adapter.ForkTests;
 
 public enum ForkGap {
     None,
     Runtime,
-    Writer,
 }
 
 public static class ForkRuntime {
-    public const string Runtime = "10.0.13-waylithclr.dev";
+    public const string GapMarker = "fork-gap:";
 
-    public static bool HostRead { get; } = Register();
+    private const int RawPriority = 1000;
 
-    private static readonly Type? Updater = RuntimeCapability.Updater();
+    private static readonly ConcurrentDictionary<MethodBase, List<IPatchHandle>> Applied = new();
 
-    public static ForkGap Gap =>
-        !RuntimeCapability.IsAvailable ? ForkGap.Runtime
-        : !ForkBodyWriter.Shared.IsAvailable ? ForkGap.Writer
-        : ForkGap.None;
+    static ForkRuntime() {
+        HostRead = Register();
+    }
+
+    public static bool HostRead { get; }
+
+    public static ForkGap Gap => RuntimeCapability.HasPipeline ? ForkGap.None : ForkGap.Runtime;
 
     public static bool Unavailable => Gap != ForkGap.None;
 
-    public static string Explain => Gap switch {
-        ForkGap.Writer =>
-            $"'{RuntimeCapability.UpdaterTypeName}' reports {nameof(RuntimeCapability.IsAvailable)} on '{RuntimeCapability.Runtime}' but 'Concord.Host.Adapter.ForkBodyWriter' could not bind ReplaceMethodBody/Revert, so no fork body can be written here",
-        _ => RuntimeCapability.Explain(),
-    };
-
-    private static bool Register() {
-        WrapperComposer.CaptureComposedBody = true;
-        return AdapterEntryPoint.RegisterDeclaredBodyReader();
-    }
+    public static string Explain =>
+        RuntimeCapability.IsAvailable && !RuntimeCapability.HasPipeline
+            ? $"'{RuntimeCapability.UpdaterTypeName}' replaces bodies on '{RuntimeCapability.Runtime}' but " +
+                $"'{RuntimeCapability.TransformerTypeName}' is not here, so nothing can stage a composed body " +
+                "and every fact below the pipeline stands down"
+            : RuntimeCapability.Explain();
 
     public static byte[] Returning(int value) {
         return Returning(value, 1);
@@ -66,63 +66,131 @@ public static class ForkRuntime {
         return BodyEncoder.Encode(body, new NoTokens(), new FixedStack(maxStack)).Bytes;
     }
 
-    public static void WriteSum(MethodBase target, int terms, int maxStack) {
-        ForkBodyWriter.Shared.Write(target, Summing(terms, maxStack), []);
+    public static void Write(MethodBase target, byte[] body, IReadOnlyList<OffsetPair> offsetMap) {
+        RawStage.Install(target, body, offsetMap);
     }
 
     public static void Write(MethodBase target, int value) {
-        ForkBodyWriter.Shared.Write(target, Returning(value), []);
+        Write(target, Returning(value), []);
     }
 
     public static void Write(MethodBase target, int value, int maxStack) {
-        ForkBodyWriter.Shared.Write(target, Returning(value, maxStack), []);
+        Write(target, Returning(value, maxStack), []);
+    }
+
+    public static void WriteSum(MethodBase target, int terms, int maxStack) {
+        Write(target, Summing(terms, maxStack), []);
+    }
+
+    public static IPatchHandle Apply(MethodBase target, MethodBase injection, At at) {
+        IPatchHandle handle = Patcher.Patch(target, injection, at);
+        Applied.GetOrAdd(target, static _ => []).Add(handle);
+        return handle;
+    }
+
+    public static IPatchHandle Apply(MethodBase target, Type injections, string injection, At at) {
+        return Apply(target, injections.GetMethod(injection)!, at);
+    }
+
+    public static IPatchHandle Track(MethodBase target, IPatchHandle handle) {
+        Applied.GetOrAdd(target, static _ => []).Add(handle);
+        return handle;
     }
 
     public static void Restore(MethodBase target) {
-        ForkBodyWriter.Shared.Restore(target);
-    }
-
-    public static int MetadataUpdateVersion() {
-        return (int)Member("MetadataUpdateVersion").GetValue(null)!;
-    }
-
-    public static int[] UpdatedMethodTokens(Module module) {
-        MethodInfo tokens = Updater!.GetMethod(
-            "GetUpdatedMethodTokens",
-            BindingFlags.Public | BindingFlags.Static,
-            [typeof(Module)])!;
-
-        return (int[])tokens.Invoke(null, [module])!;
-    }
-
-    private static PropertyInfo Member(string name) {
-        return Updater!.GetProperty(name, BindingFlags.Public | BindingFlags.Static)
-            ?? throw new InvalidOperationException($"'{RuntimeCapability.UpdaterTypeName}' has no static '{name}', so this test cannot read it on '{RuntimeCapability.Runtime}'.");
-    }
-
-    private sealed class NoTokens : ITokenSource {
-        public int TokenFor(MethodBase method) => throw Refused(method);
-
-        public int TokenFor(FieldInfo field) => throw Refused(field);
-
-        public int TokenFor(Type type) => throw Refused(type);
-
-        public int TokenFor(string literal) => throw Refused(literal);
-
-        public int TokenForLocals(byte[] signature) => throw Refused(signature);
-
-        private static InvalidOperationException Refused(object subject) {
-            return new InvalidOperationException($"A body of 'ldc.i4 n; ret' asked for a token for '{subject}', so the encoder is minting something this test did not write.");
-        }
-    }
-
-    internal sealed class FixedStack : IMaxStackSource {
-        private readonly int depth;
-
-        public FixedStack(int depth) {
-            this.depth = depth;
+        if (Applied.TryRemove(target, out List<IPatchHandle>? handles)) {
+            for (int i = handles.Count - 1; i >= 0; i--) {
+                handles[i].Dispose();
+            }
         }
 
-        public int MaxStackFor(ComposedBody body) => depth;
+        RawStage.Remove(target);
+    }
+
+    public static bool IsDefaultBody(MethodBase target) {
+        return RawStage.IsDefaultBody(target);
+    }
+
+    private static bool Register() {
+        WrapperComposer.CaptureComposedBody = true;
+        if (RuntimeCapability.HasPipeline) {
+            AdapterEntryPoint.Install(null, []);
+        }
+
+        return AdapterEntryPoint.RegisterDeclaredBodyReader();
+    }
+
+    private static class RawStage {
+        private static readonly ConcurrentDictionary<nint, Raw> Bodies = new();
+
+        private static readonly Lazy<Stage> Installed = new Lazy<Stage>(() => {
+            Stage stage = new Stage();
+            stage.Register();
+            return stage;
+        });
+
+        internal static void Install(MethodBase target, byte[] body, IReadOnlyList<OffsetPair> offsetMap) {
+            RuntimeMethodHandle handle = WaylithClr.MethodBodyUpdater.GetDefinitionHandle(target);
+            Bodies[handle.Value] = new Raw(body, offsetMap);
+            Rebuild(handle);
+        }
+
+        internal static void Remove(MethodBase target) {
+            if (target is DynamicMethod) {
+                return;
+            }
+
+            RuntimeMethodHandle handle = WaylithClr.MethodBodyUpdater.GetDefinitionHandle(target);
+            if (Bodies.TryRemove(handle.Value, out _)) {
+                Rebuild(handle);
+            }
+        }
+
+        internal static bool IsDefaultBody(MethodBase target) {
+            WaylithClr.MethodBodyClause[] clauses = new WaylithClr.MethodBodyClause[64];
+            return WaylithClr.MethodBodyUpdater.TryGetCurrentMethodBody(target, clauses, out WaylithClr.MethodBodyView body)
+                && body.IsDefault;
+        }
+
+        private static void Rebuild(RuntimeMethodHandle handle) {
+            if (Installed.Value.Rebuild(handle) is Exception failure) {
+                throw failure;
+            }
+        }
+
+        private sealed record Raw(byte[] Body, IReadOnlyList<OffsetPair> OffsetMap);
+
+        private sealed class Stage : WaylithClr.MethodBodyTransformer {
+            internal Stage() : base(RawPriority) {
+            }
+
+            protected override bool CanTransform(RuntimeMethodHandle method) {
+                return Bodies.ContainsKey(method.Value);
+            }
+
+            protected override bool TryTransform(
+                RuntimeMethodHandle method,
+                in WaylithClr.MethodBodyView body,
+                ReadOnlySpan<WaylithClr.MethodBodyClause> clauses,
+                WaylithClr.MethodBodyBuilder result) {
+                if (!Bodies.TryGetValue(method.Value, out Raw? raw)) {
+                    return false;
+                }
+
+                result.Write(raw.Body);
+                if (raw.OffsetMap.Count > 0) {
+                    WaylithClr.ILOffsetMapEntry[] entries = new WaylithClr.ILOffsetMapEntry[raw.OffsetMap.Count];
+                    for (int i = 0; i < entries.Length; i++) {
+                        entries[i] = new WaylithClr.ILOffsetMapEntry(
+                            raw.OffsetMap[i].Original,
+                            raw.OffsetMap[i].Replaced);
+                    }
+
+                    result.AddOffsetMapEntries(entries);
+                }
+
+                return true;
+            }
+        }
     }
 }

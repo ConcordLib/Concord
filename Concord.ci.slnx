@@ -1,8 +1,10 @@
 <!--
-  CI solution: the subset of projects that build and test without the target runtime
-  present (runtime-specific adapters and test mods reference target runtime assemblies
-  via a local TargetRuntimeDir, so they are excluded from CI). The full developer solution remains
-  Concord.slnx; this filter only gates what continuous integration exercises.
+  CI solution: every project that compiles and tests against -p:ForkRuntimeDir, a directory of
+  the WaylithCLR fork's own framework assemblies. A runner points that property at a game image
+  it downloaded; a developer's machine points it at a local checkout. Concord.slnx is the full
+  developer solution. The fork test project, tests/Concord.Host.Adapter.ForkTests, is in neither
+  solution: its build fails without a fork runtime, so tests/Concord.Host.Adapter.ForkTests/run-fork-tests.sh
+  builds and runs it.
 -->
 <Solution>
   <Folder Name="/src/">
@@ -14,7 +16,6 @@
     <Project Path="src/Concord.AttachedData/Concord.AttachedData.csproj"/>
     <Project Path="src/Concord.Orchestration/Concord.Orchestration.csproj"/>
     <Project Path="src/Concord.Enums/Concord.Enums.csproj"/>
-    <Project Path="src/Concord.Harmony/Concord.Harmony.csproj"/>
     <Project Path="src/Concord.Ref/Concord.Ref.csproj"/>
     <Project Path="src/Concord.Host.Adapter/Concord.Host.Adapter.csproj"/>
   </Folder>
@@ -22,7 +23,6 @@
     <Project Path="tests/Concord.Analyzers.Tests/Concord.Analyzers.Tests.csproj"/>
     <Project Path="tests/Concord.Generators.Tests/Concord.Generators.Tests.csproj"/>
     <Project Path="tests/Concord.Detour.Tests/Concord.Detour.Tests.csproj"/>
-    <Project Path="tests/Concord.Harmony.Tests/Concord.Harmony.Tests.csproj"/>
     <Project Path="tests/Concord.Emit.Tests/Concord.Emit.Tests.csproj"/>
     <Project Path="tests/Concord.Emit.Tests.ForeignTargets/Concord.Emit.Tests.ForeignTargets.csproj"/>
     <Project Path="tests/Concord.AttachedData.Tests/Concord.AttachedData.Tests.csproj"/>

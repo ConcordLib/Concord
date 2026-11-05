@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using Concord.Host.Adapter.Tests;
 using Xunit;
 
 namespace Concord.Host.Adapter.ForkTests;
@@ -88,13 +89,13 @@ public sealed class FieldInjectionTests {
     [Fact(Skip = NoInjection, SkipWhen = nameof(Unavailable))]
     public void AnAssemblyOutsideJitPatchableAssembliesIsRefusedAsAFrameworkAssembly() {
         ForkFieldInjection.Batch batch = ForkFieldInjection.NewBatch();
-        batch.AddField(typeof(WriterRecord), Named(nameof(WriterRecord)), typeof(int));
+        batch.AddField(typeof(WaylithDetourBackend), Named(nameof(WaylithDetourBackend)), typeof(int));
         batch.Commit();
 
         Exception thrown = Assert.ThrowsAny<Exception>(ForkFieldInjection.ApplyPending);
 
         Assert.Equal("Failed", batch.Status);
-        Assert.Contains("module is not patchable", thrown.Message, StringComparison.Ordinal);
+        Assert.Contains("the type is in a framework assembly", thrown.Message, StringComparison.Ordinal);
     }
 
     [Fact(Skip = NoInjection, SkipWhen = nameof(Unavailable))]
@@ -115,7 +116,7 @@ public sealed class FieldInjectionTests {
     public void AReplacedBodyKeepsRunningAfterItsOperandTypeIsRelaidOut() {
         MethodInfo probe = typeof(RelayoutProbe).GetMethod(nameof(RelayoutProbe.Read))!;
         RelayoutTarget subject = NewRelayout(7);
-        ForkBodyWriter.Shared.Write(probe, ReadingBefore(probe.Module), []);
+        ForkRuntime.Write(probe, ReadingBefore(probe.Module), []);
         Assert.Equal(7, RelayoutProbe.Read(subject));
         int epoch = ForkFieldInjection.LayoutEpoch;
 
@@ -197,6 +198,6 @@ public sealed class FieldInjectionTests {
             [],
             false);
 
-        return BodyEncoder.Encode(body, new WaylithTokenSource(target), new ForkRuntime.FixedStack(1)).Bytes;
+        return BodyEncoder.Encode(body, new WaylithTokenSource(target), new FixedStack(1)).Bytes;
     }
 }

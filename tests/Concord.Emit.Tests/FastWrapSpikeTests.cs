@@ -3,7 +3,6 @@ using System.Linq.Expressions;
 using System.Reflection;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using Xunit;
 
 namespace Concord.Emit.Tests;
@@ -51,7 +50,7 @@ public sealed class FastWrapSpikeTests {
         Type delegateType = Expression.GetDelegateType([.. parameterTypes, returnType]);
         FastWrapSlots.Slots[slot] = clone.CreateDelegate(delegateType);
 
-        using DynamicMethodDefinition wrapper = new DynamicMethodDefinition("fastwrap", returnType, parameterTypes);
+        using ScratchMethod wrapper = new ScratchMethod("fastwrap", returnType, parameterTypes, target);
         MethodDefinition definition = wrapper.Definition;
         ModuleDefinition module = definition.Module;
         ILProcessor il = definition.Body.GetILProcessor();

@@ -1,0 +1,11 @@
+plugins:
+  - "@gamecrate/rimworld"
+games:
+  rimworld:
+    image:
+      ref: ghcr.io/concordlib/rimworld-game:placeholder
+    gameFiles:
+      source: image
+    profiles:
+      v17:
+        gameVersion: "1.7"

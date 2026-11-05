@@ -232,8 +232,6 @@ public sealed class LocalCompositionTests {
         Assert.Contains("Also evicted", error.Message);
     }
 
-    // The Harmony bridge only learns about an eviction through this out parameter. Without it the
-    // whole stream used to be discarded, taking every other mod's injection with it.
     [Fact]
     public void TransformStream_ReportsWhatItEvicted_AndKeepsTheRest() {
         MethodBase target = typeof(StreamTargets).GetMethod(nameof(StreamTargets.Target))!;

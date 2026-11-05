@@ -1,10 +1,21 @@
 using System.Reflection;
+using Concord.Detour;
 using Concord.Orchestration.Tests.RegistryAssembly;
 using Xunit;
 
 namespace Concord.Orchestration.Tests;
 
-public sealed class PatchRegistryTests {
+public sealed class PatchRegistryTests : IDisposable {
+    private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
+
+    public PatchRegistryTests() {
+        DetourBackend.Current = backend;
+    }
+
+    public void Dispose() {
+        DetourBackend.Reset();
+    }
+
     [Fact]
     public void TryGetRegistryDeclarations_AssemblyWithRegistry_ReturnsListedDeclarations() {
         bool found = PatchDeclarationScanner.TryGetRegistryDeclarations(
@@ -25,16 +36,13 @@ public sealed class PatchRegistryTests {
 
     [Fact]
     public void Apply_AssemblyWithRegistry_AppliesListedDeclarationsOnly() {
-        RegistryListedPatch.Fired = false;
-        RegistryUnlistedPatch.Fired = false;
+        MethodBase bump = typeof(RegistryTarget).GetMethod(nameof(RegistryTarget.Bump))!;
 
         using (Patcher.Apply(typeof(RegistryTarget).Assembly)) {
-            RegistryTarget target = new RegistryTarget();
-            target.Bump();
+            AppliedInjection applied = Assert.Single(backend.Applied);
 
-            Assert.True(RegistryListedPatch.Fired);
-            Assert.False(RegistryUnlistedPatch.Fired);
-            Assert.Equal(1, target.Count);
+            Assert.Equal(bump, applied.Target);
+            Assert.Equal(typeof(RegistryListedPatch), applied.Injection.InjectionMethod.DeclaringType);
         }
     }
 }

@@ -7,7 +7,6 @@ cd "$(dirname "$0")/.."
 OUT="${OUT:-artifacts/bodyreader-probe}"
 PROJ=tests/Concord.BodyReader.Probe
 CORE_EXE="$PROJ/bin/$CONFIG/net10.0/Concord.BodyReader.Probe"
-MONO_EXE="$PROJ/bin/$CONFIG/net472/Concord.BodyReader.Probe.exe"
 
 dotnet build "$PROJ/Concord.BodyReader.Probe.csproj" -c "$CONFIG" -v q --nologo >/dev/null \
     || { echo "the probe would have run against a stale Concord.Emit; build failed" >&2; exit 1; }
@@ -25,12 +24,9 @@ SHAPES=(
     GenericPointerLocal GenericPointerLocalClosed GenericFnPtrLocal GenericFnPtrLocalClosed
     GenericValueTupleTryCatch DynamicAssemblyLocal
 )
-PROBES=(resolve getbody localcount body locals params sigkind localvt sig cecil cecilops dmdctor dmd dmddef dmdgen clone)
+PROBES=(resolve getbody localcount body locals params sigkind localvt sig cecil cecilops clone)
 
-HARMONY_DLL="${HARMONY_DLL:-$HOME/.nuget/packages/lib.harmony/2.4.2/lib/net472/0Harmony.dll}"
-[[ -f "$HARMONY_DLL" ]] && SHAPES+=("ext:$HARMONY_DLL|HarmonyLib.PatchFunctions|UpdateWrapper")
-
-legs=(core mono)
+legs=(core)
 [[ $# -gt 0 ]] && legs=("$@")
 
 rm -rf "$OUT"
@@ -50,11 +46,7 @@ run_leg() {
             local cell="$logs/${shape//[^A-Za-z0-9:.-]/_}.$probe"
             printf 'START\t%s\t%s\t%s\n' "$leg" "$shape" "$probe" >>"$LEDGER"
 
-            if [[ "$leg" == mono ]]; then
-                MONO_CRASH_NOFILE=1 timeout 60 mono "$MONO_EXE" "$shape" "$probe" "$cell.marker" >"$cell.log" 2>&1
-            else
-                timeout 60 "$CORE_EXE" "$shape" "$probe" "$cell.marker" >"$cell.log" 2>&1
-            fi
+            timeout 60 "$CORE_EXE" "$shape" "$probe" "$cell.marker" >"$cell.log" 2>&1
             local rc=$?
 
             local entered=no
@@ -92,10 +84,8 @@ run_leg() {
 
 for leg in "${legs[@]}"; do
     case "$leg" in
-        mono) command -v mono >/dev/null || { echo "mono is not installed" >&2; exit 1; }
-              [[ -f "$MONO_EXE" ]] || { echo "build $PROJ for net472 first" >&2; exit 1; } ;;
         core) [[ -x "$CORE_EXE" ]] || { echo "build $PROJ for net10.0 first" >&2; exit 1; } ;;
-        *) echo "unknown leg '$leg' (want: core, mono)" >&2; exit 1 ;;
+        *) echo "unknown leg '$leg' (want: core)" >&2; exit 1 ;;
     esac
     run_leg "$leg"
 done

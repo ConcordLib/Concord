@@ -67,11 +67,12 @@ public class SharedGenericPolicyTests {
 
     [Theory]
     [MemberData(nameof(ClosedInstantiations))]
-    public void AClosedInstantiationFallsBackToTheDetour(string label, MethodBase target) {
+    public void AClosedInstantiationIsRefused(string label, MethodBase target) {
         TargetVerdict verdict = SharedGenericPolicy.Judge(target);
 
-        Assert.Equal(TargetHandling.Detour, verdict.Handling);
-        Assert.StartsWith(TargetEligibility.FallbackMarker, verdict.Message, StringComparison.Ordinal);
+        Assert.Equal(TargetHandling.Refuse, verdict.Handling);
+        Assert.Equal(StagePublisher.RefusedCode, verdict.Code);
+        Assert.StartsWith(TargetEligibility.RefusalMarker, verdict.Message, StringComparison.Ordinal);
         Assert.Contains("shares one IL body", verdict.Message, StringComparison.Ordinal);
         Assert.Contains(SharedGenericPolicy.TypicalDefinition(target).Name, verdict.Message, StringComparison.Ordinal);
         Assert.NotEqual(string.Empty, label);
@@ -156,11 +157,11 @@ public class SharedGenericPolicyTests {
     }
 
     [Fact]
-    public void ACaseTheCoreGuardCoversStillFallsBack() {
+    public void ACaseTheCoreGuardCoversIsStillRefused() {
         MethodBase text = Closed<string>(nameof(Box<object>.Get));
 
         Assert.True(WrapperComposer.SharesGenericBody(text));
-        Assert.Equal(TargetHandling.Detour, SharedGenericPolicy.Judge(text).Handling);
+        Assert.Equal(TargetHandling.Refuse, SharedGenericPolicy.Judge(text).Handling);
     }
 
     [Fact]
@@ -170,7 +171,7 @@ public class SharedGenericPolicyTests {
 
         Assert.False(WrapperComposer.SharesGenericBody(number));
         Assert.Equal(SharedGenericPolicy.TypicalDefinition(text), SharedGenericPolicy.TypicalDefinition(number));
-        Assert.Equal(TargetHandling.Detour, SharedGenericPolicy.Judge(number).Handling);
+        Assert.Equal(TargetHandling.Refuse, SharedGenericPolicy.Judge(number).Handling);
     }
 
     [Fact]

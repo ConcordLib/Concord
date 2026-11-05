@@ -99,7 +99,6 @@ public class TargetEligibilityTests {
         Assert.Contains("Concord.Host.Adapter.Tests.Bodyless.Declared", verdict.Message);
         Assert.Contains("is abstract", verdict.Message);
         Assert.Contains("Patch an override or an implementation instead.", verdict.Message);
-        Assert.DoesNotContain(TargetEligibility.FallbackMarker, verdict.Message);
 
         ConcordEmitException thrown = Assert.Throws<ConcordEmitException>(verdict.ThrowIfRefused);
         Assert.Equal("CONC168", thrown.Code);
@@ -160,22 +159,25 @@ public class TargetEligibilityTests {
     }
 
     [Fact]
-    public void ADynamicMethodFallsBackBeforeAnythingReadsItsBody() {
+    public void ADynamicMethodIsReplacedWithoutReadingItsBody() {
         DynamicMethod minted = Minted();
 
         Assert.Throws<InvalidOperationException>(() => minted.GetMethodBody());
+        Assert.True(
+            minted.IsCollectible,
+            "a DynamicMethod no longer reports IsCollectible true, so the collectible refusal below is no longer " +
+            "the check a dynamic target has to be admitted ahead of.");
 
         TargetVerdict verdict = TargetEligibility.Judge(minted);
 
-        Assert.Equal(TargetHandling.Detour, verdict.Handling);
+        Assert.Equal(TargetHandling.Replace, verdict.Handling);
         Assert.Equal(string.Empty, verdict.Code);
-        Assert.StartsWith(TargetEligibility.FallbackMarker, verdict.Message);
-        Assert.Contains("dynamic or collectible module", verdict.Message);
+        Assert.Equal(string.Empty, verdict.Message);
         verdict.ThrowIfRefused();
     }
 
     [Fact]
-    public void AMethodInANonCollectibleDynamicAssemblyFallsBack() {
+    public void AMethodInANonCollectibleDynamicAssemblyIsRefused() {
         MethodBase target = InDynamicAssembly();
 
         Assert.False(target.IsCollectible);
@@ -184,58 +186,14 @@ public class TargetEligibilityTests {
 
         TargetVerdict verdict = TargetEligibility.Judge(target);
 
-        Assert.Equal(TargetHandling.Detour, verdict.Handling);
-        Assert.StartsWith(TargetEligibility.FallbackMarker, verdict.Message);
+        Assert.Equal(TargetHandling.Refuse, verdict.Handling);
+        Assert.Equal(TargetEligibility.DynamicTargetCode, verdict.Code);
+        Assert.Contains("a dynamic or collectible module", verdict.Message);
+        Assert.Throws<ConcordEmitException>(verdict.ThrowIfRefused);
     }
 
     [Fact]
-    public void ARejectedComposedBodyFallsBackAndCarriesTheComposeReason() {
-        TargetVerdict verdict = TargetEligibility.ForRejectedBody(
-            Of(nameof(Bodyless.Implemented)),
-            "instruction 4 loads a function pointer to a method with a vararg signature.");
-
-        Assert.Equal(TargetHandling.Detour, verdict.Handling);
-        Assert.StartsWith(TargetEligibility.FallbackMarker, verdict.Message);
-        Assert.Contains("Concord.Host.Adapter.Tests.Bodyless.Implemented", verdict.Message);
-        Assert.Contains("instruction 4 loads a function pointer to a method with a vararg signature", verdict.Message);
-        Assert.Contains("still applies through a native detour", verdict.Message);
-        verdict.ThrowIfRefused();
-    }
-
-    [Fact]
-    public void ARuntimeRefusalAtPublishTimeFallsBack() {
-        TargetVerdict verdict = TargetEligibility.ForRuntimeRefusal(
-            Of(nameof(Bodyless.Implemented)),
-            new NotSupportedException("Method body replacement is not supported for this method."),
-            "writing its body");
-
-        Assert.Equal(TargetHandling.Detour, verdict.Handling);
-        Assert.StartsWith(TargetEligibility.FallbackMarker, verdict.Message);
-        Assert.Contains("NotSupportedException", verdict.Message);
-        Assert.Contains("while writing its body", verdict.Message);
-        Assert.Contains("Method body replacement is not supported for this method", verdict.Message);
-    }
-
-    [Fact]
-    public void ARuntimeRefusalNamesTheMemberThatThrewSoTwoStagesAreTellableApart() {
-        Exception thrown;
-        try {
-            throw new NotSupportedException("no");
-        } catch (NotSupportedException caught) {
-            thrown = caught;
-        }
-
-        TargetVerdict verdict = TargetEligibility.ForRuntimeRefusal(
-            Of(nameof(Bodyless.Implemented)),
-            thrown,
-            "encoding its body");
-
-        Assert.Contains("while encoding its body", verdict.Message);
-        Assert.Contains(nameof(ARuntimeRefusalNamesTheMemberThatThrewSoTwoStagesAreTellableApart), verdict.Message);
-    }
-
-    [Fact]
-    public void ATargetReportsItsFallbackOnceNoMatterHowOftenItRecomposes() {
+    public void ATargetReportsItsRefusalOnceNoMatterHowOftenItRecomposes() {
         MethodBase first = Of(nameof(Bodyless.Implemented));
         MethodBase second = Of(nameof(Bodyless.Declared));
 
@@ -248,18 +206,7 @@ public class TargetEligibilityTests {
     }
 
     [Fact]
-    public void NoVerdictBuilderAcceptsAMissingArgument() {
+    public void JudgeDoesNotAcceptAMissingTarget() {
         Assert.Throws<ArgumentNullException>(() => TargetEligibility.Judge(null!));
-        Assert.Throws<ArgumentNullException>(() => TargetEligibility.ForRejectedBody(null!, "why"));
-        Assert.Throws<ArgumentException>(() => TargetEligibility.ForRejectedBody(Of(nameof(Bodyless.Implemented)), " "));
-        Assert.Throws<ArgumentNullException>(
-            () => TargetEligibility.ForRuntimeRefusal(null!, new NotSupportedException(), "writing its body"));
-        Assert.Throws<ArgumentNullException>(
-            () => TargetEligibility.ForRuntimeRefusal(Of(nameof(Bodyless.Implemented)), null!, "writing its body"));
-        Assert.Throws<ArgumentException>(
-            () => TargetEligibility.ForRuntimeRefusal(
-                Of(nameof(Bodyless.Implemented)),
-                new NotSupportedException(),
-                " "));
     }
 }

@@ -1,7 +1,6 @@
 using System.Reflection;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using Xunit;
 using MethodBody = Mono.Cecil.Cil.MethodBody;
 
@@ -22,8 +21,8 @@ public sealed class CecilCodeConverterRoundTripTests {
     [InlineData(nameof(TranspilerTargets.TryNestedInFinally))]
     public void RoundTrip_IsStructurallyIdentical(string name) {
         MethodBase target = typeof(TranspilerTargets).GetMethod(name)!;
-        using DynamicMethodDefinition expected = new DynamicMethodDefinition(target);
-        using DynamicMethodDefinition actual = new DynamicMethodDefinition(target);
+        using ScratchMethod expected = BodyReader.Open(target);
+        using ScratchMethod actual = BodyReader.Open(target);
 
         // Modern Roslyn no longer emits a `fault` region for `fixed` over a pinned local (verified:
         // it lowers to a plain pinned-local pin/unpin with no exception handling at all). `fault`
@@ -52,8 +51,8 @@ public sealed class CecilCodeConverterRoundTripTests {
     public void RoundTrip_GenericMethod_IsStructurallyIdentical() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Generic))!
             .MakeGenericMethod(typeof(string));
-        using DynamicMethodDefinition expected = new DynamicMethodDefinition(target);
-        using DynamicMethodDefinition actual = new DynamicMethodDefinition(target);
+        using ScratchMethod expected = BodyReader.Open(target);
+        using ScratchMethod actual = BodyReader.Open(target);
 
         TranspilerContext context = new TranspilerContext(target);
         List<CodeInstruction> instructions = CecilCodeConverter.ToInstructions(actual.Definition, context);
@@ -69,7 +68,7 @@ public sealed class CecilCodeConverterRoundTripTests {
     [Fact]
     public void WriteBack_FloatOperandOnNonRealOpcode_NamesTheOpcode() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Simple))!;
-        using DynamicMethodDefinition actual = new DynamicMethodDefinition(target);
+        using ScratchMethod actual = BodyReader.Open(target);
 
         TranspilerContext context = new TranspilerContext(target);
         List<CodeInstruction> instructions = CecilCodeConverter.ToInstructions(actual.Definition, context);
@@ -85,7 +84,7 @@ public sealed class CecilCodeConverterRoundTripTests {
     [Fact]
     public void WriteBack_LdcR8WithFloatOperand_WidensToDouble() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Simple))!;
-        using DynamicMethodDefinition actual = new DynamicMethodDefinition(target);
+        using ScratchMethod actual = BodyReader.Open(target);
 
         TranspilerContext context = new TranspilerContext(target);
         List<CodeInstruction> instructions = CecilCodeConverter.ToInstructions(actual.Definition, context);
@@ -102,7 +101,7 @@ public sealed class CecilCodeConverterRoundTripTests {
     [Fact]
     public void ToInstructions_PreservesShortFormEncoding() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Simple))!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
 
         TranspilerContext context = new TranspilerContext(target);
         List<CodeInstruction> instructions = CecilCodeConverter.ToInstructions(source.Definition, context);
@@ -114,7 +113,7 @@ public sealed class CecilCodeConverterRoundTripTests {
     [Fact]
     public void ToInstructions_FilterRegion_ProducesFilterBlock() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Filtered))!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
 
         TranspilerContext context = new TranspilerContext(target);
         List<CodeInstruction> instructions = CecilCodeConverter.ToInstructions(source.Definition, context);
@@ -127,8 +126,8 @@ public sealed class CecilCodeConverterRoundTripTests {
     [Fact]
     public void RoundTrip_Calli_PreservesCallSite() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Priced))!;
-        using DynamicMethodDefinition expected = new DynamicMethodDefinition(target);
-        using DynamicMethodDefinition actual = new DynamicMethodDefinition(target);
+        using ScratchMethod expected = BodyReader.Open(target);
+        using ScratchMethod actual = BodyReader.Open(target);
 
         // calli has no C# source form; a real CallSite is built directly via Cecil (matching how
         // BodiesMatch_CallSiteCallingConventionDiffers_Fails in IlAssertTests.cs already does this).
@@ -150,8 +149,8 @@ public sealed class CecilCodeConverterRoundTripTests {
     [InlineData(nameof(TranspilerTargets.AlwaysThrowsFinally))]
     public void RoundTrip_HandlerRunsToEndOfBody_PreservesNullHandlerEnd(string name) {
         MethodBase target = typeof(TranspilerTargets).GetMethod(name)!;
-        using DynamicMethodDefinition expected = new DynamicMethodDefinition(target);
-        using DynamicMethodDefinition actual = new DynamicMethodDefinition(target);
+        using ScratchMethod expected = BodyReader.Open(target);
+        using ScratchMethod actual = BodyReader.Open(target);
 
         Assert.Null(expected.Definition.Body.ExceptionHandlers[expected.Definition.Body.ExceptionHandlers.Count - 1].HandlerEnd);
 
@@ -159,7 +158,7 @@ public sealed class CecilCodeConverterRoundTripTests {
         List<CodeInstruction> instructions = CecilCodeConverter.ToInstructions(actual.Definition, context);
         CecilCodeConverter.WriteBack(actual.Definition, instructions, context);
 
-        // MonoMod's own DynamicMethodDefinition.Generate() throws InvalidProgramException on a null
+        // ScratchMethod.Generate() throws InvalidProgramException on a null
         // HandlerEnd even for the unmodified body, so this is checked structurally only - Generate()/
         // Invoke() cannot exercise this shape regardless of what the converter does.
         IlAssert.BodiesMatch(expected.Definition, actual.Definition);
@@ -169,8 +168,8 @@ public sealed class CecilCodeConverterRoundTripTests {
     [Fact]
     public void RoundTrip_HandBuiltNullHandlerEnd_PreservesNull() {
         MethodBase target = typeof(TranspilerTargets).GetMethod(nameof(TranspilerTargets.Priced))!;
-        using DynamicMethodDefinition expected = new DynamicMethodDefinition(target);
-        using DynamicMethodDefinition actual = new DynamicMethodDefinition(target);
+        using ScratchMethod expected = BodyReader.Open(target);
+        using ScratchMethod actual = BodyReader.Open(target);
 
         BuildNullEndedFinally(expected.Definition);
         BuildNullEndedFinally(actual.Definition);
@@ -184,7 +183,7 @@ public sealed class CecilCodeConverterRoundTripTests {
         Assert.Null(actual.Definition.Body.ExceptionHandlers[0].HandlerEnd);
     }
 
-    private static void AssertExecutionMatches(MethodBase target, DynamicMethodDefinition expected, DynamicMethodDefinition actual) {
+    private static void AssertExecutionMatches(MethodBase target, ScratchMethod expected, ScratchMethod actual) {
         MethodInfo expectedMethod = expected.Generate();
         MethodInfo actualMethod = actual.Generate();
 

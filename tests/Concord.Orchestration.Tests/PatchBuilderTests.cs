@@ -69,13 +69,6 @@ public static class BuilderTranspilerFinalTarget {
     }
 }
 
-public static class BuilderTranspilerBehaviorTarget {
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public static int Compute() {
-        return 5;
-    }
-}
-
 public static class BuilderTranspilerChainTarget {
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static int Compute() {
@@ -107,10 +100,6 @@ public static class BuilderTranspilers {
 
 public static class BuilderLog {
     public static List<string> Entries = new List<string>();
-
-    public static void Clear() {
-        Entries.Clear();
-    }
 }
 
 public static class BuilderInvokeHelper2 {
@@ -142,22 +131,6 @@ internal class BuilderSliceTarget2 {
         BuilderInvokeHelper2.Step();
         BuilderSliceAnchors2.End();
         BuilderInvokeHelper2.Step();
-    }
-}
-
-public sealed class BuilderNewObjValue2 {
-    public BuilderNewObjValue2(int value) {
-        Value = value;
-    }
-
-    public int Value { get; }
-}
-
-public class BuilderNewObjTarget2 {
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public int Run(int value) {
-        BuilderNewObjValue2 created = new BuilderNewObjValue2(value);
-        return created.Value;
     }
 }
 
@@ -228,82 +201,72 @@ public class BuilderNewObjTarget3 {
 }
 
 [Collection(SharedAssemblyApplyCollection.Name)]
-public sealed class PatchBuilderTests {
-    [Fact]
-    public void For_MethodBase_HeadPatch_ChangesReturnValue_DisposeReverts() {
-        Assert.Equal(1, BuilderMethodBaseTarget.Compute());
+public sealed class PatchBuilderTests : IDisposable {
+    private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
 
+    public PatchBuilderTests() {
+        Concord.Detour.DetourBackend.Current = backend;
+    }
+
+    public void Dispose() {
+        Concord.Detour.DetourBackend.Reset();
+    }
+
+    [Fact]
+    public void For_MethodBase_ResolvesTheTarget() {
         MethodBase target = typeof(BuilderMethodBaseTarget).GetMethod(nameof(BuilderMethodBaseTarget.Compute))!;
         MethodInfo injectionMethod = typeof(BuilderHeadInjectionMethod2).GetMethod(nameof(BuilderHeadInjectionMethod2.OnCompute))!;
 
-        IPatchHandle handle = Patcher.For(target).Head(injectionMethod).Apply();
-        try {
-            Assert.Equal(99, BuilderMethodBaseTarget.Compute());
-        } finally {
-            handle.Dispose();
-        }
+        using IPatchHandle handle = Patcher.For(target).Head(injectionMethod).Apply();
 
-        Assert.Equal(1, BuilderMethodBaseTarget.Compute());
+        AppliedInjection applied = Assert.Single(backend.Applied);
+        Assert.Equal(target, applied.Target);
+        Assert.IsType<InjectAt.Head>(applied.Injection.At);
     }
 
     [Fact]
-    public void For_TypeAndName_HeadPatch_ChangesReturnValue_DisposeReverts() {
-        Assert.Equal(1, BuilderTypeTarget.Compute());
-
+    public void For_TypeAndName_ResolvesTheTarget() {
         MethodInfo injectionMethod = typeof(BuilderHeadInjectionMethod2).GetMethod(nameof(BuilderHeadInjectionMethod2.OnCompute))!;
 
-        IPatchHandle handle = Patcher.For(typeof(BuilderTypeTarget), nameof(BuilderTypeTarget.Compute))
+        using IPatchHandle handle = Patcher.For(typeof(BuilderTypeTarget), nameof(BuilderTypeTarget.Compute))
             .Head(injectionMethod)
             .Apply();
-        try {
-            Assert.Equal(99, BuilderTypeTarget.Compute());
-        } finally {
-            handle.Dispose();
-        }
 
-        Assert.Equal(1, BuilderTypeTarget.Compute());
+        Assert.Equal(
+            typeof(BuilderTypeTarget).GetMethod(nameof(BuilderTypeTarget.Compute)),
+            Assert.Single(backend.Applied).Target);
     }
 
     [Fact]
-    public void For_Generic_HeadPatch_ChangesReturnValue_DisposeReverts() {
-        Assert.Equal(1, BuilderGenericTarget.Compute());
-
+    public void For_Generic_ResolvesTheTarget() {
         MethodInfo injectionMethod = typeof(BuilderHeadInjectionMethod2).GetMethod(nameof(BuilderHeadInjectionMethod2.OnCompute))!;
 
-        IPatchHandle handle = Patcher.For<BuilderGenericTarget>(nameof(BuilderGenericTarget.Compute))
+        using IPatchHandle handle = Patcher.For<BuilderGenericTarget>(nameof(BuilderGenericTarget.Compute))
             .Head(injectionMethod)
             .Apply();
-        try {
-            Assert.Equal(99, BuilderGenericTarget.Compute());
-        } finally {
-            handle.Dispose();
-        }
 
-        Assert.Equal(1, BuilderGenericTarget.Compute());
+        Assert.Equal(
+            typeof(BuilderGenericTarget).GetMethod(nameof(BuilderGenericTarget.Compute)),
+            Assert.Single(backend.Applied).Target);
     }
 
     [Fact]
-    public void For_StringTypeName_HeadPatch_ChangesReturnValue_DisposeReverts() {
-        Assert.Equal(1, BuilderStringTarget.Compute());
-
+    public void For_StringTypeName_ResolvesTheTarget() {
         MethodInfo injectionMethod = typeof(BuilderHeadInjectionMethod2).GetMethod(nameof(BuilderHeadInjectionMethod2.OnCompute))!;
         string typeName = typeof(BuilderStringTarget).FullName!;
 
-        IPatchHandle handle = Patcher.For(typeName, nameof(BuilderStringTarget.Compute))
+        using IPatchHandle handle = Patcher.For(typeName, nameof(BuilderStringTarget.Compute))
             .Head(injectionMethod)
             .Apply();
-        try {
-            Assert.Equal(99, BuilderStringTarget.Compute());
-        } finally {
-            handle.Dispose();
-        }
 
-        Assert.Equal(1, BuilderStringTarget.Compute());
+        Assert.Equal(
+            typeof(BuilderStringTarget).GetMethod(nameof(BuilderStringTarget.Compute)),
+            Assert.Single(backend.Applied).Target);
     }
 
     [Fact]
     public void Apply_DiscardedHandle_SurvivesGarbageCollection() {
-        Assert.Equal(1, BuilderGcTarget2.Compute());
+        MethodBase target = typeof(BuilderGcTarget2).GetMethod(nameof(BuilderGcTarget2.Compute))!;
 
         ApplyAndDiscardViaBuilder();
 
@@ -312,7 +275,7 @@ public sealed class PatchBuilderTests {
             GC.WaitForPendingFinalizers();
         }
 
-        Assert.Equal(99, BuilderGcTarget2.Compute());
+        Assert.Equal([typeof(BuilderGcInjectionMethod2).FullName!], backend.OwnersOf(target));
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -324,136 +287,79 @@ public sealed class PatchBuilderTests {
 
     [Fact]
     public void Head_MethodInfo_And_TypeName_AreEquivalent() {
-        Assert.Equal(1, BuilderTypeTarget.Compute());
-
         MethodInfo injectionMethod = typeof(BuilderHeadInjectionMethod2).GetMethod(nameof(BuilderHeadInjectionMethod2.OnCompute))!;
 
-        IPatchHandle h1 = Patcher.For(typeof(BuilderTypeTarget), nameof(BuilderTypeTarget.Compute))
+        using IPatchHandle fromMethodInfo = Patcher.For(typeof(BuilderTypeTarget), nameof(BuilderTypeTarget.Compute))
             .Head(injectionMethod)
             .Apply();
-        try {
-            Assert.Equal(99, BuilderTypeTarget.Compute());
-        } finally {
-            h1.Dispose();
-        }
-
-        Assert.Equal(1, BuilderTypeTarget.Compute());
-
-        IPatchHandle h2 = Patcher.For(typeof(BuilderTypeTarget), nameof(BuilderTypeTarget.Compute))
+        using IPatchHandle fromTypeName = Patcher.For(typeof(BuilderTypeTarget), nameof(BuilderTypeTarget.Compute))
             .Head(typeof(BuilderHeadInjectionMethod2), nameof(BuilderHeadInjectionMethod2.OnCompute))
             .Apply();
-        try {
-            Assert.Equal(99, BuilderTypeTarget.Compute());
-        } finally {
-            h2.Dispose();
-        }
 
-        Assert.Equal(1, BuilderTypeTarget.Compute());
+        Assert.Equal(2, backend.Applied.Count);
+        Assert.Equal(backend.Applied[0].Target, backend.Applied[1].Target);
+        Assert.Equal(backend.Applied[0].Injection, backend.Applied[1].Injection);
     }
 
     [Fact]
     public void Inject_AtHead_IsEquivalentTo_Head() {
-        Assert.Equal(1, BuilderTypeTarget.Compute());
-
         MethodInfo injectionMethod = typeof(BuilderHeadInjectionMethod2).GetMethod(nameof(BuilderHeadInjectionMethod2.OnCompute))!;
 
-        IPatchHandle handle = Patcher.For(typeof(BuilderTypeTarget), nameof(BuilderTypeTarget.Compute))
+        using IPatchHandle fromInject = Patcher.For(typeof(BuilderTypeTarget), nameof(BuilderTypeTarget.Compute))
             .Inject(At.Head, injectionMethod)
             .Apply();
-        try {
-            Assert.Equal(99, BuilderTypeTarget.Compute());
-        } finally {
-            handle.Dispose();
-        }
+        using IPatchHandle fromHead = Patcher.For(typeof(BuilderTypeTarget), nameof(BuilderTypeTarget.Compute))
+            .Head(injectionMethod)
+            .Apply();
 
-        Assert.Equal(1, BuilderTypeTarget.Compute());
+        Assert.Equal(2, backend.Applied.Count);
+        Assert.Equal(backend.Applied[0].Injection, backend.Applied[1].Injection);
     }
 
     [Fact]
-    public void Return_InjectionMethod_FiresAtReturnSite() {
-        Assert.Equal(1, BuilderReturnTarget2.Compute());
-
+    public void Return_InjectionMethod_RegistersAtTheReturnPosition() {
         MethodInfo injectionMethod = typeof(BuilderReturnInjectionMethod2).GetMethod(nameof(BuilderReturnInjectionMethod2.OnCompute))!;
 
-        IPatchHandle handle = Patcher.For(typeof(BuilderReturnTarget2), nameof(BuilderReturnTarget2.Compute))
+        using IPatchHandle handle = Patcher.For(typeof(BuilderReturnTarget2), nameof(BuilderReturnTarget2.Compute))
             .Return(injectionMethod)
             .Apply();
-        try {
-            Assert.Equal(77, BuilderReturnTarget2.Compute());
-        } finally {
-            handle.Dispose();
-        }
 
-        Assert.Equal(1, BuilderReturnTarget2.Compute());
+        Assert.IsType<InjectAt.Return>(Assert.Single(backend.Applied).Injection.At);
     }
 
     [Fact]
-    public void Around_InjectionMethod_WrapsSpine() {
-        BuilderLog.Clear();
-
+    public void Around_InjectionMethod_RegistersAtTheAroundPosition() {
         MethodInfo injectionMethod = typeof(BuilderAroundInjectionMethod2).GetMethod(nameof(BuilderAroundInjectionMethod2.OnStep))!;
 
-        IPatchHandle handle = Patcher.For(typeof(BuilderAroundTarget2), nameof(BuilderAroundTarget2.Step))
+        using IPatchHandle handle = Patcher.For(typeof(BuilderAroundTarget2), nameof(BuilderAroundTarget2.Step))
             .Around(injectionMethod)
             .Apply();
-        try {
-            BuilderAroundTarget2.Step();
-            Assert.Equal(["pre", "spine", "post"], BuilderLog.Entries);
-        } finally {
-            handle.Dispose();
-        }
 
-        BuilderLog.Clear();
-        BuilderAroundTarget2.Step();
-        Assert.Equal(["spine"], BuilderLog.Entries);
+        AppliedInjection applied = Assert.Single(backend.Applied);
+        Assert.IsType<InjectAt.Around>(applied.Injection.At);
+        Assert.Equal(injectionMethod, applied.Injection.InjectionMethod);
     }
 
     [Fact]
-    public void Invoke_Builder_SplicesBeforeCallSite() {
-        BuilderLog.Clear();
-
+    public void Invoke_Builder_RegistersTheCallSite() {
         MethodBase targetMethod = typeof(BuilderInvokeTarget2).GetMethod(nameof(BuilderInvokeTarget2.Run))!;
         MethodInfo injectionMethod = typeof(BuilderInvokeInjectionMethod2).GetMethod(nameof(BuilderInvokeInjectionMethod2.BeforeStep))!;
 
-        IPatchHandle handle = Patcher.For(targetMethod)
+        using IPatchHandle handle = Patcher.For(targetMethod)
             .Invoke(typeof(BuilderInvokeHelper2), nameof(BuilderInvokeHelper2.Step), injectionMethod, At.Head)
             .Apply();
-        try {
-            BuilderInvokeTarget2 instance = new BuilderInvokeTarget2();
-            instance.Run();
-            Assert.Equal(["before", "injected", "step", "after"], BuilderLog.Entries);
-        } finally {
-            handle.Dispose();
-        }
 
-        BuilderLog.Clear();
-        BuilderInvokeTarget2 instance2 = new BuilderInvokeTarget2();
-        instance2.Run();
-        Assert.Equal(["before", "step", "after"], BuilderLog.Entries);
+        AppliedInjection applied = Assert.Single(backend.Applied);
+        InjectAt.Invoke at = Assert.IsType<InjectAt.Invoke>(applied.Injection.At);
+
+        Assert.Equal(targetMethod, applied.Target);
+        Assert.Equal(typeof(BuilderInvokeHelper2), at.DeclaringType);
+        Assert.Equal(nameof(BuilderInvokeHelper2.Step), at.Method);
+        Assert.Equal(At.Head, at.Shift);
     }
 
     [Fact]
-    public void NewObj_Builder_RewritesConstructorArgument() {
-        Assert.Equal(3, new BuilderNewObjTarget2().Run(3));
-
-        MethodBase targetMethod = typeof(BuilderNewObjTarget2).GetMethod(nameof(BuilderNewObjTarget2.Run))!;
-        MethodInfo injectionMethod = typeof(BuilderNewObjInjectionMethod2).GetMethod(nameof(BuilderNewObjInjectionMethod2.Bump))!;
-
-        IPatchHandle handle = Patcher.For(targetMethod)
-            .NewObj(typeof(BuilderNewObjValue2), [typeof(int)], injectionMethod, At.Argument)
-            .Slice(new SliceRange(null, null, 1, null, null, 1))
-            .Apply();
-        try {
-            Assert.Equal(4, new BuilderNewObjTarget2().Run(3));
-        } finally {
-            handle.Dispose();
-        }
-
-        Assert.Equal(3, new BuilderNewObjTarget2().Run(3));
-    }
-
-    [Fact]
-    public void NewObj_Builder_Slice_BoundsConstructionInjection() {
+    public void NewObj_Builder_Slice_AttachesTheRangeToTheConstruction() {
         MethodBase targetMethod = typeof(BuilderNewObjTarget3).GetMethod(nameof(BuilderNewObjTarget3.Run))!;
         MethodInfo injectionMethod = typeof(BuilderNewObjInjectionMethod2).GetMethod(nameof(BuilderNewObjInjectionMethod2.Bump))!;
         SliceRange range = new SliceRange(
@@ -464,23 +370,19 @@ public sealed class PatchBuilderTests {
             nameof(BuilderNewObjAnchors3.End),
             1);
 
-        IPatchHandle handle = Patcher.For(targetMethod)
+        using IPatchHandle handle = Patcher.For(targetMethod)
             .NewObj(typeof(BuilderNewObjValue3), [typeof(int)], injectionMethod, At.Argument)
             .Slice(range)
             .Apply();
-        try {
-            Assert.Equal([1, 3, 3], new BuilderNewObjTarget3().Run());
-        } finally {
-            handle.Dispose();
-        }
 
-        Assert.Equal([1, 2, 3], new BuilderNewObjTarget3().Run());
+        InjectAt.NewObj at = Assert.IsType<InjectAt.NewObj>(Assert.Single(backend.Applied).Injection.At);
+        Assert.Equal(typeof(BuilderNewObjValue3), at.ConstructedType);
+        Assert.Equal(At.Argument, at.Shift);
+        Assert.Equal(range, at.Slice);
     }
 
     [Fact]
     public void Slice_Builder_BoundsMostRecentInvokeInjection() {
-        BuilderLog.Clear();
-
         MethodBase targetMethod = typeof(BuilderSliceTarget2).GetMethod(nameof(BuilderSliceTarget2.Run))!;
         MethodInfo injectionMethod = typeof(BuilderInvokeInjectionMethod2).GetMethod(nameof(BuilderInvokeInjectionMethod2.BeforeStep))!;
         SliceRange range = new SliceRange(
@@ -491,89 +393,75 @@ public sealed class PatchBuilderTests {
             nameof(BuilderSliceAnchors2.End),
             1);
 
-        IPatchHandle handle = Patcher.For(targetMethod)
+        using IPatchHandle handle = Patcher.For(targetMethod)
             .Invoke(typeof(BuilderInvokeHelper2), nameof(BuilderInvokeHelper2.Step), injectionMethod, At.Head)
             .Slice(range)
             .Apply();
-        try {
-            new BuilderSliceTarget2().Run();
-            Assert.Equal(["step", "injected", "step", "step"], BuilderLog.Entries);
-        } finally {
-            handle.Dispose();
-        }
+
+        InjectAt.Invoke at = Assert.IsType<InjectAt.Invoke>(Assert.Single(backend.Applied).Injection.At);
+        Assert.Equal(range, at.Slice);
     }
 
     [Fact]
-    public void Transpiler_MethodInfo_RegistersSuccessfully() {
+    public void Transpiler_MethodInfo_RegistersANonFinalTranspiler() {
         MethodBase target = typeof(BuilderTranspilerTarget).GetMethod(nameof(BuilderTranspilerTarget.Compute))!;
         MethodInfo transpiler = typeof(BuilderTranspilers).GetMethod(nameof(BuilderTranspilers.FiveToTen))!;
 
         using IPatchHandle handle = Patcher.For(target).Transpiler(transpiler).Apply();
-        Assert.NotNull(handle);
+
+        AppliedInjection applied = Assert.Single(backend.Applied);
+        Assert.Equal(transpiler, applied.Injection.InjectionMethod);
+        Assert.False(Assert.IsType<InjectAt.Transpiler>(applied.Injection.At).Final);
     }
 
     [Fact]
-    public void Transpiler_TypeAndName_RegistersSuccessfully() {
+    public void Transpiler_TypeAndName_RegistersANonFinalTranspiler() {
         MethodBase target = typeof(BuilderTranspilerTarget).GetMethod(nameof(BuilderTranspilerTarget.Compute))!;
 
         using IPatchHandle handle = Patcher.For(target)
             .Transpiler(typeof(BuilderTranspilers), nameof(BuilderTranspilers.FiveToTen))
             .Apply();
-        Assert.NotNull(handle);
+
+        AppliedInjection applied = Assert.Single(backend.Applied);
+        Assert.Equal(typeof(BuilderTranspilers).GetMethod(nameof(BuilderTranspilers.FiveToTen)), applied.Injection.InjectionMethod);
+        Assert.False(Assert.IsType<InjectAt.Transpiler>(applied.Injection.At).Final);
     }
 
     [Fact]
-    public void Transpiler_Final_MethodInfo_RegistersSuccessfully() {
+    public void Transpiler_Final_MethodInfo_RegistersAFinalTranspiler() {
         MethodBase target = typeof(BuilderTranspilerFinalTarget).GetMethod(nameof(BuilderTranspilerFinalTarget.Compute))!;
         MethodInfo transpiler = typeof(BuilderTranspilers).GetMethod(nameof(BuilderTranspilers.FiveToTen))!;
 
         using IPatchHandle handle = Patcher.For(target).Transpiler(transpiler, final: true).Apply();
-        Assert.NotNull(handle);
+
+        Assert.True(Assert.IsType<InjectAt.Transpiler>(Assert.Single(backend.Applied).Injection.At).Final);
     }
 
     [Fact]
-    public void Transpiler_Final_TypeAndName_RegistersSuccessfully() {
+    public void Transpiler_Final_TypeAndName_RegistersAFinalTranspiler() {
         MethodBase target = typeof(BuilderTranspilerFinalTarget).GetMethod(nameof(BuilderTranspilerFinalTarget.Compute))!;
 
         using IPatchHandle handle = Patcher.For(target)
             .Transpiler(typeof(BuilderTranspilers), nameof(BuilderTranspilers.FiveToTen), final: true)
             .Apply();
-        Assert.NotNull(handle);
-    }
 
-    [Fact]
-    public void Transpiler_ChangesObservableBehavior_DisposeReverts() {
-        Assert.Equal(5, BuilderTranspilerBehaviorTarget.Compute());
-
-        MethodBase target = typeof(BuilderTranspilerBehaviorTarget).GetMethod(nameof(BuilderTranspilerBehaviorTarget.Compute))!;
-        MethodInfo transpiler = typeof(BuilderTranspilers).GetMethod(nameof(BuilderTranspilers.FiveToTen))!;
-
-        IPatchHandle handle = Patcher.For(target).Transpiler(transpiler).Apply();
-        try {
-            Assert.Equal(10, BuilderTranspilerBehaviorTarget.Compute());
-        } finally {
-            handle.Dispose();
-        }
-
-        Assert.Equal(5, BuilderTranspilerBehaviorTarget.Compute());
+        Assert.True(Assert.IsType<InjectAt.Transpiler>(Assert.Single(backend.Applied).Injection.At).Final);
     }
 
     [Fact]
     public void Transpiler_Chained_ThroughPatcherFor_AppliesInRegistrationOrder() {
-        Assert.Equal(5, BuilderTranspilerChainTarget.Compute());
-
         MethodBase target = typeof(BuilderTranspilerChainTarget).GetMethod(nameof(BuilderTranspilerChainTarget.Compute))!;
 
-        IPatchHandle handle = Patcher.For(target)
+        using IPatchHandle handle = Patcher.For(target)
             .Transpiler(typeof(BuilderTranspilers), nameof(BuilderTranspilers.FiveToTen))
             .Transpiler(typeof(BuilderTranspilers), nameof(BuilderTranspilers.TenToTwenty))
             .Apply();
-        try {
-            Assert.Equal(20, BuilderTranspilerChainTarget.Compute());
-        } finally {
-            handle.Dispose();
-        }
 
-        Assert.Equal(5, BuilderTranspilerChainTarget.Compute());
+        Assert.Equal(
+            [
+                typeof(BuilderTranspilers).GetMethod(nameof(BuilderTranspilers.FiveToTen)),
+                typeof(BuilderTranspilers).GetMethod(nameof(BuilderTranspilers.TenToTwenty)),
+            ],
+            backend.InjectionsOn(target).Select(injection => injection.InjectionMethod));
     }
 }

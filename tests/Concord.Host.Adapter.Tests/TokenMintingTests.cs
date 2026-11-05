@@ -192,27 +192,4 @@ public class TokenMintingTests {
         Assert.Throws<ArgumentNullException>(() => new WaylithTokenSource(Here, null!));
         Assert.Empty(minter.Calls);
     }
-
-    [Fact]
-    public void TheForkMinterReportsWhetherTheRuntimeHasTheApiAndSaysSoWhenItDoesNot() {
-        bool present = Type.GetType("WaylithClr.MethodBodyUpdater, System.Private.CoreLib", throwOnError: false) is not null;
-
-        Assert.Equal(present, ForkMinter.IsAvailable);
-
-        if (present) {
-            return;
-        }
-
-        PlatformNotSupportedException thrown = Assert.Throws<PlatformNotSupportedException>(
-            () => new ForkMinter().Token(Here, typeof(int)));
-
-        Assert.Contains("WaylithClr.MethodBodyUpdater", thrown.Message);
-        Assert.Contains("GetTokenFor(Module, Type)", thrown.Message);
-        Assert.Contains("detour backend", thrown.Message);
-
-        PlatformNotSupportedException onAMethod = Assert.Throws<PlatformNotSupportedException>(
-            () => new ForkMinter().Token(Here, typeof(object).GetMethod(nameof(ToString))!));
-
-        Assert.Contains("GetTokenFor(Module, MethodBase)", onAMethod.Message);
-    }
 }

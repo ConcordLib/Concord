@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Reflection.Emit;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using Xunit;
 using Xunit.Abstractions;
 using OpCodes = System.Reflection.Emit.OpCodes;
@@ -270,7 +269,7 @@ public sealed class InstructionOriginTests {
     }
 
     private static HashSet<int> OriginalOffsets(MethodBase target) {
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        using ScratchMethod source = BodyReader.Open(target);
         HashSet<int> offsets = [];
         foreach (Instruction instruction in source.Definition.Body.Instructions) {
             offsets.Add(instruction.Offset);

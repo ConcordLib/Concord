@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using Concord.Emit;
-using MonoMod.Utils;
 using MethodBody = Mono.Cecil.Cil.MethodBody;
 using OpCode = System.Reflection.Emit.OpCode;
 
@@ -14,13 +13,8 @@ public static class RoundTrip {
         TranspilerContext concrete = (TranspilerContext)context;
         List<CodeInstruction> source = Extract(concrete);
 
-        // Extract() just set concrete.ExistingLocalCount from the SOURCE method's own locals as a
-        // read-direction side effect of CecilCodeConverter.ToInstructions. TransformStream writes
-        // source onto a brand new, empty wrapper (no locals physically present), so those locals
-        // must instead be densely re-declared from a clean slate - the same contract a coexistence
-        // bridge follows (see Concord.Harmony.CodeInstructionConverter.ToConcord). Resetting the
-        // counter back to 0 before declaring is what makes DeclareLocal hand back indices 0..N-1
-        // instead of continuing past the count ToInstructions already recorded.
+        // TransformStream writes onto a brand new wrapper with no locals, so resetting the count
+        // to 0 is what makes DeclareLocal hand back dense indices 0..N-1.
         concrete.ExistingLocalCount = 0;
         StreamRoundTrip.DeclareReferencedLocals(source, concrete);
 
@@ -34,7 +28,7 @@ public static class RoundTrip {
     }
 
     private static List<CodeInstruction> Extract(TranspilerContext context) {
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(context.Original);
+        using ScratchMethod source = BodyReader.Open(context.Original);
         List<CodeInstruction> instructions = CecilCodeConverter.ToInstructions(source.Definition, context);
         NormalizeLocalMacros(instructions, source.Definition.Body);
         return instructions;

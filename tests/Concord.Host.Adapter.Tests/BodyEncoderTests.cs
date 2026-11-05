@@ -267,10 +267,39 @@ public class BodyEncoderTests {
     }
 
     [Fact]
-    public void CalliIsRefusedBecauseNoTokenApiProducesAStandaloneSignature() {
+    public void ACalliWhoseOperandIsNotACallSiteSignatureIsRefused() {
         ComposedBody body = Shape.Body([Shape.Step(OpCodes.Calli), Shape.Step(OpCodes.Ret)], [], [], false);
 
         Assert.Throws<NotSupportedException>(() => BodyEncoder.Encode(body, new Tokens(), new FixedStack(1)));
+    }
+
+    [Fact]
+    public void ACalliCarryingACallSiteSignatureEncodesTheMintedToken() {
+        MethodInfo probe = BuildMethodWithARealCalli();
+        System.Reflection.MethodBody reflected = probe.GetMethodBody()!;
+        HostBody raw = new HostBody(reflected.GetILAsByteArray()!, [], 0, reflected.MaxStackSize, reflected.InitLocals, []);
+        ComposedBody body = BodyDecoder.Decode(probe, raw, out string? refusal)
+            ?? throw new InvalidOperationException($"the probe body did not decode: {refusal}");
+
+        EncodedBody encoded = BodyEncoder.Encode(body, new Tokens(), new FixedStack(reflected.MaxStackSize));
+
+        Step calli = ReadBack.Steps(ReadBack.Body(encoded.Bytes).Il).Single(step => step.OpCode.Value == OpCodes.Calli.Value);
+        Assert.Equal(Tokens.LocalsToken, (int)calli.Operand);
+    }
+
+    private static MethodInfo BuildMethodWithARealCalli() {
+        AssemblyBuilder assembly = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("CalliProbeAssembly"), AssemblyBuilderAccess.Run);
+        ModuleBuilder module = assembly.DefineDynamicModule("CalliProbeModule");
+        TypeBuilder type = module.DefineType("CalliProbeType");
+        MethodBuilder method = type.DefineMethod("Probe", MethodAttributes.Public | MethodAttributes.Static, typeof(void), Type.EmptyTypes);
+
+        ILGenerator il = method.GetILGenerator();
+        il.Emit(OpCodes.Ldc_I4_0);
+        il.Emit(OpCodes.Conv_I);
+        il.EmitCalli(OpCodes.Calli, CallingConventions.Standard, typeof(void), Type.EmptyTypes, null);
+        il.Emit(OpCodes.Ret);
+
+        return type.CreateType().GetMethod("Probe")!;
     }
 
     [Fact]

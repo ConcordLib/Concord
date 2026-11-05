@@ -2,7 +2,7 @@ using System.Reflection;
 
 namespace Concord.Host.Adapter;
 
-/// <summary>Thrown when a member cannot get a metadata token in the target module, so the body cannot be built and the caller has to stay on the detour backend.</summary>
+/// <summary>Thrown when a member cannot get a metadata token in the target module, so the body cannot be built and the target is refused.</summary>
 public sealed class TokenAccessException : InvalidOperationException {
     /// <summary>Initializes a new instance.</summary>
     /// <param name="message">Why the token was refused, and what the caller can change to make it mintable.</param>
@@ -80,9 +80,9 @@ public sealed class WaylithTokenSource : ITokenSource {
         return minter.Token(target, literal);
     }
 
-    /// <summary>Mints the standalone-signature token a method header points at for its local variables.</summary>
-    /// <param name="signature">An ECMA-335 LocalVarSig blob describing the body's locals in order.</param>
-    /// <returns>The standalone-signature token to write into the body's header.</returns>
+    /// <summary>Mints the standalone-signature token a method header points at for its locals, or a <c>calli</c> names for its call site.</summary>
+    /// <param name="signature">An ECMA-335 LocalVarSig blob, or the method signature a <c>calli</c> call site names.</param>
+    /// <returns>The standalone-signature token to write into the body's header or the <c>calli</c> operand.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="signature" /> is <c>null</c>.</exception>
     /// <exception cref="PlatformNotSupportedException">The default minter is in use and this runtime is not the fork.</exception>
     public int TokenForLocals(byte[] signature) {
@@ -110,7 +110,7 @@ public sealed class WaylithTokenSource : ITokenSource {
             "The blob opens with 0x15, the element code for a generic type instance, where ECMA-335 II.23.2.15 " +
             "requires 0x0A. Nothing refuses the write, so a body carrying that token publishes, counts as " +
             "published, and then throws BadImageFormatException the first time the method is compiled. Refusing " +
-            "here instead keeps the target on the detour backend.");
+            "here instead leaves the target on the body it was declared with.");
     }
 
     private void Refuse(MemberInfo member) {

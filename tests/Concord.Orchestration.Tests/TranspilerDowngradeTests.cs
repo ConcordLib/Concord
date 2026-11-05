@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Concord.Detour;
 using Concord.Emit;
@@ -36,9 +37,20 @@ public abstract class DowngradeGoodDeclaration : DowngradeGoodTarget {
 }
 
 [Collection(SharedAssemblyApplyCollection.Name)]
-public sealed class TranspilerDowngradeTests {
+public sealed class TranspilerDowngradeTests : IDisposable {
+    private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
+
+    public TranspilerDowngradeTests() {
+        DetourBackend.Current = backend;
+    }
+
+    public void Dispose() {
+        DetourBackend.Reset();
+    }
+
     [Fact]
     public void ScanType_TranspilerFailure_ThrowsDeclarationExceptionNotEmitException() {
+        backend.FailOn = FailEveryTranspiler;
         CollectingPatchApplier applier = new CollectingPatchApplier();
         FakeAttachedPropertyRegistry props = new FakeAttachedPropertyRegistry();
 
@@ -52,27 +64,23 @@ public sealed class TranspilerDowngradeTests {
 
     [Fact]
     public void ScanDeclarations_TranspilerFailure_GoodDeclarationStillApplies() {
+        backend.FailOn = FailEveryTranspiler;
         CollectingPatchApplier applier = new CollectingPatchApplier();
         FakeAttachedPropertyRegistry props = new FakeAttachedPropertyRegistry();
 
-        try {
-            PatchDeclarationScanner.ScanDeclarations(
-                [typeof(DowngradeGoodDeclaration), typeof(ThrowingTranspilerDeclaration)],
-                applier,
-                props);
+        PatchDeclarationScanner.ScanDeclarations(
+            [typeof(DowngradeGoodDeclaration), typeof(ThrowingTranspilerDeclaration)],
+            applier,
+            props);
 
-            IDetourHandle handle = Assert.Single(applier.Handles);
-            Assert.Equal(typeof(DowngradeGoodTarget).GetMethod(nameof(DowngradeGoodTarget.Step)), handle.Original);
-            Assert.Equal(106, new DowngradeGoodTarget().Step(5));
-        } finally {
-            foreach (IDetourHandle handle in applier.Handles) {
-                handle.Dispose();
-            }
-        }
+        AppliedInjection applied = Assert.Single(backend.Applied);
+        Assert.Equal(typeof(DowngradeGoodTarget).GetMethod(nameof(DowngradeGoodTarget.Step)), applied.Target);
+        Assert.Equal(typeof(DowngradeGoodDeclaration), applied.Injection.InjectionMethod.DeclaringType);
     }
 
     [Fact]
     public void ScanType_NonTranspilerEmitFailure_EscapesAsConcordEmitException() {
+        backend.FailOn = (_, _) => new ConcordEmitException("CONC012", "cancel without a return value");
         CollectingPatchApplier applier = new CollectingPatchApplier();
         FakeAttachedPropertyRegistry props = new FakeAttachedPropertyRegistry();
 
@@ -81,5 +89,11 @@ public sealed class TranspilerDowngradeTests {
 
         Assert.Equal("CONC012", ex.Code);
         Assert.Empty(applier.Handles);
+    }
+
+    private static Exception? FailEveryTranspiler(MethodBase target, Injection injection) {
+        return injection.At is InjectAt.Transpiler
+            ? new ConcordEmitException("CONC117", "the transpiler threw")
+            : null;
     }
 }

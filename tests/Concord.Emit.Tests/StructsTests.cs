@@ -32,12 +32,12 @@ public sealed class StructsTests {
         Vec instance = new Vec { X = 0 };
         del(ref instance);
 
-        long before = TestPolyfills.GetAllocatedBytes();
+        long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 10; i++) {
             del(ref instance);
         }
 
-        long after = TestPolyfills.GetAllocatedBytes();
+        long after = GC.GetAllocatedBytesForCurrentThread();
 
         Assert.Equal(0, after - before);
     }

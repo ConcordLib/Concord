@@ -1,6 +1,5 @@
 using System.Reflection;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using Xunit;
 
 namespace Concord.Emit.Tests;
@@ -54,25 +53,25 @@ public class ProvHost {
 }
 
 public sealed class CallSiteProvenanceTests {
-    private static (DynamicMethodDefinition Source, List<Instruction> Spine, int CallIndex) FindCall(
+    private static (ScratchMethod Source, List<Instruction> Spine, int CallIndex) FindCall(
         string methodName,
         Type declaringType,
         string calleeName,
         bool matchNewObj) {
         MethodBase target = typeof(ProvHost).GetMethod(methodName)!;
-        DynamicMethodDefinition source = new DynamicMethodDefinition(target);
+        ScratchMethod source = BodyReader.Open(target);
         List<Instruction> spine = [.. source.Definition.Body.Instructions];
         List<Instruction> matches = CallSiteQuery.Match(spine, declaringType, calleeName, null, false, matchNewObj);
         return (source, spine, spine.IndexOf(Assert.Single(matches)));
     }
 
-    private static (DynamicMethodDefinition Source, List<Instruction> Spine, int CallIndex) FindBlendCall(string methodName) {
+    private static (ScratchMethod Source, List<Instruction> Spine, int CallIndex) FindBlendCall(string methodName) {
         return FindCall(methodName, typeof(ProvRules), nameof(ProvRules.Blend), false);
     }
 
     [Fact]
     public void EachArgument_HasADistinctBoundary() {
-        (DynamicMethodDefinition source, List<Instruction> spine, int callIndex) = FindBlendCall(nameof(ProvHost.Simple));
+        (ScratchMethod source, List<Instruction> spine, int callIndex) = FindBlendCall(nameof(ProvHost.Simple));
         using (source) {
             int first = CallSiteProvenance.FindArgumentPushEnd(spine, callIndex, 0, 3, false, source.Definition);
             int second = CallSiteProvenance.FindArgumentPushEnd(spine, callIndex, 1, 3, false, source.Definition);
@@ -88,7 +87,7 @@ public sealed class CallSiteProvenanceTests {
 
     [Fact]
     public void ComputedArgument_StillResolves() {
-        (DynamicMethodDefinition source, List<Instruction> spine, int callIndex) = FindBlendCall(nameof(ProvHost.Computed));
+        (ScratchMethod source, List<Instruction> spine, int callIndex) = FindBlendCall(nameof(ProvHost.Computed));
         using (source) {
             int second = CallSiteProvenance.FindArgumentPushEnd(spine, callIndex, 1, 3, false, source.Definition);
 
@@ -99,7 +98,7 @@ public sealed class CallSiteProvenanceTests {
 
     [Fact]
     public void InstanceCall_ResolvesArgumentsAboveTheReceiver() {
-        (DynamicMethodDefinition source, List<Instruction> spine, int callIndex) =
+        (ScratchMethod source, List<Instruction> spine, int callIndex) =
             FindCall(nameof(ProvHost.Scaled), typeof(ProvHost), nameof(ProvHost.Combine), false);
         using (source) {
             int first = CallSiteProvenance.FindArgumentPushEnd(spine, callIndex, 0, 2, true, source.Definition);
@@ -113,9 +112,9 @@ public sealed class CallSiteProvenanceTests {
         }
     }
 
-    [SkipOnMonoFact]
+    [Fact]
     public void FunctionPointerArgument_DoesNotResolveToThePointerPush() {
-        (DynamicMethodDefinition source, List<Instruction> spine, int callIndex) = FindBlendCall(nameof(ProvHost.ViaPointer));
+        (ScratchMethod source, List<Instruction> spine, int callIndex) = FindBlendCall(nameof(ProvHost.ViaPointer));
         using (source) {
             int first = CallSiteProvenance.FindArgumentPushEnd(spine, callIndex, 0, 3, false, source.Definition);
             int second = CallSiteProvenance.FindArgumentPushEnd(spine, callIndex, 1, 3, false, source.Definition);
@@ -130,7 +129,7 @@ public sealed class CallSiteProvenanceTests {
 
     [Fact]
     public void NewObjSite_CountsArgumentsWithoutAReceiver() {
-        (DynamicMethodDefinition source, List<Instruction> spine, int callIndex) =
+        (ScratchMethod source, List<Instruction> spine, int callIndex) =
             FindCall(nameof(ProvHost.Made), typeof(ProvPair), ".ctor", true);
         using (source) {
             int first = CallSiteProvenance.FindArgumentPushEnd(spine, callIndex, 0, 2, true, source.Definition);
@@ -144,7 +143,7 @@ public sealed class CallSiteProvenanceTests {
 
     [Fact]
     public void ArityDisagreeingWithTheCall_ReturnsMinusOne() {
-        (DynamicMethodDefinition source, List<Instruction> spine, int callIndex) = FindBlendCall(nameof(ProvHost.Simple));
+        (ScratchMethod source, List<Instruction> spine, int callIndex) = FindBlendCall(nameof(ProvHost.Simple));
         using (source) {
             Assert.Equal(-1, CallSiteProvenance.FindArgumentPushEnd(spine, callIndex, 0, 2, false, source.Definition));
             Assert.Equal(-1, CallSiteProvenance.FindArgumentPushEnd(spine, callIndex, 0, 4, false, source.Definition));
@@ -154,7 +153,7 @@ public sealed class CallSiteProvenanceTests {
 
     [Fact]
     public void BranchTargetInsideArguments_ReturnsMinusOne() {
-        (DynamicMethodDefinition source, List<Instruction> spine, int callIndex) = FindBlendCall(nameof(ProvHost.Branched));
+        (ScratchMethod source, List<Instruction> spine, int callIndex) = FindBlendCall(nameof(ProvHost.Branched));
         using (source) {
             int first = CallSiteProvenance.FindArgumentPushEnd(spine, callIndex, 0, 3, false, source.Definition);
             int second = CallSiteProvenance.FindArgumentPushEnd(spine, callIndex, 1, 3, false, source.Definition);
@@ -168,7 +167,7 @@ public sealed class CallSiteProvenanceTests {
 
     [Fact]
     public void UndeterminableBoundary_ReturnsMinusOne() {
-        (DynamicMethodDefinition source, List<Instruction> spine, _) = FindBlendCall(nameof(ProvHost.Simple));
+        (ScratchMethod source, List<Instruction> spine, _) = FindBlendCall(nameof(ProvHost.Simple));
         using (source) {
             Assert.Equal(-1, CallSiteProvenance.FindArgumentPushEnd(spine, 0, 0, 3, false, source.Definition));
         }

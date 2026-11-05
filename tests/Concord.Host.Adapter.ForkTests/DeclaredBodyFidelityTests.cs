@@ -47,7 +47,7 @@ public sealed class DeclaredBodyFidelityTests {
         ComposeResult composed = WrapperComposer.Compose(target, [Only(target)]);
         ComposedBody body = composed.Body!;
         EncodedBody encoded = BodyEncoder.Encode(body, new WaylithTokenSource(target.Module), new ComputedStack());
-        IReadOnlyList<OffsetPair> pairs = WaylithDetourBackend.OffsetMap(target, body, encoded, [Only(target)]);
+        IReadOnlyList<OffsetPair> pairs = WaylithDetourBackend.OffsetMap(target, body, encoded);
 
         int[] origins = body.Instructions
             .Where(step => step.OriginOffset is not null)

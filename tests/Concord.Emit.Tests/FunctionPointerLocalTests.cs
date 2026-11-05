@@ -1,4 +1,3 @@
-#if NET
 using System.Reflection;
 using Xunit;
 
@@ -103,4 +102,3 @@ public sealed class FunctionPointerLocalTests {
         Assert.Equal(6, result.Wrapper.Invoke(null, [5]));
     }
 }
-#endif

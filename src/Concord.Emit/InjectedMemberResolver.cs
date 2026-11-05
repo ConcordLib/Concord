@@ -20,7 +20,14 @@ internal static class InjectedMemberResolver {
         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
 
     public static InjectedMemberMap Build(Type declarationType, MethodBase target, bool foreignOrigin) {
-        Type targetType = target.DeclaringType!;
+        if (target.DeclaringType is not { } targetType) {
+            return new InjectedMemberMap(
+                new Dictionary<string, FieldInfo>(),
+                new Dictionary<string, MethodInfo?>(),
+                new Dictionary<string, AttachedFieldSlot>(),
+                declarationType.FullName);
+        }
+
         Dictionary<string, AttachedFieldSlot> attached = new Dictionary<string, AttachedFieldSlot>();
         Dictionary<string, FieldInfo> fields = foreignOrigin
             ? new Dictionary<string, FieldInfo>()

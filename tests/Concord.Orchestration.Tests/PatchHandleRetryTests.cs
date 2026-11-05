@@ -12,13 +12,15 @@ public class PatchHandleRetryTests {
     private sealed class FailOnceDisposeBackend : IDetourBackend {
         public int DisposeCalls;
 
-        public IDetourHandle Apply(MethodBase original, MethodInfo replacement) {
-            throw new NotSupportedException();
-        }
-
         public IDetourHandle ApplyComposed(MethodBase target, IReadOnlyList<Injection> added) {
             return new FailOnceHandle(this, target);
         }
+
+        public IReadOnlyList<string> OwnersOf(MethodBase target) {
+            return [];
+        }
+
+        public int PatchedTargetCount => 0;
 
         private sealed class FailOnceHandle(FailOnceDisposeBackend owner, MethodBase original) : IDetourHandle {
             private bool disposed;
@@ -52,7 +54,6 @@ public class PatchHandleRetryTests {
     [Fact]
     public void FailedDisposeLeavesHandleRetryable() {
         FailOnceDisposeBackend backend = new FailOnceDisposeBackend();
-        IDetourBackend previous = DetourBackend.Current;
         DetourBackend.Current = backend;
         try {
             MethodBase target = typeof(PatchHandleRetryTests).GetMethod(nameof(Target))!;
@@ -65,7 +66,7 @@ public class PatchHandleRetryTests {
             Assert.Equal(2, backend.DisposeCalls);
             Assert.False(handle.IsApplied);
         } finally {
-            DetourBackend.Current = previous;
+            DetourBackend.Reset();
         }
     }
 }

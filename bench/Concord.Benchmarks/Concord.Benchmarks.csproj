@@ -8,12 +8,8 @@
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.15.8"/>
   </ItemGroup>
-  <Import Project="$(MSBuildThisFileDirectory)../../Harmony.targets"/>
   <ItemGroup>
     <ProjectReference Include="../../src/Concord.Emit/Concord.Emit.csproj"/>
-    <ProjectReference Include="../../src/Concord.Detour/Concord.Detour.csproj"/>
     <ProjectReference Include="../../src/Concord.AttachedData/Concord.AttachedData.csproj"/>
-    <ProjectReference Include="../../src/Concord.Enums/Concord.Enums.csproj"/>
-    <ProjectReference Include="../../src/Concord.Orchestration/Concord.Orchestration.csproj"/>
   </ItemGroup>
 </Project>

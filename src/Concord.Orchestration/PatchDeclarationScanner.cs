@@ -522,6 +522,6 @@ public static class PatchDeclarationScanner {
 
     private static bool IsDeclarationScopedCode(string code) {
         return code is "CONC061" or "CONC116" or "CONC117" or "CONC118" or "CONC119" or "CONC120" or "CONC144"
-            or RoutingDetourBackend.RejectedRouteCode;
+            or "CONC168" or "CONC178" or "CONC179" or "CONC180" or "CONC182";
     }
 }

@@ -12,7 +12,7 @@ public static class SharedGenericPolicy {
 
     /// <summary>Decides how <paramref name="target" /> has to be patched, given what it shares its IL body with.</summary>
     /// <param name="target">The method a patch wants to apply to.</param>
-    /// <returns>Replace when the body is this method's alone, Detour for a closed shared-body instantiation, Refuse for an open definition.</returns>
+    /// <returns>Replace when the body is this method's alone, Refuse for a closed shared-body instantiation and for an open definition.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="target" /> is <c>null</c>.</exception>
     public static TargetVerdict Judge(MethodBase target) {
         ArgumentNullException.ThrowIfNull(target);
@@ -21,24 +21,24 @@ public static class SharedGenericPolicy {
             return new TargetVerdict(TargetHandling.Replace, string.Empty, string.Empty);
         }
 
-        string slot = Describe(TypicalDefinition(target));
+        string slot = $"'{WaylithDetourBackend.Describe(TypicalDefinition(target))}'";
         if (target.ContainsGenericParameters) {
             return new TargetVerdict(
                 TargetHandling.Refuse,
                 OpenDefinitionCode,
-                $"{slot} was requested as a generic definition, so no instantiation was named. The runtime keeps " +
+                $"{TargetEligibility.RefusalMarker} {slot} was requested as a generic definition, so no " +
+                "instantiation was named. The runtime keeps " +
                 "one IL body for the definition and every instantiation compiled from it, so replacing that body " +
-                "changes all of them, and a native detour has no compiled code for a definition to hook. Ask for a " +
-                "closed instantiation instead.");
+                "changes all of them. Ask for a closed instantiation instead.");
         }
 
         return new TargetVerdict(
-            TargetHandling.Detour,
-            string.Empty,
-            $"{TargetEligibility.FallbackMarker} {Describe(target)} shares one IL body with every other " +
-            $"instantiation of {slot}, value-type ones included. Replacing that body would change all of them, " +
-            "including instantiations no patch asked for. A native detour hooks the compiled code of this " +
-            "instantiation only, so the patch applies here and nowhere else.");
+            TargetHandling.Refuse,
+            StagePublisher.RefusedCode,
+            $"{TargetEligibility.RefusalMarker} '{WaylithDetourBackend.Describe(target)}' shares one IL body with " +
+            $"every other instantiation of {slot}, value-type ones included. Replacing that body would change " +
+            "all of them, including instantiations no patch asked for, so every patch on this target is " +
+            "refused and the method keeps the body it was declared with.");
     }
 
     /// <summary>Whether <paramref name="target" />'s IL body is shared with other instantiations rather than its own.</summary>
@@ -69,9 +69,5 @@ public static class SharedGenericPolicy {
         }
 
         return definition.Module.ResolveMethod(definition.MetadataToken) ?? definition;
-    }
-
-    private static string Describe(MethodBase target) {
-        return $"'{target.DeclaringType?.FullName ?? target.Module.Name}.{target.Name}'";
     }
 }

@@ -1,7 +1,6 @@
 using System.Reflection;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using Xunit;
 using MethodBody = Mono.Cecil.Cil.MethodBody;
 
@@ -14,8 +13,8 @@ public sealed class CopiedExecutingAssemblyTests {
     public void TheInstructionsSynthesizedForAGetExecutingAssemblyCallKeepTheCallsDeclaredOffset() {
         MethodInfo subject = typeof(CopiedExecutingAssemblyTests)
             .GetMethod(nameof(Reports), BindingFlags.NonPublic | BindingFlags.Static)!;
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(subject);
-        using DynamicMethodDefinition destination = new DynamicMethodDefinition(subject);
+        using ScratchMethod source = BodyReader.Open(subject);
+        using ScratchMethod destination = BodyReader.Open(subject);
 
         MethodBody body = source.Definition.Body;
         Instruction call = body.Instructions.Single(IsExecutingAssemblyCall);

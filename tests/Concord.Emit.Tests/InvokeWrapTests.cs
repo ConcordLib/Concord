@@ -77,12 +77,12 @@ public sealed class InvokeWrapTests {
         Func<WrapTarget, int, int> run = result.Wrapper.CreateDelegate<Func<WrapTarget, int, int>>();
         run(instance, 3);
 
-        long before = TestPolyfills.GetAllocatedBytes();
+        long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 10; i++) {
             run(instance, 3);
         }
 
-        long after = TestPolyfills.GetAllocatedBytes();
+        long after = GC.GetAllocatedBytesForCurrentThread();
 
         Assert.Equal(0, after - before);
     }

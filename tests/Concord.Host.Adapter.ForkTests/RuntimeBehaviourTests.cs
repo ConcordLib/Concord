@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using dnlib.DotNet;
 using Xunit;
@@ -5,22 +6,31 @@ using Xunit;
 namespace Concord.Host.Adapter.ForkTests;
 
 public static class Measured {
-    public const string Runtime = "10.0.13-waylithclr.dev";
-
     public const string InstallVariable = "CONCORD_GAME_INSTALL";
 
-    private const string Installed = "/mnt/games/SteamLibrary/steamapps/common/RimWorld";
+    public const string RuntimeDirKey = "Concord.ForkRuntimeDir";
 
-    public static string Root =>
-        Environment.GetEnvironmentVariable(InstallVariable) is { Length: > 0 } overridden ? overridden : Installed;
+    public static string Runtime => RuntimeInformation.FrameworkDescription;
+
+    public static string Root {
+        get {
+            if (Environment.GetEnvironmentVariable(InstallVariable) is { Length: > 0 } overridden) {
+                return overridden;
+            }
+
+            return AppContext.GetData(RuntimeDirKey) is string { Length: > 0 } configured
+                ? configured
+                : AppContext.BaseDirectory;
+        }
+    }
 
     public static string Require(string name) {
         string path = Path.Combine(Root, name);
         Assert.True(
             File.Exists(path),
-            $"no '{name}' under '{Root}'. These are early-warning tests that read the shipped WaylithCLR fork " +
-            $"directly, so they need an install. Point {InstallVariable} at one, or run them on a machine that " +
-            $"has it. Every behaviour they guard was measured on runtime '{Runtime}'.");
+            $"no '{name}' under '{Root}'. These are early-warning tests that read the WaylithCLR fork layout " +
+            $"this process is running on, so they need one. Point {InstallVariable} at a fork directory, or " +
+            $"build with -p:ForkRuntimeDir=<path>. This process reports runtime '{Runtime}'.");
 
         return path;
     }
@@ -36,96 +46,23 @@ public class RuntimeBehaviourTests {
 
     private static readonly (string Behaviour, string Where, string Member)[] Surface = [
         (
-            "reading a method body returns the ORIGINAL metadata IL, never the body currently live",
-            "T14, and again as A17 finding 5",
-            "System.Boolean WaylithClr.MethodBodyUpdater::TryGetMethodBody(System.Reflection.MethodBase,System.Span`1<WaylithClr.MethodBodyClause>,WaylithClr.MethodBodyView&)"),
-        (
-            "a foreign body write is undetectable: the updated-token list stays empty when a body is replaced",
-            "T12",
-            "System.Int32[] WaylithClr.MethodBodyUpdater::GetUpdatedMethodTokens(System.Reflection.Module)"),
-        (
-            "a foreign body write is undetectable: the metadata version counter never moves when a body is replaced",
-            "T12",
-            "System.Int32 WaylithClr.MethodBodyUpdater::get_MetadataUpdateVersion()"),
-        (
-            "publishing a body is last-write-wins, with no chaining",
-            "T7, and the 200-cycle rerun in P1T2c",
-            "System.Void WaylithClr.MethodBodyUpdater::ReplaceMethodBody(System.Reflection.MethodBase,System.ReadOnlySpan`1<System.Byte>,System.ReadOnlySpan`1<WaylithClr.ILOffsetMapEntry>)"),
-        (
-            "revert restores the ORIGINAL body, not the previous one, so rollback has to re-publish",
-            "T8, and P1T2c",
-            "System.Void WaylithClr.MethodBodyUpdater::Revert(System.Reflection.MethodBase)"),
-        (
-            "the offset map a publish carries is a pair of ints, which is what ForkBodyWriter builds reflectively",
-            "the api capture",
-            "System.Void WaylithClr.ILOffsetMapEntry::.ctor(System.Int32,System.Int32)"),
-        (
-            "the runtime's own switch gates body replacement, which is what RuntimeCapability reads to stay off",
-            "the probe verdict table, IsSupported=True with no env var set",
-            "System.Boolean WaylithClr.MethodBodyUpdater::get_IsSupported()"),
-        (
-            "composed IL can name a method in another assembly with one mint, no trampoline",
-            "T6",
-            "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.Reflection.Module,System.Reflection.MethodBase)"),
-        (
-            "composed IL can name a field with one mint",
-            "the api capture",
-            "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.Reflection.Module,System.Reflection.FieldInfo)"),
-        (
-            "composed IL can name a type with one mint",
-            "the api capture",
-            "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.Reflection.Module,System.Type)"),
-        (
-            "composed IL can name a string literal with one mint",
-            "the api capture",
-            "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.Reflection.Module,System.String)"),
-        (
-            "a fat-header body can carry real locals, minted as a standalone signature",
-            "T5, GetTokenForLocals = 0x11000013",
-            "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForLocals(System.Reflection.Module,System.Byte[])"),
-        (string.Empty, string.Empty, "System.Boolean WaylithClr.MethodBodyUpdater::TryGetMethodBody(System.RuntimeMethodHandle,System.Span`1<WaylithClr.MethodBodyClause>,WaylithClr.MethodBodyView&)"),
-        (string.Empty, string.Empty, "System.RuntimeMethodHandle WaylithClr.MethodBodyUpdater::ResolveMethodDef(System.Reflection.Module,System.Int32)"),
-        (string.Empty, string.Empty, "System.Void WaylithClr.MethodBodyUpdater::ReplaceMethodBody(System.RuntimeMethodHandle,System.ReadOnlySpan`1<System.Byte>,System.ReadOnlySpan`1<WaylithClr.ILOffsetMapEntry>)"),
-        (string.Empty, string.Empty, "System.Void WaylithClr.MethodBodyUpdater::ReplaceMethodBodies(System.ReadOnlySpan`1<System.Reflection.MethodBase>,System.ReadOnlySpan`1<System.ReadOnlyMemory`1<System.Byte>>,System.ReadOnlySpan`1<System.ReadOnlyMemory`1<WaylithClr.ILOffsetMapEntry>>)"),
-        (string.Empty, string.Empty, "System.Void WaylithClr.MethodBodyUpdater::ReplaceMethodBodies(System.ReadOnlySpan`1<System.Reflection.MethodBase>,System.ReadOnlySpan`1<System.Byte>,System.ReadOnlySpan`1<System.Int32>,System.ReadOnlySpan`1<WaylithClr.ILOffsetMapEntry>,System.ReadOnlySpan`1<System.Int32>)"),
-        (string.Empty, string.Empty, "System.Void WaylithClr.MethodBodyUpdater::ReplaceMethodBodies(System.ReadOnlySpan`1<System.RuntimeMethodHandle>,System.ReadOnlySpan`1<System.Byte>,System.ReadOnlySpan`1<System.Int32>,System.ReadOnlySpan`1<WaylithClr.ILOffsetMapEntry>,System.ReadOnlySpan`1<System.Int32>)"),
-        (string.Empty, string.Empty, "System.Void WaylithClr.MethodBodyUpdater::Revert(System.RuntimeMethodHandle)"),
-        (string.Empty, string.Empty, "System.Void WaylithClr.MethodBodyUpdater::Revert(System.ReadOnlySpan`1<System.Reflection.MethodBase>)"),
-        (string.Empty, string.Empty, "System.Void WaylithClr.MethodBodyUpdater::Revert(System.ReadOnlySpan`1<System.RuntimeMethodHandle>)"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.Reflection.MethodBase,System.Reflection.MethodBase)"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.Reflection.MethodBase,System.Reflection.FieldInfo)"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.Reflection.MethodBase,System.Type)"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.Reflection.MethodBase,System.String)"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForLocals(System.Reflection.MethodBase,System.Byte[])"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForDefinition(System.Reflection.MethodBase,System.Reflection.MethodBase)"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForDefinition(System.Reflection.MethodBase,System.Reflection.FieldInfo)"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForDefinition(System.Reflection.Module,System.Reflection.MethodBase)"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForDefinition(System.Reflection.Module,System.Reflection.FieldInfo)"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForInstantiation(System.Reflection.MethodBase,System.Type)"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForInstantiation(System.Reflection.Module,System.Type)"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForVarargCall(System.Reflection.MethodBase,System.Reflection.MethodBase,System.Type[])"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForVarargCall(System.Reflection.Module,System.Reflection.MethodBase,System.Type[])"),
-        (string.Empty, string.Empty, "System.ReadOnlySpan`1<System.Byte> WaylithClr.MethodBodyView::get_IL()"),
-        (string.Empty, string.Empty, "System.ReadOnlySpan`1<System.Byte> WaylithClr.MethodBodyView::get_LocalSignature()"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyView::get_LocalSignatureToken()"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyView::get_MaxStackSize()"),
-        (string.Empty, string.Empty, "System.Boolean WaylithClr.MethodBodyView::get_InitLocals()"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyView::get_ClauseCount()"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyClause::Flags"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyClause::TryOffset"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyClause::TryLength"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyClause::HandlerOffset"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyClause::HandlerLength"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyClause::ClassTokenOrFilterOffset"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.ILOffsetMapEntry::get_OriginalOffset()"),
-        (string.Empty, string.Empty, "System.Int32 WaylithClr.ILOffsetMapEntry::get_NewOffset()"),
-        (
             "field injection is off unless the host turns it on, so a batch must never be committed without probing first",
             "the game runtimeconfig sets WaylithClr.FieldInjection true; Commit throws NotSupportedException when it is false",
             "System.Boolean WaylithClr.FieldInjection::get_IsSupported()"),
         (string.Empty, string.Empty, "System.Boolean WaylithClr.FieldInjectionApplyResult::get_AllApplied()"),
-        (string.Empty, string.Empty, "System.Boolean WaylithClr.MethodBodyUpdater::TryGetActiveMethodBody(System.Reflection.MethodBase,System.Span`1<WaylithClr.MethodBodyClause>,WaylithClr.MethodBodyView&)"),
-        (string.Empty, string.Empty, "System.Boolean WaylithClr.MethodBodyUpdater::TryGetActiveMethodBody(System.RuntimeMethodHandle,System.Span`1<WaylithClr.MethodBodyClause>,WaylithClr.MethodBodyView&)"),
+        (string.Empty, string.Empty, "System.Boolean WaylithClr.MethodBodyUpdater::TryGetCurrentMethodBody(System.Reflection.MethodBase,System.Span`1<WaylithClr.MethodBodyClause>,WaylithClr.MethodBodyView&)"),
+        (string.Empty, string.Empty, "System.Boolean WaylithClr.MethodBodyUpdater::TryGetCurrentMethodBody(System.RuntimeMethodHandle,System.Span`1<WaylithClr.MethodBodyClause>,WaylithClr.MethodBodyView&)"),
+        (
+            "reading a method body returns the ORIGINAL metadata IL, never the body currently live",
+            "T14, and again as A17 finding 5",
+            "System.Boolean WaylithClr.MethodBodyUpdater::TryGetDefaultMethodBody(System.Reflection.MethodBase,System.Span`1<WaylithClr.MethodBodyClause>,WaylithClr.MethodBodyView&)"),
+        (string.Empty, string.Empty, "System.Boolean WaylithClr.MethodBodyUpdater::TryGetDefaultMethodBody(System.RuntimeMethodHandle,System.Span`1<WaylithClr.MethodBodyClause>,WaylithClr.MethodBodyView&)"),
+        (
+            "the runtime's own switch gates body replacement, which is what RuntimeCapability reads to stay off",
+            "the probe verdict table, IsSupported=True with no env var set",
+            "System.Boolean WaylithClr.MethodBodyUpdater::get_IsSupported()"),
+        (string.Empty, string.Empty, "System.Boolean WaylithClr.MethodBodyView::get_InitLocals()"),
+        (string.Empty, string.Empty, "System.Boolean WaylithClr.MethodBodyView::get_IsDefault()"),
         (
             "a body replaced in place is rejitted rather than poisoned, so the in-place path keeps working across a relayout and only DynamicMethods go stale",
             "AReplacedBodyKeepsRunningAfterItsOperandTypeIsRelaidOut, which saw 2 rejitted and 0 stale",
@@ -142,14 +79,68 @@ public class RuntimeBehaviourTests {
         (string.Empty, string.Empty, "System.Int32 WaylithClr.FieldInjection::get_PendingCount()"),
         (string.Empty, string.Empty, "System.Int32 WaylithClr.FieldInjectionBatchStatus::value__"),
         (string.Empty, string.Empty, "System.Int32 WaylithClr.FieldInjectionRefusal::value__"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.ILOffsetMapEntry::get_NewOffset()"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.ILOffsetMapEntry::get_OriginalOffset()"),
         (string.Empty, string.Empty, "System.Int32 WaylithClr.InjectedField::get_MetadataToken()"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyClause::get_ClassTokenOrFilterOffset()"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyClause::get_HandlerLength()"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyClause::get_HandlerOffset()"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyClause::get_TryLength()"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyClause::get_TryOffset()"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.Reflection.Module,System.Reflection.Emit.DynamicMethod)"),
+        (
+            "composed IL can name a field with one mint",
+            "the api capture",
+            "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.Reflection.Module,System.Reflection.FieldInfo)"),
+        (
+            "composed IL can name a method in another assembly with one mint, no trampoline",
+            "T6",
+            "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.Reflection.Module,System.Reflection.MethodBase)"),
+        (
+            "composed IL can name a string literal with one mint",
+            "the api capture",
+            "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.Reflection.Module,System.String)"),
+        (
+            "composed IL can name a type with one mint",
+            "the api capture",
+            "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.Reflection.Module,System.Type)"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.RuntimeMethodHandle,System.Reflection.Emit.DynamicMethod)"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.RuntimeMethodHandle,System.Reflection.FieldInfo)"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.RuntimeMethodHandle,System.Reflection.MethodBase)"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.RuntimeMethodHandle,System.String)"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenFor(System.RuntimeMethodHandle,System.Type)"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForCallSite(System.Reflection.Module,System.Type,System.ReadOnlySpan`1<System.Type>,System.Boolean)"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForDefinition(System.Reflection.Module,System.Reflection.FieldInfo)"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForDefinition(System.Reflection.Module,System.Reflection.MethodBase)"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForInstantiation(System.Reflection.Module,System.Type)"),
+        (
+            "a fat-header body can carry real locals, minted as a standalone signature",
+            "T5, GetTokenForSignature = 0x11000013",
+            "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForSignature(System.Reflection.Module,System.ReadOnlySpan`1<System.Byte>)"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForSignature(System.RuntimeMethodHandle,System.ReadOnlySpan`1<System.Byte>)"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForTypeSpec(System.Reflection.Module,System.ReadOnlySpan`1<System.Byte>)"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForVarargCall(System.Reflection.Module,System.Reflection.MethodBase,System.Type[])"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyUpdater::GetTokenForVarargCall(System.RuntimeMethodHandle,System.Reflection.MethodBase,System.Type[])"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyView::get_ClauseCount()"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyView::get_LocalSignatureToken()"),
+        (string.Empty, string.Empty, "System.Int32 WaylithClr.MethodBodyView::get_MaxStackSize()"),
         (string.Empty, string.Empty, "System.Int64 WaylithClr.FieldInjectionApplyResult::get_MigratedInstances()"),
         (string.Empty, string.Empty, "System.Int64 WaylithClr.FieldInjectionBatch::get_MigratedInstances()"),
+        (string.Empty, string.Empty, "System.Object WaylithClr.MethodBodyUpdater::ResolveToken(System.Reflection.MethodBase,System.Int32)"),
+        (string.Empty, string.Empty, "System.Object WaylithClr.MethodBodyUpdater::ResolveToken(System.RuntimeMethodHandle,System.Int32)"),
+        (string.Empty, string.Empty, "System.ReadOnlySpan`1<System.Byte> WaylithClr.MethodBodyView::get_IL()"),
+        (string.Empty, string.Empty, "System.ReadOnlySpan`1<System.Byte> WaylithClr.MethodBodyView::get_LocalSignature()"),
+        (string.Empty, string.Empty, "System.Reflection.ExceptionHandlingClauseOptions WaylithClr.MethodBodyClause::get_Flags()"),
         (string.Empty, string.Empty, "System.Reflection.FieldAttributes WaylithClr.InjectedField::get_Attributes()"),
         (
             "reflection sees an injected field once the batch applied, under the token InjectedField reports, so composed IL can name one",
             "ReflectionSeesAnInjectedFieldOnItsDeclaringType",
             "System.Reflection.FieldInfo WaylithClr.InjectedField::get_Field()"),
+        (string.Empty, string.Empty, "System.Reflection.MethodBase WaylithClr.MethodBodyUpdater::GetMethodFromHandle(System.RuntimeMethodHandle)"),
+        (string.Empty, string.Empty, "System.Reflection.MethodInfo WaylithClr.MethodBodyUpdater::CreateVariant(System.Reflection.MethodBase)"),
+        (string.Empty, string.Empty, "System.RuntimeMethodHandle WaylithClr.MethodBodyUpdater::GetDefinitionHandle(System.Reflection.MethodBase)"),
+        (string.Empty, string.Empty, "System.RuntimeMethodHandle WaylithClr.MethodBodyUpdater::GetMethodHandle(System.Reflection.MethodBase)"),
+        (string.Empty, string.Empty, "System.RuntimeMethodHandle WaylithClr.MethodBodyUpdater::ResolveMethodDef(System.Reflection.Module,System.Int32)"),
         (
             "DependentFrames names the blocking frames, and the method that called apply is one of them when its own body touches a field of the target type",
             "AFrameBelowTheApplyThatReadsTheTargetTypeRefusesTheRelayout",
@@ -161,6 +152,31 @@ public class RuntimeBehaviourTests {
         (string.Empty, string.Empty, "System.Void WaylithClr.FieldInjectionBatch::Commit()"),
         (string.Empty, string.Empty, "System.Void WaylithClr.FieldInjectionBatch::OnMigrated(System.Type,System.Action`1<System.Object>)"),
         (string.Empty, string.Empty, "System.Void WaylithClr.FieldInjectionBatch::SetDefault(WaylithClr.InjectedField,System.Object)"),
+        (
+            "the offset map a stage publishes is a pair of ints, which is the shape the stage fills in",
+            "the api capture",
+            "System.Void WaylithClr.ILOffsetMapEntry::.ctor(System.Int32,System.Int32)"),
+        (string.Empty, string.Empty, "System.Void WaylithClr.MethodBodyUpdater::PrepareMethodBodies(System.ReadOnlySpan`1<System.RuntimeMethodHandle>)"),
+        (string.Empty, string.Empty, "System.Void WaylithClr.MethodBodyUpdater::PrepareMethodBody(System.Reflection.MethodBase)"),
+        (string.Empty, string.Empty, "System.Void WaylithClr.MethodBodyUpdater::PrepareMethodBody(System.RuntimeMethodHandle)"),
+        (string.Empty, string.Empty, "System.Void WaylithClr.MethodBodyUpdater::ReplaceMethodBodies(System.ReadOnlySpan`1<System.RuntimeMethodHandle>,System.ReadOnlySpan`1<System.Byte>,System.ReadOnlySpan`1<System.Int32>,System.ReadOnlySpan`1<WaylithClr.ILOffsetMapEntry>,System.ReadOnlySpan`1<System.Int32>,System.ReadOnlySpan`1<System.Object>)"),
+        (
+            "publishing a body is last-write-wins, with no chaining",
+            "T7, and the 200-cycle rerun in P1T2c",
+            "System.Void WaylithClr.MethodBodyUpdater::ReplaceMethodBody(System.Reflection.MethodBase,System.ReadOnlySpan`1<System.Byte>,System.ReadOnlySpan`1<WaylithClr.ILOffsetMapEntry>,System.Object)"),
+        (string.Empty, string.Empty, "System.Void WaylithClr.MethodBodyUpdater::ReplaceMethodBody(System.RuntimeMethodHandle,System.ReadOnlySpan`1<System.Byte>,System.ReadOnlySpan`1<WaylithClr.ILOffsetMapEntry>,System.Object)"),
+        (string.Empty, string.Empty, "System.Void WaylithClr.MethodBodyUpdater::Revert(System.ReadOnlySpan`1<System.RuntimeMethodHandle>)"),
+        (
+            "revert restores the ORIGINAL body, not the previous one, so rollback has to re-publish",
+            "T8, and P1T2c",
+            "System.Void WaylithClr.MethodBodyUpdater::Revert(System.Reflection.MethodBase)"),
+        (string.Empty, string.Empty, "System.Void WaylithClr.MethodBodyUpdater::Revert(System.RuntimeMethodHandle)"),
+        (string.Empty, string.Empty, "System.Void modreq(System.Runtime.CompilerServices.IsExternalInit) WaylithClr.MethodBodyClause::set_ClassTokenOrFilterOffset(System.Int32)"),
+        (string.Empty, string.Empty, "System.Void modreq(System.Runtime.CompilerServices.IsExternalInit) WaylithClr.MethodBodyClause::set_Flags(System.Reflection.ExceptionHandlingClauseOptions)"),
+        (string.Empty, string.Empty, "System.Void modreq(System.Runtime.CompilerServices.IsExternalInit) WaylithClr.MethodBodyClause::set_HandlerLength(System.Int32)"),
+        (string.Empty, string.Empty, "System.Void modreq(System.Runtime.CompilerServices.IsExternalInit) WaylithClr.MethodBodyClause::set_HandlerOffset(System.Int32)"),
+        (string.Empty, string.Empty, "System.Void modreq(System.Runtime.CompilerServices.IsExternalInit) WaylithClr.MethodBodyClause::set_TryLength(System.Int32)"),
+        (string.Empty, string.Empty, "System.Void modreq(System.Runtime.CompilerServices.IsExternalInit) WaylithClr.MethodBodyClause::set_TryOffset(System.Int32)"),
         (
             "an apply drains every queued batch, so one consumer calling it applies another consumer's batches too",
             "FieldInjectionTests, and FieldInjection.ApplyPending over the shared s_queue",
@@ -189,6 +205,7 @@ public class RuntimeBehaviourTests {
             "a field can only be added to an assembly named in WaylithClr.JitPatchableAssemblies, and any other module fails as a framework assembly",
             "AnAssemblyOutsideJitPatchableAssembliesIsRefusedAsAFrameworkAssembly",
             "WaylithClr.InjectedField WaylithClr.FieldInjectionBatch::AddField(System.Type,System.String,System.Type,System.Reflection.FieldAttributes)"),
+        (string.Empty, string.Empty, "WaylithClr.MethodBodyFlags WaylithClr.MethodBodyView::get_Flags()"),
     ];
 
     private static readonly string[] MeasuredTypes = [
@@ -276,40 +293,37 @@ public class RuntimeBehaviourTests {
     }
 
     [Fact]
-    public void TheInstalledRuntimeIsStillTheForkBuildTheProbesRanOn() {
+    public void TheForkLayoutBeingReadIsTheRuntimeThisProcessRunsOn() {
         using JsonDocument config = JsonDocument.Parse(File.ReadAllText(Measured.Require(ConfigFile)));
         JsonElement frameworks = config.RootElement.GetProperty("runtimeOptions").GetProperty("includedFrameworks");
         string? installed = frameworks[0].GetProperty("version").GetString();
 
         Assert.True(
-            installed == Measured.Runtime,
-            $"the fork runtime was rebuilt: '{ConfigFile}' under '{Measured.Root}' carries '{installed}', the " +
-            $"probes measured '{Measured.Runtime}'. Nothing in this file has been re-checked against " +
-            $"'{installed}'. Body replacement, revert semantics, generic sharing, R2R inline chasing and the " +
-            "undetectability of a foreign write were all measured once, on the old build. Re-run the probes " +
-            "before trusting them. The game build moving on its own is expected and does not trip this: this " +
-            "line stayed put across every build the probes ran on.");
+            installed is { Length: > 0 } && Measured.Runtime.Contains(installed, StringComparison.Ordinal),
+            $"'{ConfigFile}' under '{Measured.Root}' carries '{installed}' and this process reports " +
+            $"'{Measured.Runtime}', so every constant in this file was read off one fork build and checked " +
+            "against a different one. The api surface, the member names and the hot-reload switch all come " +
+            $"from '{Measured.Root}'. Point {Measured.InstallVariable} at the directory this process is " +
+            "actually running on, or rebuild with -p:ForkRuntimeDir pointing at it.");
     }
 
     [Fact]
-    public void HotReloadIsStillOffSoTheFlatVersionCounterMeansWhatItMeant() {
+    public void HotReloadIsStillOffSoThePipelineIsTheOnlyWriterOfBodies() {
         using JsonDocument config = JsonDocument.Parse(File.ReadAllText(Measured.Require(ConfigFile)));
         JsonElement properties = config.RootElement.GetProperty("runtimeOptions").GetProperty("configProperties");
 
         Assert.True(
             properties.TryGetProperty(HotReloadSwitch, out JsonElement reload),
-            $"'{HotReloadSwitch}' is no longer set in '{ConfigFile}' under '{Measured.Root}'. T12 measured " +
-            "MetadataUpdateVersion staying at 0 and GetUpdatedMethodTokens staying empty across a replace and a " +
-            "revert, with this switch pinned false. Whether that result still describes the runtime depends on " +
-            "what the effective value is now.");
+            $"'{HotReloadSwitch}' is no longer set in '{ConfigFile}' under '{Measured.Root}'. With it unset the " +
+            "stock metadata updater can install a body of its own, outside the transformer pipeline, and the " +
+            "effective value decides whether that can happen here.");
 
         Assert.True(
             reload.ValueKind == JsonValueKind.False,
-            $"'{HotReloadSwitch}' is now '{reload}' in '{ConfigFile}' under '{Measured.Root}', not false. T12's " +
-            "result, that replacing a body leaves MetadataUpdateVersion at 0 and GetUpdatedMethodTokens empty, " +
-            "was measured with the stock metadata updater switched off. With it on there is a second writer " +
-            "into the same counters, so 'the counter did not move' stops meaning 'nobody wrote a body'. " +
-            "ForeignPatcherPolicy leans on that reading.");
+            $"'{HotReloadSwitch}' is now '{reload}' in '{ConfigFile}' under '{Measured.Root}', not false. With " +
+            "the stock metadata updater on, a second writer can replace a method body without going through " +
+            "the transformer pipeline. Concord's stage composes against the body the pipeline hands it, so a " +
+            "body installed behind the pipeline is one the stage never sees and never composes over.");
     }
 
     private static HashSet<string> PublicSurface(string corelib) {

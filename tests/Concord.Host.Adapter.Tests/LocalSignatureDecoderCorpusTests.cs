@@ -75,12 +75,7 @@ public class LocalSignatureDecoderCorpusTests {
         }
 
         tally.Signatures++;
-        ComposedLocal[]? decoded = LocalSignatureDecoder.Decode(
-            signature,
-            method.Module,
-            Arguments(method.DeclaringType),
-            Arguments(method as MethodInfo),
-            out string? refusal);
+        ComposedLocal[]? decoded = LocalSignatureDecoder.Decode(signature, method, out string? refusal);
 
         if (decoded is null) {
             tally.Refused++;
@@ -114,14 +109,6 @@ public class LocalSignatureDecoderCorpusTests {
             tally.Note($"{Describe(method)} slot {slot}: decoded '{decoded[slot].Type}', the runtime reports '{expected[slot]}'");
             return;
         }
-    }
-
-    private static Type[]? Arguments(Type? declaring) {
-        return declaring?.IsGenericType == true ? declaring.GetGenericArguments() : null;
-    }
-
-    private static Type[]? Arguments(MethodInfo? method) {
-        return method?.IsGenericMethodDefinition == true ? method.GetGenericArguments() : null;
     }
 
     private static string Describe(MethodBase method) {

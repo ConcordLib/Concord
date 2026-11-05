@@ -12,18 +12,8 @@ public static class EndOfBodyFinallyProbe {
     }
 }
 
-// Probes the technique a Concord.Harmony rewrite depends on for importing a caller's own
-// transpiler stream: Harmony places EndExceptionBlock on a handler's LAST instruction
-// (HarmonyLib.MethodBodyReader.ParseExceptions does GetInstruction(HandlerOffset + HandlerLength
-// - 1, isEndOfInstruction: true)), while Concord places it on the instruction AFTER the region
-// (CecilCodeConverter.AttachExceptionBlocks). A caller building a stream from scratch also has no
-// way to express "this handler runs to the literal end of the body" the way
-// TranspilerContext.EndOfBodyBlocks does internally, since that set is keyed on ExceptionBlock
-// object identity minted by CecilCodeConverter.ToInstructions itself.
-//
-// The technique under test: append one sacrificial Nop to the imported stream so every End
-// marker has an i+1 instruction to shift onto, shift every marker forward by one, compose, then
-// strip the filler back out on the way back. Entirely bridge-local - no production code touched.
+// An imported stream ends a handler on its last instruction, Concord ends it on the one after
+// the region. One filler Nop gives every end marker an i+1 to shift onto, and is stripped back.
 public sealed class HarmonyStyleExceptionRegionTests {
     [Fact]
     public void MidBodyCatch_HarmonyEndPlacement_ShiftsOntoNextInstructionAndExecutes() {
@@ -74,7 +64,7 @@ public sealed class HarmonyStyleExceptionRegionTests {
         Assert.Equal(-1, generated.Invoke(null, [0]));
     }
 
-    // The interesting case: MonoMod's own DynamicMethodDefinition.Generate() cannot even JIT a
+    // The interesting case: ScratchMethod.Generate() cannot even JIT a
     // body whose HandlerEnd is genuinely null (see
     // CecilCodeConverterRoundTripTests.RoundTrip_HandlerRunsToEndOfBody_PreservesNullHandlerEnd),
     // so faithfully reproducing "runs to end of body" would be a dead end regardless of whether a

@@ -1,8 +1,10 @@
 using System.Reflection.Emit;
+using Concord.Detour;
 using Xunit;
 
 namespace Concord.Host.Adapter.Tests;
 
+[Collection("AdapterStatics")]
 public sealed class OutsideCtorProbe {
     [Fact]
     public void ABackendOutsideConcordCanConstructAComposedBody() {
@@ -33,6 +35,10 @@ public sealed class OutsideCtorProbe {
         Patcher.UseLocalNameResolver(_ => "/nowhere");
         Patcher.UseLocalNameResolver(null);
 
-        Assert.True(Patcher.PatchedTargetCount >= 0);
+        IDetourBackend? before = AmbientSwitches.InstalledBackend();
+        DetourBackend.Current = new StandInBackend();
+        Assert.Equal(0, Patcher.PatchedTargetCount);
+        Assert.Empty(Patcher.OwnersOf(typeof(OutsideCtorProbe).GetMethod(nameof(ABackendOutsideConcordCanConstructAComposedBody))!));
+        AmbientSwitches.RestoreBackend(before);
     }
 }

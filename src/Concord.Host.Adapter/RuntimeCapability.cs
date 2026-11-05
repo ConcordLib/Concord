@@ -4,12 +4,18 @@ using System.Runtime.InteropServices;
 namespace Concord.Host.Adapter;
 
 /// <summary>
-///     What the probe found when it asked this runtime whether a method body can be replaced in place. Every
-///     value but <see cref="Available" /> is a reason for the caller to keep the detour backend.
+///     What the probe found when it asked this runtime whether a method body can be replaced in place. A
+///     verdict <see cref="RuntimeCapability.Stages" /> rejects means Concord installs nothing.
 /// </summary>
 public enum BodyReplacement {
     /// <summary>The api is present and enabled and the token minter bound, so composed bodies can be written.</summary>
     Available,
+
+    /// <summary>
+    ///     Everything <see cref="Available" /> reports, and the transformer pipeline is here too, so a
+    ///     composed body can be staged instead of written straight over the target.
+    /// </summary>
+    PipelineAvailable,
 
     /// <summary>
     ///     The updater type is not on this runtime. Ordinary on a stock runtime, not a fault: body replacement
@@ -18,8 +24,8 @@ public enum BodyReplacement {
     ApiAbsent,
 
     /// <summary>
-    ///     The type exists but does not carry the members this backend was built against, so nothing is
-    ///     attempted through it.
+    ///     The type exists but does not carry the members this backend was compiled against, so nothing is
+    ///     attempted through it. The detail is in <see cref="RuntimeCapability.ProbeFailure" />.
     /// </summary>
     ApiUnrecognized,
 
@@ -50,6 +56,9 @@ public static class RuntimeCapability {
     /// <summary>The assembly-qualified name of the runtime type this backend binds to.</summary>
     public const string UpdaterTypeName = "WaylithClr.MethodBodyUpdater, System.Private.CoreLib";
 
+    /// <summary>The assembly-qualified name of the transformer pipeline a staged body is published through.</summary>
+    public const string TransformerTypeName = "WaylithClr.MethodBodyTransformer, System.Private.CoreLib";
+
     /// <summary>The runtime config key that turns IL access checks off. RimWorld 1.7 ships it enabled.</summary>
     public const string AccessCheckKey = "WaylithClr.SkipAccessChecks";
 
@@ -58,16 +67,11 @@ public static class RuntimeCapability {
 
     private const string SupportFlag = "IsSupported";
 
-    private const string ReplaceEntry = "ReplaceMethodBody";
-
-    private const string RevertEntry = "Revert";
-
     private const string RuntimeSwitch = "DOTNET_MethodBodyUpdater";
 
     private const int MethodSpecTable = 0x2B;
 
-    private static readonly (BodyReplacement Support, string? Failure) Once =
-        Probe(Updater(), ForkMinter.IsAvailable);
+    private static readonly (BodyReplacement Support, string? Failure) Once = ProbeThisRuntime();
 
     private static readonly bool SkipsOnce = SkipsAccessChecks(
         AppContext.GetData(AccessCheckKey),
@@ -80,7 +84,7 @@ public static class RuntimeCapability {
 
     /// <summary>
     ///     The exception type and message captured while probing, <see langword="null" /> when nothing threw.
-    ///     Only <see cref="BodyReplacement.ProbeFailed" /> carries one.
+    ///     Only <see cref="BodyReplacement.ProbeFailed" /> and <see cref="BodyReplacement.ApiUnrecognized" /> carry one.
     /// </summary>
     public static string? ProbeFailure => Once.Failure;
 
@@ -88,7 +92,13 @@ public static class RuntimeCapability {
     ///     <see langword="true" /> only when bodies can be replaced here. It is <see langword="false" /> on a
     ///     stock runtime, which is expected rather than an error.
     /// </summary>
-    public static bool IsAvailable => Support == BodyReplacement.Available;
+    public static bool IsAvailable => Replaces(Support);
+
+    /// <summary>
+    ///     <see langword="true" /> when this runtime also carries the transformer pipeline, so a composed body
+    ///     can be staged rather than written straight over the target.
+    /// </summary>
+    public static bool HasPipeline => Stages(Support);
 
     /// <summary>
     ///     <see langword="true" /> when this runtime has IL access checks switched off, so a body replaced in
@@ -104,6 +114,20 @@ public static class RuntimeCapability {
 
     /// <summary>This runtime's own description, as it appears in every message this type produces.</summary>
     public static string Runtime => RuntimeInformation.FrameworkDescription;
+
+    /// <summary>Whether a verdict means a body can be replaced at all, however it gets published.</summary>
+    /// <param name="support">The verdict to read.</param>
+    /// <returns><see langword="true" /> for the two available verdicts and <see langword="false" /> for every refusal.</returns>
+    public static bool Replaces(BodyReplacement support) {
+        return support is BodyReplacement.Available or BodyReplacement.PipelineAvailable;
+    }
+
+    /// <summary>Whether a verdict means a composed body can be staged, which is the only way Concord publishes one.</summary>
+    /// <param name="support">The verdict to read.</param>
+    /// <returns><see langword="true" /> only for <see cref="BodyReplacement.PipelineAvailable" />.</returns>
+    public static bool Stages(BodyReplacement support) {
+        return support == BodyReplacement.PipelineAvailable;
+    }
 
     /// <summary>
     ///     Judges whether access checks are off. The pure form behind <see cref="IgnoresAccessChecks" />, so a
@@ -137,38 +161,45 @@ public static class RuntimeCapability {
     }
 
     /// <summary>
-    ///     Judges a candidate updater type. The pure form behind <see cref="Support" />, so a caller can pass
-    ///     a stand-in type to see what verdict a given api shape produces.
+    ///     Judges a runtime from what the probe read off it. The pure form behind <see cref="Support" />, so a
+    ///     caller can pass stand-in answers to see what verdict a runtime shape produces.
     /// </summary>
-    /// <param name="updater">The type to judge, or <see langword="null" /> to report the api absent.</param>
+    /// <param name="supported">The updater's support flag, or <see langword="null" /> to report the api absent.</param>
     /// <param name="mintingBound">Whether the token entry points bound, normally <see cref="ForkMinter.IsAvailable" />.</param>
-    /// <returns>The verdict, plus the exception detail when the probe threw and <see langword="null" /> otherwise.</returns>
-    public static (BodyReplacement Support, string? Failure) Probe(Type? updater, bool mintingBound) {
-        if (updater is null) {
+    /// <param name="pipeline">Whether the transformer pipeline type is present on this runtime.</param>
+    /// <returns>The verdict, with no failure detail: nothing on this path throws.</returns>
+    public static (BodyReplacement Support, string? Failure) Probe(bool? supported, bool mintingBound, bool pipeline) {
+        if (supported is not bool flag) {
             return (BodyReplacement.ApiAbsent, null);
         }
 
-        object? flag;
-        try {
-            flag = updater.GetProperty(SupportFlag, BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
-        } catch (Exception thrown) {
-            Exception cause = (thrown as TargetInvocationException)?.InnerException ?? thrown;
-            return (BodyReplacement.ProbeFailed, cause.GetType().Name + ": " + cause.Message);
-        }
-
-        if (flag is not bool supported) {
-            return (BodyReplacement.ApiUnrecognized, null);
-        }
-
-        if (!supported) {
+        if (!flag) {
             return (BodyReplacement.DisabledByRuntime, null);
         }
 
-        if (!Declares(updater, ReplaceEntry) || !Declares(updater, RevertEntry)) {
-            return (BodyReplacement.ApiUnrecognized, null);
+        if (!mintingBound) {
+            return (BodyReplacement.MintingAbsent, null);
         }
 
-        return (mintingBound ? BodyReplacement.Available : BodyReplacement.MintingAbsent, null);
+        return (pipeline ? BodyReplacement.PipelineAvailable : BodyReplacement.Available, null);
+    }
+
+    /// <summary>
+    ///     Judges a throw that came out of the probe. The pure form behind <see cref="Support" />, so a caller
+    ///     can pass a stand-in exception to see which refusal it lands on.
+    /// </summary>
+    /// <param name="thrown">What reading the updater threw.</param>
+    /// <returns><see cref="BodyReplacement.ApiUnrecognized" /> when a member it was compiled against is gone, <see cref="BodyReplacement.ProbeFailed" /> otherwise.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="thrown" /> is <see langword="null" />.</exception>
+    public static (BodyReplacement Support, string? Failure) Refused(Exception thrown) {
+        ArgumentNullException.ThrowIfNull(thrown);
+
+        Exception cause = (thrown as TargetInvocationException)?.InnerException ?? thrown;
+        BodyReplacement support = cause is MissingMemberException
+            ? BodyReplacement.ApiUnrecognized
+            : BodyReplacement.ProbeFailed;
+
+        return (support, cause.GetType().Name + ": " + cause.Message);
     }
 
     /// <summary>Explains a verdict held without a probe failure detail.</summary>
@@ -181,7 +212,7 @@ public static class RuntimeCapability {
 
     /// <summary>Explains a verdict, folding in the detail captured when the probe threw.</summary>
     /// <param name="support">The verdict to explain.</param>
-    /// <param name="failure">The probe failure detail, read only for <see cref="BodyReplacement.ProbeFailed" />.</param>
+    /// <param name="failure">The probe detail, read only for the two verdicts that carry one.</param>
     /// <returns>A log-ready sentence naming the api, this runtime, and what the verdict costs the caller.</returns>
     /// <exception cref="NotSupportedException">The verdict is not a declared <see cref="BodyReplacement" /> value.</exception>
     public static string Explain(BodyReplacement support, string? failure) {
@@ -193,23 +224,25 @@ public static class RuntimeCapability {
     ///     <see cref="Explain(BodyReplacement, string?)" />, so a caller can pass a stand-in verdict.
     /// </summary>
     /// <param name="support">The verdict to explain.</param>
-    /// <param name="failure">The probe failure detail, read only for <see cref="BodyReplacement.ProbeFailed" />.</param>
+    /// <param name="failure">The probe detail, read only for the two verdicts that carry one.</param>
     /// <param name="mintsMethodSpecs">Whether a generic method operand can be named here, normally <see cref="MintsMethodSpecs" />.</param>
     /// <returns>A log-ready sentence naming the api, this runtime, and what the verdict costs the caller.</returns>
     /// <exception cref="NotSupportedException">The verdict is not a declared <see cref="BodyReplacement" /> value.</exception>
     public static string Explain(BodyReplacement support, string? failure, bool mintsMethodSpecs) {
         return support switch {
             BodyReplacement.Available =>
-                $"'{UpdaterTypeName}' reports {SupportFlag} on '{Runtime}', and it "
-                + (mintsMethodSpecs
-                    ? "mints a usable MethodSpec, so a body may name a generic method"
-                    : "mints a malformed MethodSpec, so a target whose body names a generic method stays on the "
-                      + "detour backend"),
+                $"'{UpdaterTypeName}' reports {SupportFlag} on '{Runtime}' but '{TransformerTypeName}' is not " +
+                "there, and a composed body is only ever staged through that pipeline, so nothing is installed " +
+                "and it " + Mints(mintsMethodSpecs),
+            BodyReplacement.PipelineAvailable =>
+                $"'{UpdaterTypeName}' reports {SupportFlag} on '{Runtime}' and '{TransformerTypeName}' is there " +
+                "too, so a composed body can be staged through the transformer pipeline, and it " +
+                Mints(mintsMethodSpecs),
             BodyReplacement.ApiAbsent =>
                 $"'{UpdaterTypeName}' is not present on '{Runtime}', so method bodies cannot be replaced here",
             BodyReplacement.ApiUnrecognized =>
-                $"'{UpdaterTypeName}' is present on '{Runtime}' but does not expose a static bool {SupportFlag} " +
-                $"plus {ReplaceEntry} and {RevertEntry}, so this is not the api this backend was built against",
+                $"'{UpdaterTypeName}' is present on '{Runtime}' but a member this backend was compiled against " +
+                "is not, so this is not the api it was built for: " + (failure ?? "no detail was captured"),
             BodyReplacement.DisabledByRuntime =>
                 $"'{UpdaterTypeName}'.{SupportFlag} is false on '{Runtime}', which is what {RuntimeSwitch}=0 does. " +
                 "The runtime's own switch turns body replacement off, so the backend stays off with it",
@@ -250,6 +283,41 @@ public static class RuntimeCapability {
         }
     }
 
+    private static string Mints(bool mintsMethodSpecs) {
+        return mintsMethodSpecs
+            ? "mints a usable MethodSpec, so a body may name a generic method"
+            : "mints a malformed MethodSpec, so a target whose body names a generic method is refused";
+    }
+
+    private static (BodyReplacement Support, string? Failure) ProbeThisRuntime() {
+        if (Updater() is null) {
+            return Probe(null, false, false);
+        }
+
+        try {
+            bool supported = ForkApi.Supported();
+            if (!PipelinePresent()) {
+                return Probe(supported, ForkMinter.IsAvailable, false);
+            }
+
+            if (ForkApi.MissingStageMember() is string missing) {
+                return (BodyReplacement.ApiUnrecognized, "'" + missing + "' is not present on this runtime");
+            }
+
+            return Probe(supported, ForkMinter.IsAvailable, true);
+        } catch (Exception thrown) when (thrown is not OutOfMemoryException) {
+            return Refused(thrown);
+        }
+    }
+
+    private static bool PipelinePresent() {
+        try {
+            return ForkApi.Pipeline() is not null;
+        } catch (Exception thrown) when (thrown is not OutOfMemoryException) {
+            return false;
+        }
+    }
+
     private static bool ProbeMethodSpecs() {
         return ForkMinter.IsAvailable && MintsMethodSpecsThrough(Mint);
     }
@@ -264,15 +332,5 @@ public static class RuntimeCapability {
 
     private static T Generic<T>(T value) {
         return value;
-    }
-
-    private static bool Declares(Type updater, string entry) {
-        foreach (MethodInfo method in updater.GetMethods(BindingFlags.Public | BindingFlags.Static)) {
-            if (method.Name == entry) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

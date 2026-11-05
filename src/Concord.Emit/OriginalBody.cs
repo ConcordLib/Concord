@@ -1,5 +1,4 @@
 using System.Reflection;
-using MonoMod.Utils;
 
 namespace Concord.Emit;
 
@@ -37,7 +36,11 @@ public static class OriginalBody {
     ///     the first delegate argument.
     /// </returns>
     public static MethodInfo Clone(MethodBase original) {
-        using DynamicMethodDefinition dmd = BodyReader.OpenOriginal(original);
-        return dmd.Generate();
+        using ScratchMethod scratch = BodyReader.OpenOriginal(original);
+        if (original.DeclaringType is { } declaring) {
+            BodyCopier.RewriteExecutingAssembly(scratch.Definition.Body, declaring);
+        }
+
+        return scratch.Generate();
     }
 }

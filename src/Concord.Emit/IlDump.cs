@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Text;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using MethodBody = Mono.Cecil.Cil.MethodBody;
 
 namespace Concord.Emit;
@@ -250,7 +249,7 @@ internal static class IlDump {
                 continue;
             }
 
-            string scope = reference.Scope is AssemblyNameReference asmRef ? asmRef.GetRuntimeHashedFullName() : reference.Scope?.Name ?? "?";
+            string scope = reference.Scope is AssemblyNameReference asmRef ? asmRef.FullName : reference.Scope?.Name ?? "?";
             string row = "      " + reference.FullName + " ref=" + scope + " -> hash=" + assembly.GetHashCode() + "\n";
             if (printed.Add(row)) {
                 sb.Append(row);

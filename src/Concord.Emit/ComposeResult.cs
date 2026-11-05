@@ -8,16 +8,18 @@ namespace Concord.Emit;
 ///     Contains the wrapper and original-body callable produced by <see cref="WrapperComposer" />.
 /// </summary>
 public sealed class ComposeResult {
+    private readonly Func<MethodInfo> wrapper;
     private readonly Func<MethodInfo> originalBody;
+    private MethodInfo? cachedWrapper;
     private MethodInfo? cachedOriginalBody;
 
     internal ComposeResult(
-        MethodInfo wrapper,
+        Func<MethodInfo> wrapper,
         Func<MethodInfo> originalBody,
         IReadOnlyList<RejectedInjection> rejected,
         ComposedBody? body = null,
         string? bodyRejection = null) {
-        Wrapper = wrapper;
+        this.wrapper = wrapper;
         this.originalBody = originalBody;
         Rejected = rejected;
         Body = body;
@@ -25,9 +27,10 @@ public sealed class ComposeResult {
     }
 
     /// <summary>
-    ///     The composed wrapper method that should be applied as the detour replacement.
+    ///     The composed wrapper method that should be applied as the detour replacement. Generated on first
+    ///     read: a backend that encodes <see cref="Body" /> itself never needs the DynamicMethod.
     /// </summary>
-    public MethodInfo Wrapper { get; }
+    public MethodInfo Wrapper => cachedWrapper ??= wrapper();
 
     /// <summary>
     ///     The injections composition dropped to keep the rest of the target working, each with the

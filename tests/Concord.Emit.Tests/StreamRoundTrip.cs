@@ -1,5 +1,4 @@
 using System.Reflection;
-using MonoMod.Utils;
 
 namespace Concord.Emit.Tests;
 
@@ -8,7 +7,7 @@ public static class StreamRoundTrip {
         MethodBase resolved = WrapperComposer.ResolveStateMachineTarget(shapedLike);
         Type returnType = WrapperComposer.ResolveReturnType(resolved);
         Type[] parameterTypes = WrapperComposer.ResolveParameterTypes(resolved);
-        using DynamicMethodDefinition wrapper = new DynamicMethodDefinition("streamroundtrip_" + resolved.Name, returnType, parameterTypes);
+        using ScratchMethod wrapper = new ScratchMethod("streamroundtrip_" + resolved.Name, returnType, parameterTypes, resolved);
         TranspilerContext context = new TranspilerContext(resolved);
         DeclareReferencedLocals(instructions, context);
         CecilCodeConverter.WriteBack(wrapper.Definition, instructions, context);

@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using MonoMod.Utils;
 
 namespace Concord.BodyReader.Probe;
 
@@ -66,14 +65,6 @@ public static class Program {
                 return Params(target);
             case "cecil":
                 return Cecil(target);
-            case "dmdctor":
-                return "constructed, not disposed: " + new DynamicMethodDefinition(target).GetType().Name;
-            case "dmd":
-                return Dmd(target);
-            case "dmddef":
-                return DmdDefinition(target);
-            case "dmdgen":
-                return DmdGenerate(target);
             case "sig":
                 return Signature(target);
             case "sigkind":
@@ -178,23 +169,6 @@ public static class Program {
         return parts.Count + " locals [" + string.Join(", ", parts.ToArray()) + "]";
     }
 
-    private static string Dmd(MethodBase target) {
-        using DynamicMethodDefinition dmd = new DynamicMethodDefinition(target);
-        return "constructed " + dmd.GetType().Name;
-    }
-
-    private static string DmdDefinition(MethodBase target) {
-        using DynamicMethodDefinition dmd = new DynamicMethodDefinition(target);
-        Mono.Cecil.Cil.MethodBody body = dmd.Definition.Body;
-        return body.Instructions.Count + " instructions, " + body.Variables.Count + " locals";
-    }
-
-    private static string DmdGenerate(MethodBase target) {
-        using DynamicMethodDefinition dmd = new DynamicMethodDefinition(target);
-        MethodInfo generated = dmd.Generate();
-        return "generated " + generated.Name;
-    }
-
     private static string Signature(MethodBase target) {
         MethodBody? body = target.GetMethodBody();
         if (body is null) {
@@ -238,10 +212,7 @@ public static class Program {
     }
 
     private static string Kind(Type type) {
-        string flags = string.Empty;
-#if NET
-        flags = " isFnPtr=" + type.IsFunctionPointer;
-#endif
+        string flags = " isFnPtr=" + type.IsFunctionPointer;
         return "name='" + type.Name + "' full='" + (type.FullName ?? "<null>") + "' elem=" + type.HasElementType + flags;
     }
 

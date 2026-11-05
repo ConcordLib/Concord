@@ -16,6 +16,8 @@ public static class Adapter {
 
     private static readonly Type Backend = Assembly?.GetType("Concord.Host.Adapter.WaylithDetourBackend");
 
+    private static readonly Type DetourBackend = Find("Concord.Detour")?.GetType("Concord.Detour.DetourBackend");
+
     public static bool Present => Assembly != null;
 
     public static string Identity() {
@@ -53,7 +55,7 @@ public static class Adapter {
             return "property-missing";
         }
 
-        return (bool)waylith.GetValue(current) ? "body-replacement" : "native-detour";
+        return (bool)waylith.GetValue(current) ? "body-replacement" : "refused";
     }
 
     public static string SelectionReason() {
@@ -124,33 +126,30 @@ public static class Adapter {
         }
     }
 
-    public static string PublishedBytes(MethodBase target) {
-        if (Backend == null) {
+    public static string OwnsBody(MethodBase target) {
+        if (DetourBackend == null) {
             return "adapter-absent";
         }
 
         try {
-            object writers = Backend.GetProperty("Writers", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
-            if (writers == null) {
-                return "no-registry";
-            }
-
-            MethodInfo recordFor = writers.GetType().GetMethod("RecordFor", BindingFlags.Public | BindingFlags.Instance);
-            if (recordFor == null) {
+            MethodInfo tryGetCurrent = DetourBackend.GetMethod("TryGetCurrent", BindingFlags.Public | BindingFlags.Static);
+            if (tryGetCurrent == null) {
                 return "method-missing";
             }
 
-            object record = recordFor.Invoke(writers, new object[] { target });
-            if (record == null) {
-                return "-1";
+            object[] args = new object[] { null };
+            bool installed = (bool)tryGetCurrent.Invoke(null, args);
+            if (!installed) {
+                return "not-installed";
             }
 
-            PropertyInfo length = record.GetType().GetProperty("BodyLength");
-            if (length == null) {
-                return "property-missing";
+            object backend = args[0];
+            MethodInfo ownsBody = backend.GetType().GetMethod("OwnsBody", BindingFlags.Public | BindingFlags.Instance);
+            if (ownsBody == null) {
+                return "method-missing";
             }
 
-            return Convert.ToString(length.GetValue(record), CultureInfo.InvariantCulture);
+            return (bool)ownsBody.Invoke(backend, new object[] { target }) ? "true" : "false";
         } catch (Exception thrown) {
             return "THREW " + Cause(thrown).GetType().Name;
         }

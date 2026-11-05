@@ -168,13 +168,7 @@ public sealed class IlDumpStackCountTests {
     private static Dictionary<StackBehaviour, OpCode> OneOpcodePerPopBehaviour() {
         Dictionary<StackBehaviour, OpCode> map = new Dictionary<StackBehaviour, OpCode>();
         foreach (OpCode opcode in AllOpCodes()) {
-#if NET472
-            if (!map.ContainsKey(opcode.StackBehaviourPop)) {
-                map.Add(opcode.StackBehaviourPop, opcode);
-            }
-#else
             map.TryAdd(opcode.StackBehaviourPop, opcode);
-#endif
         }
 
         return map;
@@ -183,13 +177,7 @@ public sealed class IlDumpStackCountTests {
     private static Dictionary<StackBehaviour, OpCode> OneOpcodePerPushBehaviour() {
         Dictionary<StackBehaviour, OpCode> map = new Dictionary<StackBehaviour, OpCode>();
         foreach (OpCode opcode in AllOpCodes()) {
-#if NET472
-            if (!map.ContainsKey(opcode.StackBehaviourPush)) {
-                map.Add(opcode.StackBehaviourPush, opcode);
-            }
-#else
             map.TryAdd(opcode.StackBehaviourPush, opcode);
-#endif
         }
 
         return map;

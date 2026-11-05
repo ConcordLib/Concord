@@ -53,12 +53,7 @@ public sealed class DeclaredMethodBody : MethodBody {
     }
 
     internal static DeclaredMethodBody Build(MethodBase method, HostBody read, ComposedLocal[] decoded) {
-        Type[]? typeArguments = method.DeclaringType is { IsGenericType: true } declaring
-            ? declaring.GetGenericArguments()
-            : null;
-        Type[]? methodArguments = method is MethodInfo { IsGenericMethod: true } generic
-            ? generic.GetGenericArguments()
-            : null;
+        (Type[]? typeArguments, Type[]? methodArguments) = LocalSignatureDecoder.GenericContext(method);
 
         LocalVariableInfo[] locals = new LocalVariableInfo[decoded.Length];
         for (int i = 0; i < decoded.Length; i++) {

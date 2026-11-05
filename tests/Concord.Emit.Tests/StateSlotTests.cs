@@ -1,6 +1,5 @@
 using System.Reflection;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using Xunit;
 
 namespace Concord.Emit.Tests;
@@ -89,7 +88,7 @@ public static class SlotAroundDeclaration {
 
 public sealed class StateSlotTests {
     private static Instruction FindControlCall(MethodBase method) {
-        using DynamicMethodDefinition source = new DynamicMethodDefinition(method);
+        using ScratchMethod source = BodyReader.Open(method);
         foreach (Instruction instruction in source.Definition.Body.Instructions) {
             if (ControlHandleLowering.ClassifyCall(instruction) != ControlHandleLowering.ControlCallKind.None) {
                 return instruction;

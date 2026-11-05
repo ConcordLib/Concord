@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Concord.Detour;
 using Concord.Emit;
 using Concord.Orchestration.Tests.RollbackAssembly;
 using Xunit;
@@ -97,31 +98,44 @@ public static class PatcherReturnInjectionMethod {
 }
 
 [Collection(SharedAssemblyApplyCollection.Name)]
-public sealed class PatcherTests {
+public sealed class PatcherTests : IDisposable {
+    private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
+
+    public PatcherTests() {
+        DetourBackend.Current = backend;
+    }
+
+    public void Dispose() {
+        DetourBackend.Reset();
+    }
+
     [Fact]
-    public void Apply_AppliesDetour_ChangesReturnValue_DisposeReverts() {
-        Assert.Equal(1, PatcherApplyTarget.Compute());
+    public void Apply_AppliesEveryDeclaredInjection_DisposeRemovesThem() {
+        MethodBase target = typeof(PatcherApplyTarget).GetMethod(nameof(PatcherApplyTarget.Compute))!;
 
         IPatchHandle handle = Patcher.Apply(typeof(PatcherApplyDeclaration).Assembly);
         try {
             Assert.True(handle.IsApplied);
             Assert.NotEmpty(handle.Detours);
-            Assert.Equal(42, PatcherApplyTarget.Compute());
+            Assert.Equal([typeof(PatcherApplyDeclaration).FullName!], backend.OwnersOf(target));
         } finally {
             handle.Dispose();
         }
 
         Assert.False(handle.IsApplied);
-        Assert.Equal(1, PatcherApplyTarget.Compute());
+        Assert.Empty(backend.OwnersOf(target));
     }
 
     [Fact]
     public void Apply_Twice_SameAssembly_ReturnsSameHandle_NoDoubleApply() {
         IPatchHandle first = Patcher.Apply(typeof(PatcherApplyDeclaration).Assembly);
         try {
+            int appliedOnce = backend.Applied.Count;
+
             IPatchHandle second = Patcher.Apply(typeof(PatcherApplyDeclaration).Assembly);
+
             Assert.Same(first, second);
-            Assert.Equal(first.Detours.Count, second.Detours.Count);
+            Assert.Equal(appliedOnce, backend.Applied.Count);
         } finally {
             first.Dispose();
         }
@@ -130,53 +144,61 @@ public sealed class PatcherTests {
     [Fact]
     public void Apply_WhenScanThrows_RevertsAlreadyAppliedDetours() {
         Assembly rollbackAssembly = typeof(RollbackGoodTarget).Assembly;
-
-        Assert.Equal(7, RollbackGoodTarget.Compute());
+        MethodBase good = typeof(RollbackGoodTarget).GetMethod(nameof(RollbackGoodTarget.Compute))!;
+        backend.FailOn = (_, injection) =>
+            injection.InjectionMethod.DeclaringType == typeof(RollbackBadDeclaration)
+                ? new ConcordEmitException("CONC012", "cancel without a return value")
+                : null;
 
         Assert.Throws<ConcordEmitException>(() => Patcher.Apply(rollbackAssembly));
 
-        Assert.Equal(7, RollbackGoodTarget.Compute());
+        Assert.Contains(backend.Applied, entry => Equals(entry.Target, good));
+        Assert.Equal(0, backend.PatchedTargetCount);
     }
 
     [Fact]
-    public void Patch_SingleExplicit_ChangesReturnValue_DisposeReverts() {
+    public void Patch_SingleExplicit_ReachesTheBackendAtTheRequestedPosition() {
         MethodBase target = typeof(PatcherImperativeTarget).GetMethod(nameof(PatcherImperativeTarget.Compute))!;
         MethodBase injectionMethod = typeof(PatcherImperativeInjectionMethod).GetMethod(nameof(PatcherImperativeInjectionMethod.OnCompute))!;
 
-        Assert.Equal(1, PatcherImperativeTarget.Compute());
-
         IPatchHandle handle = Patcher.Patch(target, injectionMethod, At.Head);
         try {
-            Assert.Equal(99, PatcherImperativeTarget.Compute());
+            AppliedInjection applied = Assert.Single(backend.Applied);
+
+            Assert.Equal(target, applied.Target);
+            Assert.Equal(injectionMethod, applied.Injection.InjectionMethod);
+            Assert.IsType<InjectAt.Head>(applied.Injection.At);
+            Assert.Equal(typeof(PatcherImperativeInjectionMethod).FullName, applied.Injection.Owner);
         } finally {
             handle.Dispose();
         }
 
-        Assert.Equal(1, PatcherImperativeTarget.Compute());
+        Assert.Empty(backend.OwnersOf(target));
     }
 
     [Fact]
-    public void PatchInjection_ReturnPosition_RootsHandle_ChangesReturnValue_DisposeReverts() {
+    public void PatchInjection_HandsTheInjectionToTheBackendUnchanged() {
         MethodBase target = typeof(PatcherReturnTarget).GetMethod(nameof(PatcherReturnTarget.Compute))!;
         MethodBase injectionMethod = typeof(PatcherReturnInjectionMethod).GetMethod(nameof(PatcherReturnInjectionMethod.OnReturn))!;
         Injection injection = new Injection((MethodInfo)injectionMethod, new InjectAt.Return(0), injectionMethod.DeclaringType!.FullName!, 0);
 
-        Assert.Equal(1, PatcherReturnTarget.Compute());
-
         IPatchHandle handle = Patcher.PatchInjection(target, injection);
         try {
             Assert.True(handle.IsApplied);
-            Assert.Equal(99, PatcherReturnTarget.Compute());
+
+            AppliedInjection applied = Assert.Single(backend.Applied);
+            Assert.Equal(target, applied.Target);
+            Assert.Same(injection, applied.Injection);
         } finally {
             handle.Dispose();
         }
 
-        Assert.Equal(1, PatcherReturnTarget.Compute());
+        Assert.Empty(backend.OwnersOf(target));
     }
 
     [Fact]
     public void Patch_DiscardedHandle_SurvivesGarbageCollection() {
-        Assert.Equal(1, PatcherGcTarget.Compute());
+        MethodBase target = typeof(PatcherGcTarget).GetMethod(nameof(PatcherGcTarget.Compute))!;
 
         ApplyAndDiscard();
 
@@ -185,7 +207,7 @@ public sealed class PatcherTests {
             GC.WaitForPendingFinalizers();
         }
 
-        Assert.Equal(99, PatcherGcTarget.Compute());
+        Assert.Equal([typeof(PatcherGcInjectionMethod).FullName!], backend.OwnersOf(target));
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

@@ -1,7 +1,6 @@
 using System.Reflection;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using ExceptionHandler = Mono.Cecil.Cil.ExceptionHandler;
 using MethodBody = Mono.Cecil.Cil.MethodBody;
 using OpCode = System.Reflection.Emit.OpCode;
@@ -520,7 +519,7 @@ internal static class CecilCodeConverter {
             Label => Instruction.Create(opcode, Instruction.Create(Mono.Cecil.Cil.OpCodes.Nop)),
             Label[] => Instruction.Create(opcode, Array.Empty<Instruction>()),
             LocalRef local => Instruction.Create(opcode, ResolveLocal(local, localsByIndex, source)),
-            CallSiteSignature callSite => Instruction.Create(opcode, (CallSite)callSite.Handle),
+            CallSiteSignature callSite => Instruction.Create(opcode, BuildCallSite(callSite, module)),
             Type type => Instruction.Create(opcode, module.ImportReference(type)),
             FieldInfo field => Instruction.Create(opcode, module.ImportReference(field)),
             ConstructorInfo ctor => Instruction.Create(opcode, module.ImportReference(ctor)),
@@ -536,6 +535,20 @@ internal static class CecilCodeConverter {
             double f64 => CreateRealInstruction(opcode, f64, source),
             _ => throw new ConcordEmitException(CodeConversionFailed, $"Unsupported operand '{source.operand}' of type '{source.operand.GetType()}' for opcode '{source.opcode.Name}'. Supported operands are MethodBase, FieldInfo, Type, Label, LocalBuilder, string, and int/long/float/double literals."),
         };
+    }
+
+    private static CallSite BuildCallSite(CallSiteSignature signature, ModuleDefinition module) {
+        CallSite site = new CallSite(module.ImportReference(signature.ReturnType)) {
+            CallingConvention = (MethodCallingConvention)(int)signature.Convention,
+            HasThis = signature.HasThis,
+            ExplicitThis = signature.ExplicitThis,
+        };
+
+        foreach (Type parameter in signature.Parameters) {
+            site.Parameters.Add(new ParameterDefinition(module.ImportReference(parameter)));
+        }
+
+        return site;
     }
 
     private static Instruction CreateIntegerInstruction(Mono.Cecil.Cil.OpCode opcode, long value, CodeInstruction source) {

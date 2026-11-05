@@ -1,54 +1,70 @@
 # Concord.Host.Adapter
 
-A detour backend that replaces a method's IL body in place.
+Concord's stage in WaylithCLR's method-body transformer pipeline. The pipeline runs
+on the forked CoreLib that RimWorld 1.7 ships on WaylithCLR 10.0.15.
 
-Concord normally patches a method by installing a native detour: the target's entry point jumps to a
-wrapper Concord generated. This backend composes the same wrapper, encodes it as an ECMA-335 method
-body, and asks the runtime to replace the target's body. No wrapper method exists, and the target
-stays itself.
+## What it does
 
-## Requirements
+`ConcordStage` registers with `WaylithClr.MethodBodyTransformer`. It owns no body of
+its own. On a rebuild, the pipeline hands the stage the previous stage's output, or
+the target's default body, and the stage composes the target's live injections on
+top of that input.
 
-The runtime must support managed method-body replacement. Ludeon ships a CoreCLR fork with RimWorld
-1.7 that does. On any other runtime, `RuntimeCapability.IsAvailable` is false and the backend
-declines to install, so Concord keeps its default detour backend. `RuntimeCapability.Explain()`
-returns the reason.
+The composed body becomes the target's own body. A stack trace names the target
+itself. Reflection on the target returns the target. No wrapper method exists
+anywhere in the process.
 
-The adapter has no compile-time reference to the runtime. It resolves the type by name and calls it
-through reflection.
+## When it runs
 
-## Use
+`AdapterEntryPoint.Install` checks `RuntimeCapability.Support` first. That check
+needs `WaylithClr.MethodBodyUpdater.IsSupported` to report true and the
+`WaylithClr.MethodBodyTransformer` type to be present. If either is missing,
+`Install` refuses with one `[Concord.Waylith]` line and does nothing else. No
+backend is installed, so `DetourBackend.Current` throws and nothing Concord is
+asked to patch gets patched.
 
-Call the entry point from your mod's constructor, before applying patches:
+## Priority
 
-```csharp
-Selection choice = AdapterEntryPoint.Install(log: null, setting: null, assemblyDirectories: null);
-```
+`ConcordStage` runs at priority `-1000`, the lowest in the pipeline. Stages run in
+ascending priority order, so this guarantees Concord sees the target's default body
+on every rebuild. A stage that ran after some other transformer would see that
+transformer's output instead, and Concord's injections anchor into offsets of the
+target's own IL, not into whatever another stage reshaped it into.
 
-`Install` returns a `Selection` that says whether the backend took over and which input decided it.
-Pass `setting: false` to decline in code.
+## A failed transform
 
-The `CONCORD_WAYLITH_BACKEND` environment variable overrides that setting. It accepts `1`, `true`,
-`on`, `yes` or `enabled`, and `0`, `false`, `off`, `no` or `disabled`. Unreadable text is ignored
-with a warning.
+A compose, encode, or write failure inside the stage throws. The pipeline reports the
+failure back through `Rebuild`. The adapter logs one line under the
+`[Concord.Waylith]` marker, and every handle on that target reports `IsApplied` as
+`false`. Nothing else in the process breaks. The target keeps running its last good
+body, or its original body if it never had one, and the next change to its injection
+set tries the transform again.
 
-## What it gives you
+## Compiling
 
-A replaced body keeps the target's identity, so a stack trace names the real method, reflection on
-the target returns the target, and nothing in the process sees a trampoline. Harmony patches applied
-after a body replacement still work, because the entry point was never redirected.
+The adapter compiles against WaylithCLR's own framework assemblies, imported through
+`build/Fork.targets`. Point `-p:ForkRuntimeDir=<path>` at a runtime layout, or let it
+default to `/home/aaron/.cache/waylith-earlybuild`, the early build used today. A
+gamecrate-built RimWorld image will supply that directory later, once gamecrate's
+`refs` command stops dropping the fork's framework DLLs.
 
-## Tests
+`ForkApi` is the one class in this assembly that names a WaylithClr type directly.
+Every member on it carries `[MethodImpl(MethodImplOptions.NoInlining)]`, so a stock
+runtime never JITs a call into a type it does not have.
 
-`Concord.Host.Adapter.Tests` runs anywhere and is part of the solution.
+## Running the tests
 
-`Concord.Host.Adapter.ForkTests` needs a RimWorld 1.7 install and is deliberately outside both
-solution files. Run it by path:
+Fork facts need the fork runtime and run as a console app:
 
 ```bash
-dotnet build tests/Concord.Host.Adapter.ForkTests -p:ForkRuntimeDir=<install>
-./tests/Concord.Host.Adapter.ForkTests/bin/Debug/net10.0/linux-x64/Concord.Host.Adapter.ForkTests
+dotnet run --project tests/Concord.Host.Adapter.ForkTests/Concord.Host.Adapter.ForkTests.csproj -c Release -f net10.0 [-- -class <fqn>]
 ```
 
-Without that install the build fails on purpose. Off-runtime the facts would report as skipped and
-nothing would say so.
+The runner prints the runtime it ran on, `10.0.15-waylithclr.dev` today.
+
+Unit tests run on stock .NET 10, through the xunit console runner:
+
+```bash
+cd tests/Concord.Host.Adapter.Tests/bin/Release/net10.0
+DOTNET_ROLL_FORWARD=LatestMajor dotnet ~/.nuget/packages/xunit.runner.console/2.9.3/tools/net6.0/xunit.console.dll Concord.Host.Adapter.Tests.dll -parallel none -nologo
+```

@@ -38,7 +38,17 @@ public static class IsolationIntTailInjection {
     }
 }
 
-public class GenericInstantiationIsolationTests {
+public class GenericInstantiationIsolationTests : IDisposable {
+    private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
+
+    public GenericInstantiationIsolationTests() {
+        Concord.Detour.DetourBackend.Current = backend;
+    }
+
+    public void Dispose() {
+        Concord.Detour.DetourBackend.Reset();
+    }
+
     [Fact]
     public void Tail_RefTypeInstanceInstantiation_IsRejected() {
         MethodInfo injectionMethod = typeof(IsolationStringTailInjection).GetMethod(nameof(IsolationStringTailInjection.AfterGet))!;
@@ -67,23 +77,18 @@ public class GenericInstantiationIsolationTests {
     }
 
     [Fact]
-    public void Tail_ValueTypeInstantiation_IsAllowed_AndDoesNotLeakToOtherValueTypes() {
-        Assert.Equal(5, new IsolationBox<int>(5).Get());
-        Assert.Equal(7L, new IsolationBox<long>(7L).Get());
-
+    public void Tail_ValueTypeInstantiation_IsAllowed() {
         MethodInfo injectionMethod = typeof(IsolationIntTailInjection).GetMethod(nameof(IsolationIntTailInjection.AfterGet))!;
 
         IPatchHandle handle = Patcher.For<IsolationBox<int>>(nameof(IsolationBox<int>.Get))
             .Tail(injectionMethod)
             .Apply();
         try {
-            Assert.Equal(99, new IsolationBox<int>(5).Get());
-            Assert.Equal(7L, new IsolationBox<long>(7L).Get());
+            Assert.Equal(
+                typeof(IsolationBox<int>).GetMethod(nameof(IsolationBox<int>.Get)),
+                Assert.Single(backend.Applied).Target);
         } finally {
             handle.Dispose();
         }
-
-        Assert.Equal(5, new IsolationBox<int>(5).Get());
-        Assert.Equal(7L, new IsolationBox<long>(7L).Get());
     }
 }

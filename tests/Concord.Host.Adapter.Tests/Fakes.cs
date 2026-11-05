@@ -40,6 +40,28 @@ internal sealed class Tokens : ITokenSource {
     }
 }
 
+public sealed class Held<T> {
+    public int Ping() {
+        return 1;
+    }
+}
+
+internal sealed class NoTokens : ITokenSource {
+    public int TokenFor(MethodBase method) => throw Refused(method);
+
+    public int TokenFor(FieldInfo field) => throw Refused(field);
+
+    public int TokenFor(Type type) => throw Refused(type);
+
+    public int TokenFor(string literal) => throw Refused(literal);
+
+    public int TokenForLocals(byte[] signature) => throw Refused(signature);
+
+    private static InvalidOperationException Refused(object subject) {
+        return new InvalidOperationException($"A body of 'ldc.i4 n; ret' asked for a token for '{subject}', so the encoder is minting something this test did not write.");
+    }
+}
+
 internal sealed class FixedStack : IMaxStackSource {
     private readonly int value;
 

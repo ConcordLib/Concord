@@ -1,48 +1,53 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using System.Reflection.Emit;
 
 namespace Concord.Host.Adapter;
 
-/// <summary>The answer <see cref="TargetEligibility.Judge" /> gives for a target: which backend can carry a patch on it, if any.</summary>
+/// <summary>The answer <see cref="TargetEligibility.Judge" /> gives for a target: whether a patch can be carried on it at all.</summary>
 public enum TargetHandling {
     /// <summary>The composed body is published over the target, and callers already inlined or already jitted pick it up.</summary>
     Replace,
 
-    /// <summary>A native detour carries the patch, so an already-inlined caller keeps running the original code.</summary>
-    Detour,
-
-    /// <summary>The target has no IL body to patch, so the caller surfaces <see cref="TargetVerdict.Code" /> and stops.</summary>
+    /// <summary>Nothing can be staged over this target, so the caller surfaces <see cref="TargetVerdict.Code" /> and stops.</summary>
     Refuse,
 }
 
-/// <summary>Where a caller asks whether a target can take a replaced body, and where it gets the message to log when it has to fall back.</summary>
+/// <summary>Where a caller asks whether a target can take a replaced body, and where it gets the message to log when it cannot.</summary>
 public static class TargetEligibility {
     /// <summary>The diagnostic code on a refusal, raised when the target has no IL body for any backend to work with.</summary>
     public const string NoBodyCode = "CONC168";
 
-    /// <summary>The prefix on every fallback message, so a log reader can tell a backend downgrade from a patch failure.</summary>
-    public const string FallbackMarker = "[Concord.Waylith] backend-fallback";
+    /// <summary>The diagnostic code on a refusal, raised when the target is declared in a collectible or dynamic module this build composes no body for.</summary>
+    public const string DynamicTargetCode = StagePublisher.RefusedCode;
 
-    /// <summary>The prefix on a message about a target no backend can patch, so a log reader can tell it from a downgrade.</summary>
+    /// <summary>The prefix on a message about a target no backend can patch, so a log reader can tell it from a patch failure.</summary>
     public const string RefusalMarker = "[Concord.Waylith] target-refused";
 
     private const string StillApplies =
-        "The patch still applies through a native detour, without the inlined-caller and hot-caller guarantees " +
-        "body replacement adds.";
+        "Body replacement is the only way Concord patches anything, so every patch on this target is refused " +
+        "and the method keeps the body it was declared with.";
 
     private static readonly ConcurrentDictionary<MethodBase, byte> Reported = new();
 
-    /// <summary>Checks a target for the two things that rule body replacement out up front: a dynamic or collectible module, and no IL body at all.</summary>
+    /// <summary>Checks a target for the two things that rule body replacement out up front: a collectible or dynamic module, and no IL body at all.</summary>
     /// <param name="target">The method the caller wants to patch.</param>
-    /// <returns>A <see cref="TargetHandling.Replace" /> verdict with empty code and message, a detour fallback, or a refusal carrying <see cref="NoBodyCode" />.</returns>
+    /// <returns>A <see cref="TargetHandling.Replace" /> verdict with empty code and message, or a refusal carrying <see cref="DynamicTargetCode" /> or <see cref="NoBodyCode" />.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="target" /> is <c>null</c>.</exception>
     public static TargetVerdict Judge(MethodBase target) {
         ArgumentNullException.ThrowIfNull(target);
 
+        if (target is DynamicMethod) {
+            return new TargetVerdict(TargetHandling.Replace, string.Empty, string.Empty);
+        }
+
         if (target.IsCollectible || target.Module.Assembly.IsDynamic) {
-            return Fallback(
-                $"{Describe(target)} is declared in '{target.Module.Name}', a dynamic or collectible module. The " +
-                $"runtime only versions method bodies in non-collectible modules. {StillApplies}");
+            return new TargetVerdict(
+                TargetHandling.Refuse,
+                DynamicTargetCode,
+                $"{RefusalMarker} '{WaylithDetourBackend.Describe(target)}' is declared in " +
+                $"'{target.Module.Name}', a dynamic or collectible module. A method in one is not composed on " +
+                $"this build. {StillApplies}");
         }
 
         if (NoBody(target) is not string reason) {
@@ -56,71 +61,17 @@ public static class TargetEligibility {
         return new TargetVerdict(
             TargetHandling.Refuse,
             NoBodyCode,
-            $"{Describe(target)} {reason}, so the runtime has no IL body to replace and no Concord backend can " +
-            $"patch it. {remedy}");
+            $"{RefusalMarker} '{WaylithDetourBackend.Describe(target)}' {reason}, so the runtime has no IL body " +
+            $"to replace and no Concord backend can patch it. {remedy}");
     }
 
-    /// <summary>Builds the fallback verdict for a target whose composed body named something no metadata token can express, such as a generic method operand.</summary>
-    /// <param name="target">The method whose body was rejected.</param>
-    /// <param name="rejection">Why the body could not be encoded; a trailing period is trimmed before it goes into the message.</param>
-    /// <returns>A <see cref="TargetHandling.Detour" /> verdict whose message starts with <see cref="FallbackMarker" />.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="target" /> is <c>null</c>.</exception>
-    /// <exception cref="ArgumentException"><paramref name="rejection" /> is <c>null</c>, empty, or white space.</exception>
-    public static TargetVerdict ForRejectedBody(MethodBase target, string rejection) {
-        ArgumentNullException.ThrowIfNull(target);
-        ArgumentException.ThrowIfNullOrWhiteSpace(rejection);
-
-        return Fallback(
-            $"{Describe(target)} composed a body no metadata token can express: {rejection.TrimEnd('.')}. " +
-            StillApplies);
-    }
-
-    /// <summary>Builds the fallback verdict for a body the runtime itself threw on, naming the stage that failed and the member that threw so a log reader can tell a metadata refusal from a body-write refusal.</summary>
-    /// <param name="target">The method whose publish attempt failed.</param>
-    /// <param name="refusal">The exception the runtime threw.</param>
-    /// <param name="stage">What was underway, as a participle phrase reading after "while": <c>"encoding its body"</c>.</param>
-    /// <returns>A <see cref="TargetHandling.Detour" /> verdict whose message starts with <see cref="FallbackMarker" />.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="target" /> or <paramref name="refusal" /> is <c>null</c>.</exception>
-    /// <exception cref="ArgumentException"><paramref name="stage" /> is <c>null</c>, empty, or white space.</exception>
-    public static TargetVerdict ForRuntimeRefusal(MethodBase target, Exception refusal, string stage) {
-        ArgumentNullException.ThrowIfNull(target);
-        ArgumentNullException.ThrowIfNull(refusal);
-        ArgumentException.ThrowIfNullOrWhiteSpace(stage);
-
-        string thrower = refusal.TargetSite is { } site
-            ? $" out of '{site.DeclaringType?.Name}.{site.Name}'"
-            : string.Empty;
-
-        return Fallback(
-            $"{Describe(target)} was refused by the runtime while {stage}: " +
-            $"{refusal.GetType().Name}{thrower}, {refusal.Message.TrimEnd('.')}. {StillApplies}");
-    }
-
-    /// <summary>Builds the message for a target whose declared body this host would not read back, which leaves no backend able to patch it.</summary>
-    /// <param name="target">The method whose declared-body read was refused.</param>
-    /// <param name="refusal">The refusal raised while reading the declared body.</param>
-    /// <returns>A message starting with <see cref="RefusalMarker" />.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="target" /> or <paramref name="refusal" /> is <c>null</c>.</exception>
-    public static string ForDeclaredBodyRefusal(MethodBase target, Exception refusal) {
-        ArgumentNullException.ThrowIfNull(target);
-        ArgumentNullException.ThrowIfNull(refusal);
-
-        return $"{RefusalMarker} {Describe(target)} stays unpatched: {refusal.Message.TrimEnd('.')}. The native " +
-            "detour cannot stand in for it, because composing a detour reads the same declared body and is refused " +
-            "the same way.";
-    }
-
-    /// <summary>Gate for logging a fallback, so a target that falls back on every patch attempt is only announced the first time in a process.</summary>
+    /// <summary>Gate for logging a refusal, so a target refused on every patch attempt is only announced the first time in a process.</summary>
     /// <param name="target">The method about to be reported.</param>
     /// <returns><c>true</c> the first time it is called for a target, and <c>false</c> on every call after that.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="target" /> is <c>null</c>.</exception>
     public static bool ReportOnce(MethodBase target) {
         ArgumentNullException.ThrowIfNull(target);
         return Reported.TryAdd(target, 0);
-    }
-
-    private static TargetVerdict Fallback(string message) {
-        return new TargetVerdict(TargetHandling.Detour, string.Empty, FallbackMarker + " " + message);
     }
 
     private static string? NoBody(MethodBase target) {
@@ -147,14 +98,9 @@ public static class TargetEligibility {
 
         return "has no IL body";
     }
-
-    private static string Describe(MethodBase target) {
-        string owner = target.DeclaringType?.FullName ?? target.Module.Name;
-        return $"'{owner}.{target.Name}'";
-    }
 }
 
-/// <summary>What <see cref="TargetEligibility" /> decided about one target, with the text a caller logs on a fallback or throws on a refusal.</summary>
+/// <summary>What <see cref="TargetEligibility" /> decided about one target, with the text a caller logs and throws on a refusal.</summary>
 public sealed class TargetVerdict {
     internal TargetVerdict(TargetHandling handling, string code, string message) {
         Handling = handling;
@@ -162,16 +108,16 @@ public sealed class TargetVerdict {
         Message = message;
     }
 
-    /// <summary>The outcome reached for this target, which decides whether the caller publishes a body, installs a detour, or stops.</summary>
+    /// <summary>The outcome reached for this target, which decides whether the caller publishes a body or stops.</summary>
     public TargetHandling Handling { get; }
 
-    /// <summary>The Concord diagnostic code, or an empty string on any verdict other than <see cref="TargetHandling.Refuse" />.</summary>
+    /// <summary>The Concord diagnostic code, or an empty string on a <see cref="TargetHandling.Replace" /> verdict.</summary>
     public string Code { get; }
 
-    /// <summary>Why the verdict came out this way; empty on a clean <see cref="TargetHandling.Replace" /> and prefixed with <see cref="TargetEligibility.FallbackMarker" /> on a fallback.</summary>
+    /// <summary>Why the verdict came out this way; empty on a clean <see cref="TargetHandling.Replace" /> and prefixed with <see cref="TargetEligibility.RefusalMarker" /> on a refusal.</summary>
     public string Message { get; }
 
-    /// <summary>Raises the refusal as an exception carrying <see cref="Code" /> and <see cref="Message" />; a replace or detour verdict passes through untouched.</summary>
+    /// <summary>Raises the refusal as an exception carrying <see cref="Code" /> and <see cref="Message" />; a replace verdict passes through untouched.</summary>
     /// <exception cref="ConcordEmitException">The verdict is <see cref="TargetHandling.Refuse" />.</exception>
     public void ThrowIfRefused() {
         if (Handling == TargetHandling.Refuse) {

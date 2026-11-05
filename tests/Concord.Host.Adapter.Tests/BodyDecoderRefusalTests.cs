@@ -23,7 +23,7 @@ public class BodyDecoderRefusalTests {
     }
 
     [Fact]
-    public void ACalliNamesItselfAndItsOffsetRatherThanReportingAnOperandKind() {
+    public void ACalliWithAnUnsupportedCallingConventionIsRefusedByNameAndOffset() {
         ComposedBody? decoded = BodyDecoder.Decode(Any, Body([LdcI4One, Calli, 1, 0, 0, 0x11, Ret]), out string? refusal);
 
         Assert.Null(decoded);

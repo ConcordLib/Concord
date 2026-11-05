@@ -264,11 +264,6 @@ public sealed class LocalCaptureTests {
             "test",
             0);
 
-        // On this route every local arrives declared through the context, the target's own included,
-        // so the written-back body cannot say which came from another patcher's transpiler. The target
-        // decides: StreamTargets.Target declares none, so both of these were added on the way in. That
-        // is what lets the Harmony bridge evict one mod's broken selector instead of failing the whole
-        // stream and taking every other mod's injection with it.
         Injection healthy = new Injection(
             typeof(StreamTargets).GetMethod(nameof(StreamTargets.HeadInjection))!, new InjectAt.Return(), "other", 0);
 

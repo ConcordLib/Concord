@@ -64,7 +64,7 @@ public static class Adapter {
         Type type = selection.GetType();
         bool waylith = (bool)type.GetProperty("Waylith").GetValue(selection);
         string reason = (string)type.GetProperty("Reason").GetValue(selection);
-        return (waylith ? "body-replacement" : "native-detour") + " reason=" + Report.Flatten(reason);
+        return (waylith ? "body-replacement" : "refused") + " reason=" + Report.Flatten(reason);
     }
 
     private static Assembly Find(string name) {

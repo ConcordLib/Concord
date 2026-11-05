@@ -13,10 +13,6 @@ public class ApplyInjectionsRollbackTests {
         public int Applied;
         public int Disposed;
 
-        public IDetourHandle Apply(MethodBase original, MethodInfo replacement) {
-            throw new NotSupportedException();
-        }
-
         public IDetourHandle ApplyComposed(MethodBase target, IReadOnlyList<Injection> added) {
             Applied++;
             if (Applied == 2) {
@@ -25,6 +21,12 @@ public class ApplyInjectionsRollbackTests {
 
             return new CountingHandle(this, target);
         }
+
+        public IReadOnlyList<string> OwnersOf(MethodBase target) {
+            return [];
+        }
+
+        public int PatchedTargetCount => 0;
 
         private sealed class CountingHandle(FailSecondBackend owner, MethodBase original) : IDetourHandle {
             public MethodBase Original { get; } = original;
@@ -47,7 +49,6 @@ public class ApplyInjectionsRollbackTests {
     [Fact]
     public void SecondFailureDisposesFirstHandle() {
         FailSecondBackend backend = new FailSecondBackend();
-        IDetourBackend previous = DetourBackend.Current;
         DetourBackend.Current = backend;
         try {
             MethodBase target = typeof(ApplyInjectionsRollbackTests).GetMethod(nameof(TargetA))!;
@@ -57,7 +58,7 @@ public class ApplyInjectionsRollbackTests {
             Assert.Throws<InvalidOperationException>(() => Patcher.ApplyInjections([(target, first), (target, second)]));
             Assert.Equal(1, backend.Disposed);
         } finally {
-            DetourBackend.Current = previous;
+            DetourBackend.Reset();
         }
     }
 }

@@ -36,7 +36,7 @@ public sealed class StackBoundFloorTests : IDisposable {
 
     public void Dispose() {
         if (published) {
-            ForkBodyWriter.Shared.Restore(Target);
+            ForkRuntime.Restore(Target);
         }
     }
 
@@ -59,12 +59,12 @@ public sealed class StackBoundFloorTests : IDisposable {
         Assert.Same(deep, deep.Slice(range));
         Assert.Same(range, Assert.IsType<InjectAt.Invoke>(Latest(deep).At).Slice);
 
-        Assert.Equal(Walked - 1, Publish(new ForkRuntime.FixedStack(Walked - 1)));
+        Assert.Equal(Walked - 1, Publish(new FixedStack(Walked - 1)));
 
         Assert.Throws<InvalidProgramException>(() => Builder().Slice(Range()));
         Assert.Throws<InvalidProgramException>(() => Patcher.For(Target).Slice(Range()));
 
-        ForkBodyWriter.Shared.Restore(Target);
+        ForkRuntime.Restore(Target);
         published = false;
 
         Assert.Throws<Orchestration.ConcordDeclarationException>(() => Patcher.For(Target).Slice(Range()));
@@ -95,7 +95,7 @@ public sealed class StackBoundFloorTests : IDisposable {
 
     private int Publish(IMaxStackSource stack) {
         EncodedBody encoded = BodyEncoder.Encode(Read(), new WaylithTokenSource(Target.Module), stack);
-        ForkBodyWriter.Shared.Write(Target, encoded.Bytes, []);
+        ForkRuntime.Write(Target, encoded.Bytes, []);
         published = true;
         return encoded.MaxStack;
     }

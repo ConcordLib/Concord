@@ -5,104 +5,76 @@ using Xunit;
 
 namespace Concord.Host.Adapter.Tests;
 
-public static class LooksLikeTheApi {
-    public static bool IsSupported => true;
-
-    public static void ReplaceMethodBody() {
-    }
-
-    public static void Revert() {
-    }
-}
-
-public static class TurnedOffByTheRuntime {
-    public static bool IsSupported => false;
-
-    public static void ReplaceMethodBody() {
-    }
-
-    public static void Revert() {
-    }
-}
-
-public static class NoSupportFlag {
-    public static void ReplaceMethodBody() {
-    }
-
-    public static void Revert() {
-    }
-}
-
-public static class FlagButNoEntryPoints {
-    public static bool IsSupported => true;
-}
-
-public static class FlagAndReplaceButNoRevert {
-    public static bool IsSupported => true;
-
-    public static void ReplaceMethodBody() {
-    }
-}
-
-public static class SupportFlagThatThrows {
-    public static bool IsSupported => throw new EntryPointNotFoundException("MethodBodyUpdater_IsSupported");
-
-    public static void ReplaceMethodBody() {
-    }
-
-    public static void Revert() {
-    }
-}
-
-public sealed class NonStaticSupportFlag {
-    public bool IsSupported => true;
-
-    public static void ReplaceMethodBody() {
-    }
-
-    public static void Revert() {
-    }
-}
-
 public sealed class CapabilityTests {
     [Fact]
-    public void AnAbsentApiIsTheOnlyAnswerWhenTheTypeIsNotThere() {
-        Assert.Equal(BodyReplacement.ApiAbsent, Support(null, true));
-        Assert.Equal(BodyReplacement.ApiAbsent, Support(null, false));
+    public void AnAbsentApiIsTheOnlyAnswerWhenTheRuntimeDoesNotShipTheType() {
+        Assert.Equal(BodyReplacement.ApiAbsent, Support(null, true, true));
+        Assert.Equal(BodyReplacement.ApiAbsent, Support(null, false, false));
     }
 
     [Fact]
-    public void TheRuntimesOwnSwitchBeatsTheMethodsBinding() {
-        Assert.Equal(BodyReplacement.DisabledByRuntime, Support(typeof(TurnedOffByTheRuntime), true));
-    }
-
-    [Fact]
-    public void AnApiWithoutAStaticBoolSupportFlagIsNotTheApiThisWasBuiltAgainst() {
-        Assert.Equal(BodyReplacement.ApiUnrecognized, Support(typeof(NoSupportFlag), true));
-        Assert.Equal(BodyReplacement.ApiUnrecognized, Support(typeof(NonStaticSupportFlag), true));
-    }
-
-    [Fact]
-    public void ASupportFlagWithoutBothEntryPointsIsNotTheApiEither() {
-        Assert.Equal(BodyReplacement.ApiUnrecognized, Support(typeof(FlagButNoEntryPoints), true));
-        Assert.Equal(BodyReplacement.ApiUnrecognized, Support(typeof(FlagAndReplaceButNoRevert), true));
+    public void TheRuntimesOwnSwitchBeatsEverythingElseTheProbeRead() {
+        Assert.Equal(BodyReplacement.DisabledByRuntime, Support(false, true, true));
+        Assert.Equal(BodyReplacement.DisabledByRuntime, Support(false, false, false));
     }
 
     [Fact]
     public void AWholeApiStillNeedsTheTokenMintersToBind() {
-        Assert.Equal(BodyReplacement.MintingAbsent, Support(typeof(LooksLikeTheApi), false));
-        Assert.Equal(BodyReplacement.Available, Support(typeof(LooksLikeTheApi), true));
+        Assert.Equal(BodyReplacement.MintingAbsent, Support(true, false, true));
+        Assert.Equal(BodyReplacement.Available, Support(true, true, false));
     }
 
     [Fact]
-    public void ASupportFlagThatThrowsIsReportedAsAMismatchRatherThanTakingTheProcessDown() {
-        (BodyReplacement support, string? failure) = RuntimeCapability.Probe(typeof(SupportFlagThatThrows), true);
+    public void ATransformerPipelineOnTheRuntimeIsItsOwnVerdictAndStillCountsAsReplacing() {
+        Assert.Equal(BodyReplacement.PipelineAvailable, Support(true, true, true));
+        Assert.True(RuntimeCapability.Replaces(BodyReplacement.PipelineAvailable));
+        Assert.True(RuntimeCapability.Replaces(BodyReplacement.Available));
+
+        foreach (BodyReplacement support in Enum.GetValues<BodyReplacement>()) {
+            if (support is BodyReplacement.Available or BodyReplacement.PipelineAvailable) {
+                continue;
+            }
+
+            Assert.False(
+                RuntimeCapability.Replaces(support),
+                $"{support} reads as a runtime that can replace a body, so the install would swap the backend in " +
+                "on a runtime the probe just refused.");
+        }
+    }
+
+    [Fact]
+    public void AMissingMemberIsReportedAsAnApiThisWasNotBuiltAgainstRatherThanAFault() {
+        (BodyReplacement support, string? failure) =
+            RuntimeCapability.Refused(new MissingMethodException("MethodBodyUpdater.GetTokenForSignature"));
+
+        Assert.Equal(BodyReplacement.ApiUnrecognized, support);
+        Assert.Contains(nameof(MissingMethodException), failure!);
+        Assert.Contains("GetTokenForSignature", failure!);
+        Assert.Contains(failure!, RuntimeCapability.Explain(support, failure));
+        Assert.Contains("no detail was captured", RuntimeCapability.Explain(support));
+    }
+
+    [Fact]
+    public void AnyOtherThrowIsAMismatchBetweenTheManagedApiAndTheNativeRuntimeUnderIt() {
+        (BodyReplacement support, string? failure) =
+            RuntimeCapability.Refused(new EntryPointNotFoundException("MethodBodyUpdater_IsSupported"));
 
         Assert.Equal(BodyReplacement.ProbeFailed, support);
         Assert.Contains(nameof(EntryPointNotFoundException), failure!);
         Assert.Contains("MethodBodyUpdater_IsSupported", failure!);
         Assert.Contains(failure!, RuntimeCapability.Explain(support, failure));
         Assert.Contains("no detail was captured", RuntimeCapability.Explain(support));
+    }
+
+    [Fact]
+    public void AThrowWrappedByReflectionIsJudgedOnWhatItWrapped() {
+        (BodyReplacement support, string? failure) = RuntimeCapability.Refused(
+            new TargetInvocationException(new MissingFieldException("MethodBodyUpdater.IsSupported")));
+
+        Assert.Equal(BodyReplacement.ApiUnrecognized, support);
+        Assert.Contains(nameof(MissingFieldException), failure!);
+        Assert.DoesNotContain(nameof(TargetInvocationException), failure!);
+        Assert.Throws<ArgumentNullException>(() => RuntimeCapability.Refused(null!));
     }
 
     [Theory]
@@ -142,14 +114,17 @@ public sealed class CapabilityTests {
 
         Assert.Contains("mints a usable MethodSpec", mints);
         Assert.Contains("malformed MethodSpec", malformed);
-        Assert.Contains("stays on the detour backend", malformed);
+        Assert.Contains("a target whose body names a generic method is refused", malformed);
         Assert.NotEqual(mints, malformed);
+        Assert.Contains(
+            "mints a usable MethodSpec",
+            RuntimeCapability.Explain(BodyReplacement.PipelineAvailable, null, true));
     }
 
     [Fact]
-    public void AVerdictOtherThanAvailableExplainsTheSameEitherWayTheRuntimeMints() {
+    public void AVerdictThatCannotReplaceExplainsTheSameEitherWayTheRuntimeMints() {
         foreach (BodyReplacement support in Enum.GetValues<BodyReplacement>()) {
-            if (support == BodyReplacement.Available) {
+            if (RuntimeCapability.Replaces(support)) {
                 continue;
             }
 
@@ -159,8 +134,8 @@ public sealed class CapabilityTests {
         }
     }
 
-    private static BodyReplacement Support(Type? updater, bool mintingBound) {
-        (BodyReplacement support, string? failure) = RuntimeCapability.Probe(updater, mintingBound);
+    private static BodyReplacement Support(bool? supported, bool mintingBound, bool pipeline) {
+        (BodyReplacement support, string? failure) = RuntimeCapability.Probe(supported, mintingBound, pipeline);
         Assert.Null(failure);
         return support;
     }
@@ -186,11 +161,12 @@ public sealed class CapabilityTests {
 
         Assert.Equal(present, RuntimeCapability.Updater() is not null);
         Assert.Equal(
-            RuntimeCapability.Support == BodyReplacement.ProbeFailed,
+            RuntimeCapability.Support is BodyReplacement.ProbeFailed or BodyReplacement.ApiUnrecognized,
             RuntimeCapability.ProbeFailure is not null);
         Assert.NotEmpty(RuntimeCapability.Runtime);
         Assert.NotEmpty(RuntimeCapability.Explain());
-        Assert.Equal(RuntimeCapability.Support == BodyReplacement.Available, RuntimeCapability.IsAvailable);
+        Assert.Equal(RuntimeCapability.Replaces(RuntimeCapability.Support), RuntimeCapability.IsAvailable);
+        Assert.Equal(RuntimeCapability.Support == BodyReplacement.PipelineAvailable, RuntimeCapability.HasPipeline);
 
         if (present) {
             return;
@@ -198,6 +174,7 @@ public sealed class CapabilityTests {
 
         Assert.Equal(BodyReplacement.ApiAbsent, RuntimeCapability.Support);
         Assert.False(RuntimeCapability.IsAvailable);
+        Assert.False(RuntimeCapability.HasPipeline);
         Assert.Contains(RuntimeCapability.Runtime, RuntimeCapability.Explain());
     }
 }
@@ -211,8 +188,8 @@ public sealed class SwitchParsingTests {
     [InlineData("yes")]
     [InlineData("enabled")]
     [InlineData("  on  ")]
-    public void EveryOnSpellingForcesTheNewBackend(string raw) {
-        Assert.Equal(SwitchState.ForceWaylith, AdapterEntryPoint.ReadSwitch(raw));
+    public void EveryOnSpellingReadsAsOn(string raw) {
+        Assert.Equal(SwitchState.On, AdapterEntryPoint.ReadSwitch(raw));
     }
 
     [Theory]
@@ -222,8 +199,8 @@ public sealed class SwitchParsingTests {
     [InlineData("no")]
     [InlineData("disabled")]
     [InlineData("\t0\n")]
-    public void EveryOffSpellingForcesTheOldBackend(string raw) {
-        Assert.Equal(SwitchState.ForceDetour, AdapterEntryPoint.ReadSwitch(raw));
+    public void EveryOffSpellingReadsAsOff(string raw) {
+        Assert.Equal(SwitchState.Off, AdapterEntryPoint.ReadSwitch(raw));
     }
 
     [Theory]
@@ -247,175 +224,49 @@ public sealed class SwitchParsingTests {
 [CollectionDefinition("AdapterStatics", DisableParallelization = true)]
 public sealed class AdapterStaticsCollection;
 
-[Collection("AdapterStatics")]
-public sealed class ChoiceTests : IDisposable {
-    private readonly string? before = Environment.GetEnvironmentVariable(AdapterEntryPoint.SwitchVariable);
-
-    public void Dispose() {
-        Environment.SetEnvironmentVariable(AdapterEntryPoint.SwitchVariable, before);
-    }
-
+public sealed class ChoiceTests {
     [Fact]
-    public void WithNothingSetASupportedRuntimeGetsTheNewBackend() {
-        Set(null);
-
-        Selection chosen = AdapterEntryPoint.Choose(null, BodyReplacement.Available, Sink());
+    public void TheInstallLineNamesTheRuntimeAndNothingThatCouldNotHaveBeenOtherwise() {
+        Selection chosen = AdapterEntryPoint.Choose(BodyReplacement.PipelineAvailable);
 
         Assert.True(chosen.Waylith);
-        Assert.Contains("the default for this runtime", chosen.Reason);
-        Assert.Contains("body replacement", chosen.Message);
+        Assert.Equal(
+            Selection.Prefix + "backend: body replacement on '" + RuntimeCapability.Runtime + "'.",
+            chosen.Message);
     }
 
     [Fact]
-    public void TheEnvironmentVariableBeatsASettingThatSaysTheOpposite() {
-        Set("0");
-        Selection off = AdapterEntryPoint.Choose(true, BodyReplacement.Available, Sink());
-
-        Set("1");
-        Selection on = AdapterEntryPoint.Choose(false, BodyReplacement.Available, Sink());
-
-        Assert.False(off.Waylith);
-        Assert.Contains(AdapterEntryPoint.SwitchVariable + "=0", off.Reason);
-        Assert.DoesNotContain("the mod setting", off.Reason);
-
-        Assert.True(on.Waylith);
-        Assert.Contains(AdapterEntryPoint.SwitchVariable + "=1", on.Reason);
-        Assert.DoesNotContain("the mod setting", on.Reason);
-    }
-
-    [Fact]
-    public void WithNoEnvironmentVariableTheSettingDecides() {
-        Set(null);
-
-        Assert.False(AdapterEntryPoint.Choose(false, BodyReplacement.Available, Sink()).Waylith);
-        Assert.True(AdapterEntryPoint.Choose(true, BodyReplacement.Available, Sink()).Waylith);
-        Assert.Contains("the mod setting", AdapterEntryPoint.Choose(false, BodyReplacement.Available, Sink()).Reason);
-    }
-
-    [Fact]
-    public void AnUnreadableEnvironmentVariableIsReportedAndThenIgnored() {
-        Set("maybe");
-        List<string> written = new List<string>();
-
-        Selection chosen = AdapterEntryPoint.Choose(false, BodyReplacement.Available, written.Add);
-
-        Assert.False(chosen.Waylith);
-        Assert.Contains("the mod setting", chosen.Reason);
-        Assert.Single(written);
-        Assert.Contains("is set to 'maybe', which is neither", written[0]);
-    }
-
-    [Fact]
-    public void ForcingItOnCannotBeatARuntimeThatCannotRunIt() {
-        Set("on");
-
+    public void ARuntimeThatCannotStageAComposedBodyGetsNoBackendAndTheLineSaysWhy() {
         foreach (BodyReplacement support in Enum.GetValues<BodyReplacement>()) {
-            if (support == BodyReplacement.Available) {
+            if (RuntimeCapability.Stages(support)) {
                 continue;
             }
 
-            Selection chosen = AdapterEntryPoint.Choose(true, support, Sink());
+            Selection chosen = AdapterEntryPoint.Choose(support);
 
             Assert.False(chosen.Waylith);
-            Assert.Contains("asked for it, but it cannot run here", chosen.Reason);
-            Assert.Contains("native detour", chosen.Message);
+            Assert.Contains("no backend installed", chosen.Message);
+            Assert.EndsWith(RuntimeCapability.Explain(support, RuntimeCapability.ProbeFailure) + ".", chosen.Message);
         }
     }
 
     [Fact]
-    public void TurningItOffNeverMentionsTheRuntimeBecauseTheRuntimeWasNotConsulted() {
-        Set("off");
-
-        Selection chosen = AdapterEntryPoint.Choose(true, BodyReplacement.Available, Sink());
-
-        Assert.False(chosen.Waylith);
-        Assert.Equal("turned off by " + AdapterEntryPoint.SwitchVariable + "=off.", chosen.Reason);
-    }
-
-    [Fact]
     public void ARuntimeThatCannotRunItSaysWhichOfTheFiveReasonsItWas() {
-        Set(null);
-
-        Selection disabled = AdapterEntryPoint.Choose(null, BodyReplacement.DisabledByRuntime, Sink());
-        Selection absent = AdapterEntryPoint.Choose(null, BodyReplacement.ApiAbsent, Sink());
+        Selection disabled = AdapterEntryPoint.Choose(BodyReplacement.DisabledByRuntime);
+        Selection absent = AdapterEntryPoint.Choose(BodyReplacement.ApiAbsent);
 
         Assert.False(disabled.Waylith);
         Assert.False(absent.Waylith);
         Assert.Contains("DOTNET_MethodBodyUpdater=0", disabled.Reason);
         Assert.NotEqual(absent.Reason, disabled.Reason);
     }
-
-    private static Action<string> Sink() {
-        return _ => {
-        };
-    }
-
-    private static void Set(string? value) {
-        Environment.SetEnvironmentVariable(AdapterEntryPoint.SwitchVariable, value);
-    }
-}
-
-public static class LateInstallSubject {
-    public static int Bumped { get; set; }
-
-    public static void Bump() {
-        Bumped++;
-    }
-
-    public static int Value() {
-        return 1;
-    }
-
-    public static int Pinned() {
-        return 2;
-    }
-
-    public static int PinnedReplacement() {
-        return 3;
-    }
-}
-
-public sealed class NotifyingHost : IForeignPatchHost {
-    public IDisposable? EnterHostLock() {
-        return null;
-    }
-
-    public string? ValidateRoute(MethodBase target, IReadOnlyList<Injection> added) {
-        throw new NotSupportedException();
-    }
-
-    public string? RevalidateRouted(MethodBase target, object hostPatchState) {
-        throw new NotSupportedException();
-    }
-
-    public ForeignRouteResult TryRoute(MethodBase target, IReadOnlyList<Injection> added, bool forceRoute) {
-        throw new NotSupportedException();
-    }
-
-    public ForeignRouteResult RouteInto(MethodBase target, IReadOnlyList<Injection> added, object hostPatchState) {
-        throw new NotSupportedException();
-    }
-
-    public IDetourHandle ApplyToRouted(MethodBase target, IReadOnlyList<Injection> added) {
-        throw new NotSupportedException();
-    }
-
-    public IReadOnlyList<string> ForeignOwners(MethodBase target) {
-        return [];
-    }
-
-    public IReadOnlyList<string> ConcordOwners(MethodBase target) {
-        return [];
-    }
-
-    public bool TryInstallNotifier(IForeignPatchObserver observer, IDetourBackend rawBackend) {
-        return true;
-    }
 }
 
 public sealed class StandInBackend : IDetourBackend {
-    public IDetourHandle Apply(MethodBase original, MethodInfo replacement) {
-        throw new NotSupportedException();
+    public int PatchedTargetCount { get; init; }
+
+    public IReadOnlyList<string> OwnersOf(MethodBase target) {
+        return [];
     }
 
     public IDetourHandle ApplyComposed(MethodBase target, IReadOnlyList<Injection> added) {
@@ -425,314 +276,83 @@ public sealed class StandInBackend : IDetourBackend {
 
 [Collection("AdapterStatics")]
 public sealed class InstallTests : IDisposable {
-    private readonly string? before = Environment.GetEnvironmentVariable(AdapterEntryPoint.SwitchVariable);
-
-    private readonly IDetourBackend backendBefore = DetourBackend.Current;
+    private readonly IDetourBackend? backendBefore = AmbientSwitches.InstalledBackend();
 
     public InstallTests() {
-        Environment.SetEnvironmentVariable(AdapterEntryPoint.SwitchVariable, null);
-        DetourBackend.Current = new MonoModDetourBackend();
         AdapterEntryPoint.ResetForTests();
         AdapterEntryPoint.PatchedTargets = static () => 0;
     }
 
     public void Dispose() {
-        Environment.SetEnvironmentVariable(AdapterEntryPoint.SwitchVariable, before);
-        DetourBackend.Current = backendBefore;
+        AmbientSwitches.RestoreBackend(backendBefore);
         AdapterEntryPoint.ResetForTests();
         AdapterEntryPoint.PatchedTargets = null;
-        AdapterEntryPoint.StaleHandler = AmbientSwitches.SilentStaleHandler;
         Patcher.UseLocalNameResolver(null);
     }
 
     [Fact]
     public void ASwapAfterTargetsArePatchedIsRefusedAndSaysHowMany() {
         AdapterEntryPoint.PatchedTargets = static () => 7;
-        IDetourBackend previous = DetourBackend.Current;
+        IDetourBackend? previous = AmbientSwitches.InstalledBackend();
 
         Selection chosen = AdapterEntryPoint.Install(
             _ => {
             },
-            null,
             [AppContext.BaseDirectory],
-            BodyReplacement.Available,
-            _ => new StandInBackend());
+            BodyReplacement.PipelineAvailable,
+            () => new StandInBackend());
 
         Assert.False(chosen.Waylith);
-        Assert.Same(previous, DetourBackend.Current);
+        Assert.Same(previous, AmbientSwitches.InstalledBackend());
         Assert.Contains("7 target", chosen.Reason);
-        Assert.Contains("already carry a composed wrapper", chosen.Reason);
+        Assert.Contains("already carry a composed body", chosen.Reason);
     }
 
     [Fact]
     public void TheLateInstallGuardReadsConcordsOwnPatchCount() {
-        MethodBase target = typeof(LateInstallSubject).GetMethod(nameof(LateInstallSubject.Value))!;
-        MethodInfo injection = typeof(LateInstallSubject).GetMethod(nameof(LateInstallSubject.Bump))!;
-        IDetourBackend previous = DetourBackend.Current;
-
-        using IDetourHandle patched = previous.ApplyComposed(
-            target, [new Injection(injection, new InjectAt.Head(), "late-install", 0)]);
+        DetourBackend.Current = new StandInBackend { PatchedTargetCount = 3 };
+        IDetourBackend? previous = AmbientSwitches.InstalledBackend();
 
         AdapterEntryPoint.PatchedTargets = null;
 
         Selection chosen = AdapterEntryPoint.Install(
             _ => {
             },
-            null,
             [AppContext.BaseDirectory],
-            BodyReplacement.Available,
-            _ => new StandInBackend());
+            BodyReplacement.PipelineAvailable,
+            () => new StandInBackend());
 
-        Assert.True(Patcher.PatchedTargetCount > 0);
+        Assert.True(Patcher.PatchedTargetCount == 3);
         Assert.False(chosen.Waylith);
-        Assert.Same(previous, DetourBackend.Current);
-        Assert.Contains("already carry a composed wrapper", chosen.Reason);
-    }
-
-    [Fact]
-    public void ASupportedRuntimeGetsTheBackendInstalledWithTheOldOneAsItsFallback() {
-        List<string> written = new List<string>();
-        IDetourBackend previous = DetourBackend.Current;
-        StandInBackend installed = new StandInBackend();
-        IDetourBackend? handedFallback = null;
-
-        Selection chosen = AdapterEntryPoint.Install(
-            written.Add,
-            null,
-            [AppContext.BaseDirectory],
-            BodyReplacement.Available,
-            fallback => {
-                handedFallback = fallback;
-                return installed;
-            });
-
-        Assert.True(chosen.Waylith);
-        Assert.Same(installed, DetourBackend.Current);
-        Assert.Same(previous, handedFallback);
-        Assert.Single(written);
-        Assert.Equal(chosen.Message, written[0]);
+        Assert.Same(previous, AmbientSwitches.InstalledBackend());
+        Assert.Contains("already carry a composed body", chosen.Reason);
     }
 
     [Fact]
     public void AnUnsupportedRuntimeLeavesTheBackendExactlyWhereItWas() {
-        IDetourBackend previous = DetourBackend.Current;
+        IDetourBackend? previous = AmbientSwitches.InstalledBackend();
+        List<string> written = [];
 
         Selection chosen = AdapterEntryPoint.Install(
-            _ => {
-            },
-            null,
+            written.Add,
             [AppContext.BaseDirectory],
             BodyReplacement.ApiAbsent,
-            _ => new StandInBackend());
+            () => new StandInBackend());
 
         Assert.False(chosen.Waylith);
-        Assert.Same(previous, DetourBackend.Current);
-    }
-
-    [Fact]
-    public void AnotherBackendAlreadyInPlaceIsNeverInstalledOver() {
-        StandInBackend wrapper = new StandInBackend();
-        DetourBackend.Current = wrapper;
-
-        Selection chosen = AdapterEntryPoint.Install(
-            _ => {
-            },
-            null,
-            [AppContext.BaseDirectory],
-            BodyReplacement.Available,
-            _ => new StandInBackend());
-
-        Assert.False(chosen.Waylith);
-        Assert.Same(wrapper, DetourBackend.Current);
-        Assert.Contains("installing over it would strip whatever wrapped it", chosen.Reason);
-        Assert.Contains(typeof(StandInBackend).FullName!, chosen.Reason);
-    }
-
-    [Fact]
-    public void ARouterIsUnwrappedAndTheBackendGoesUnderneathItRatherThanBeingRefused() {
-        MonoModDetourBackend detours = new MonoModDetourBackend();
-        DetourBackend.Current = new RoutingDetourBackend(detours, _ => { }) { RouteEverything = true };
-        StandInBackend installed = new StandInBackend();
-        IDetourBackend? handedFallback = null;
-
-        Selection chosen = AdapterEntryPoint.Install(
-            _ => {
-            },
-            null,
-            [AppContext.BaseDirectory],
-            BodyReplacement.Available,
-            fallback => {
-                handedFallback = fallback;
-                return installed;
-            });
-
-        Assert.True(chosen.Waylith);
-        Assert.Same(detours, handedFallback);
-
-        RoutingDetourBackend rewrapped = Assert.IsType<RoutingDetourBackend>(DetourBackend.Current);
-
-        Assert.Same(installed, rewrapped.Inner);
-        Assert.True(rewrapped.RouteEverything);
-    }
-
-    [Fact]
-    public void ARouterOverSomethingUnrecognisedIsStillRefusedAndNamesIt() {
-        StandInBackend unknown = new StandInBackend();
-        RoutingDetourBackend router = new RoutingDetourBackend(unknown, _ => { });
-        DetourBackend.Current = router;
-
-        Selection chosen = AdapterEntryPoint.Install(
-            _ => {
-            },
-            null,
-            [AppContext.BaseDirectory],
-            BodyReplacement.Available,
-            _ => new StandInBackend());
-
-        Assert.False(chosen.Waylith);
-        Assert.Same(router, DetourBackend.Current);
-        Assert.Contains(typeof(StandInBackend).FullName!, chosen.Reason);
-        Assert.Contains(typeof(RoutingDetourBackend).FullName!, chosen.Reason);
-    }
-
-    [Fact]
-    public void ARouterThatAlreadyDecidedARouteKeepsItsRouteAndGetsTheBackend() {
-        RoutingDetourBackend router = new RoutingDetourBackend(new MonoModDetourBackend(), _ => { });
-        DetourBackend.Current = router;
-
-        using IDetourHandle pinned = router.Apply(
-            typeof(LateInstallSubject).GetMethod(nameof(LateInstallSubject.Pinned))!,
-            typeof(LateInstallSubject).GetMethod(nameof(LateInstallSubject.PinnedReplacement))!);
-
-        Assert.NotEmpty(router.RawPinnedTargets());
-
-        Selection chosen = AdapterEntryPoint.Install(
-            _ => {
-            },
-            null,
-            [AppContext.BaseDirectory],
-            BodyReplacement.Available,
-            _ => new StandInBackend());
-
-        Assert.True(chosen.Waylith);
-        Assert.Same(router, DetourBackend.Current);
-        Assert.IsType<StandInBackend>(router.Inner);
-        Assert.NotEmpty(router.RawPinnedTargets());
-    }
-
-    [Fact]
-    public void ARouterWhoseHostNotifiesItKeepsTheNotifierAndGetsTheBackend() {
-        RoutingDetourBackend router = new RoutingDetourBackend(new MonoModDetourBackend(), _ => { });
-        router.ActivateHost(new NotifyingHost());
-        DetourBackend.Current = router;
-
-        Assert.True(router.NotifierInstalled);
-
-        Selection chosen = AdapterEntryPoint.Install(
-            _ => {
-            },
-            null,
-            [AppContext.BaseDirectory],
-            BodyReplacement.Available,
-            _ => new StandInBackend());
-
-        Assert.True(chosen.Waylith);
-        Assert.Same(router, DetourBackend.Current);
-        Assert.IsType<StandInBackend>(router.Inner);
-        Assert.True(router.NotifierInstalled);
-    }
-
-    [Fact]
-    public void WithNoPublisherRegisteredTheRealBackendIsRefusedRatherThanInstalledBroken() {
-        var publisherBefore = WaylithDetourBackend.Publisher;
-        WaylithDetourBackend.Publisher = null;
-        IDetourBackend previous = DetourBackend.Current;
-
-        try {
-            Selection chosen = AdapterEntryPoint.Install(
-                _ => {
-                },
-                null,
-                [AppContext.BaseDirectory],
-                BodyReplacement.Available,
-                null);
-
-            Assert.False(chosen.Waylith);
-            Assert.Same(previous, DetourBackend.Current);
-            Assert.Contains("has nothing to write a method body with", chosen.Reason);
-        } finally {
-            WaylithDetourBackend.Publisher = publisherBefore;
-        }
-    }
-
-    [Fact]
-    public void InstallRunsOnceAndASecondCallNeitherLogsNorReinstalls() {
-        List<string> written = new List<string>();
-        StandInBackend first = new StandInBackend();
-
-        Selection once = AdapterEntryPoint.Install(
-            written.Add, null, [AppContext.BaseDirectory], BodyReplacement.Available, _ => first);
-        Selection twice = AdapterEntryPoint.Install(
-            written.Add, false, [AppContext.BaseDirectory], BodyReplacement.ApiAbsent, _ => new StandInBackend());
-
-        Assert.Same(once, twice);
-        Assert.Same(once, AdapterEntryPoint.Current);
-        Assert.Same(first, DetourBackend.Current);
-        Assert.Single(written);
+        Assert.Same(previous, AmbientSwitches.InstalledBackend());
+        Assert.StartsWith(Selection.Prefix, Assert.Single(written), StringComparison.Ordinal);
     }
 
     [Fact]
     public void WithNoSearchDirectoriesTheMissingSymbolPathIsReportedBeforeTheSelection() {
         List<string> written = new List<string>();
 
-        Selection chosen = AdapterEntryPoint.Install(written.Add, null, null, BodyReplacement.ApiAbsent, null);
+        Selection chosen = AdapterEntryPoint.Install(written.Add, null, BodyReplacement.ApiAbsent, null);
 
         Assert.Equal(2, written.Count);
         Assert.Contains("no assembly directories were supplied", written[0]);
         Assert.Equal(chosen.Message, written[1]);
-    }
-
-    [Fact]
-    public void ARuntimeWithNoStaleMethodHandlerStillGetsTheBackendAndIsNamedOnce() {
-        List<string> written = new List<string>();
-        AdapterEntryPoint.StaleHandler = static _ => InjectionCapabilityGap.AssemblyAbsent;
-        StandInBackend installed = new StandInBackend();
-
-        Selection chosen = AdapterEntryPoint.Install(
-            written.Add, null, [AppContext.BaseDirectory], BodyReplacement.Available, _ => installed);
-
-        List<string> named = written.FindAll(
-            line => line.Contains("no stale-method handler", StringComparison.Ordinal));
-
-        Assert.True(
-            chosen.Waylith && ReferenceEquals(installed, DetourBackend.Current),
-            "a runtime that takes no stale-method handler was refused the backend: waylith=" + chosen.Waylith +
-            ", backend swapped=" + ReferenceEquals(installed, DetourBackend.Current) + ". " + chosen.Reason +
-            " Body replacement works without the handler, so refusing here trades partial protection for no " +
-            "patching at all.");
-        Assert.True(
-            named.Count == 1,
-            "the missing stale-method handler was named " + named.Count + " time(s) in one install, wanted 1: " +
-            string.Join(" | ", written) + ". A player reading the log has to be told once what this runtime gives " +
-            "up, and told it where the backend line is.");
-        Assert.Contains("is not present on", named[0], StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void OffForkTheMissingStaleMethodHandlerStaysSilent() {
-        List<string> written = new List<string>();
-        AdapterEntryPoint.StaleHandler = static _ => InjectionCapabilityGap.AssemblyAbsent;
-
-        Selection chosen = AdapterEntryPoint.Install(
-            written.Add, null, [AppContext.BaseDirectory], BodyReplacement.ApiAbsent, null);
-
-        List<string> named = written.FindAll(
-            line => line.Contains("no stale-method handler", StringComparison.Ordinal));
-
-        Assert.False(
-            chosen.Waylith,
-            "stock RimWorld has no body replacement, so the backend should have stayed native: " + chosen.Reason);
-        Assert.Empty(named);
     }
 }
 

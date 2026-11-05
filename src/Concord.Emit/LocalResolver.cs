@@ -1,7 +1,6 @@
 using System.Reflection;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using MethodBody = Mono.Cecil.Cil.MethodBody;
 
 namespace Concord.Emit;
@@ -304,7 +303,7 @@ internal static class LocalResolver {
 
     // Cecil and reflection spell FullName differently for generics and nested types, so cross the
     // boundary once and compare canonical runtime types. No slot here is ever a generic parameter:
-    // DynamicMethodDefinition refuses any method with ContainsGenericParameters, a closed
+    // The body reader refuses a method with ContainsGenericParameters, a closed
     // instantiation's locals come back already substituted, and ImportReference refuses a
     // generic-parameter Type, so DeclareLocal cannot add one either.
     private static Type SlotType(VariableDefinition slot) {

@@ -1,6 +1,5 @@
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using Xunit;
 
 namespace Concord.Emit.Tests;
@@ -8,7 +7,7 @@ namespace Concord.Emit.Tests;
 public sealed class HandlerEndTrimmerTests {
     [Fact]
     public void FinallyEndingOnATrailingNop_ShrinksBackToTheEndfinally() {
-        using DynamicMethodDefinition host = new DynamicMethodDefinition("TrimFinally", typeof(void), Type.EmptyTypes);
+        using ScratchMethod host = new ScratchMethod("TrimFinally", typeof(void), Type.EmptyTypes, System.Reflection.MethodBase.GetCurrentMethod()!);
         MethodBody body = host.Definition.Body;
         body.Instructions.Clear();
 
@@ -39,7 +38,7 @@ public sealed class HandlerEndTrimmerTests {
 
     [Fact]
     public void FinallyAlreadyEndingOnEndfinally_IsLeftAlone() {
-        using DynamicMethodDefinition host = new DynamicMethodDefinition("KeepFinally", typeof(void), Type.EmptyTypes);
+        using ScratchMethod host = new ScratchMethod("KeepFinally", typeof(void), Type.EmptyTypes, System.Reflection.MethodBase.GetCurrentMethod()!);
         MethodBody body = host.Definition.Body;
         body.Instructions.Clear();
 

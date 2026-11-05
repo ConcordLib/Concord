@@ -112,7 +112,7 @@ public sealed class CatchAttributionTests : IDisposable {
         ComposedBody body = CatchBody(HandlerOf);
         EncodedBody encoded = Encode(body);
         int band = WaylithDetourBackend.SentinelBand(target, encoded);
-        IReadOnlyList<OffsetPair> pairs = WaylithDetourBackend.OffsetMap(target, body, encoded, Ordered(HandlerOf, "handler"));
+        IReadOnlyList<OffsetPair> pairs = WaylithDetourBackend.OffsetMap(target, body, encoded);
 
         Assert.Equal(body.Instructions.Count, pairs.Count);
         Assert.Equal(body.Instructions.Count, pairs.Select(pair => pair.Original).Distinct().Count());
@@ -140,7 +140,7 @@ public sealed class CatchAttributionTests : IDisposable {
         FrameAttribution.Register(target, body, encoded, Ordered(HandlerOf, "handler"));
         registered.Add(target);
 
-        ForkBodyWriter.Shared.Write(target, encoded.Bytes, WaylithDetourBackend.OffsetMap(target, body, encoded, Ordered(HandlerOf, "handler")));
+        ForkRuntime.Write(target, encoded.Bytes, WaylithDetourBackend.OffsetMap(target, body, encoded));
         written.Add(target);
 
         NotSupportedException raised = Assert.Throws<NotSupportedException>(() => Guarded.Live(1));

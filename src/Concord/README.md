@@ -2,7 +2,7 @@
 
 The shipped artifact: one `Concord.dll`.
 
-This project doesn't hold source. It ILRepack-merges the four core libraries (`Concord.Emit`, `Concord.Detour`, `Concord.AttachedData`, `Concord.Orchestration`) into a single `Concord.dll`, with their MonoMod dependencies folded in. Build output lands in `Assemblies/`.
+This project doesn't hold source. It ILRepack-merges the four core libraries (`Concord.Emit`, `Concord.Detour`, `Concord.AttachedData`, `Concord.Orchestration`) into a single `Concord.dll`, with Mono.Cecil folded in. Build output lands in `Assemblies/`.
 
 ## When to use this
 

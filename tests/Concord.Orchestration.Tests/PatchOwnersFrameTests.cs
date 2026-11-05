@@ -7,70 +7,40 @@ using Xunit;
 
 namespace Concord.Orchestration.Tests;
 
-public static class OwnersFrameTarget {
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public static int Value() {
-        return 4;
-    }
-}
-
-public static class OwnersFrameRevertTarget {
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public static int Value() {
-        return 5;
-    }
-}
-
 public static class OwnersFrameInjections {
-    public static StackFrame? Captured { get; set; }
-
-    // Runs composed into the wrapper, so frame 0 is the wrapper itself: the same view a mod gets when it
-    // logs from inside a patched method.
-    public static void Capture(ControlHandle<int> ch) {
-        Captured = new StackTrace().GetFrame(0);
-        ch.ReturnValue += 1;
+    public static void Capture(ControlHandle ch) {
     }
 }
 
 [Collection(SharedAssemblyApplyCollection.Name)]
-public class PatchOwnersFrameTests {
+public class PatchOwnersFrameTests : IDisposable {
+    private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
+
+    public PatchOwnersFrameTests() {
+        DetourBackend.Current = backend;
+    }
+
+    public void Dispose() {
+        DetourBackend.Reset();
+    }
+
     [Fact]
-    public void OwnersOfFrame_NamesTheOwner_WhenTheFrameIsTheComposedWrapper() {
-        MethodBase target = TargetOf(typeof(OwnersFrameTarget));
-        OwnersFrameInjections.Captured = null;
+    public void OwnersOfFrame_NamesTheOwnersLiveOnTheFramesMethod() {
+        StackFrame frame = CaptureFrame();
 
-        using IPatchHandle handle = Patcher.PatchInjection(target, Capture("mod.frame"));
+        using IPatchHandle handle = Patcher.PatchInjection(frame.GetMethod()!, Capture("mod.frame"));
 
-        Assert.Equal(5, OwnersFrameTarget.Value());
-
-        StackFrame frame = OwnersFrameInjections.Captured!;
-        Assert.Empty(Patcher.OwnersOf(frame.GetMethod()!));
         Assert.Equal(["mod.frame"], Patcher.OwnersOfFrame(frame));
     }
 
     [Fact]
-    public void ResolveOriginal_ReturnsTheTarget_AndForgetsItOnRevert() {
-        MethodBase target = TargetOf(typeof(OwnersFrameRevertTarget));
-        OwnersFrameInjections.Captured = null;
-
-        IPatchHandle handle = Patcher.PatchInjection(target, Capture("mod.revert"));
-        OwnersFrameRevertTarget.Value();
-        MethodBase wrapper = OwnersFrameInjections.Captured!.GetMethod()!;
-
-        Assert.Equal(target, MethodIdentity.ResolveOriginal(wrapper));
-
-        handle.Dispose();
-
-        Assert.Null(MethodIdentity.ResolveOriginal(wrapper));
+    public void OwnersOfFrame_IsEmptyForAMethodConcordNeverPatched() {
+        Assert.Empty(Patcher.OwnersOfFrame(CaptureFrame()));
     }
 
-    [Fact]
-    public void ResolveOriginal_IsNullForAMethodConcordNeverPatched() {
-        Assert.Null(MethodIdentity.ResolveOriginal(TargetOf(typeof(OwnersFrameRevertTarget))));
-    }
-
-    private static MethodBase TargetOf(Type type) {
-        return type.GetMethod("Value")!;
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static StackFrame CaptureFrame() {
+        return new StackTrace().GetFrame(0)!;
     }
 
     private static Injection Capture(string owner) {

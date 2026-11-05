@@ -3,8 +3,6 @@ name: CI & Release
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
     inputs:
       runtime_version:
@@ -27,12 +25,116 @@ permissions:
   contents: read
 
 jobs:
+  images:
+    name: Game image
+    if: github.event_name != 'workflow_dispatch' || inputs.runtime_version == ''
+    uses: RimWorks/mod-ci/.github/workflows/game-image.yml@v5
+    permissions:
+      contents: read
+      packages: write
+    with:
+      artifact-prefix: core-image-ref
+      image: ghcr.io/concordlib/rimworld-game
+      branches: |
+        1.7=unstable
+    secrets:
+      STEAM_USERNAME: ${{ vars.STEAM_USERNAME }}
+      STEAM_CONFIG_VDF_B64: ${{ secrets.STEAM_CONFIG_VDF_B64 }}
+      DEPOTDOWNLOADER_ACCOUNT_B64: ${{ secrets.DEPOTDOWNLOADER_ACCOUNT_B64 }}
+
+  refs:
+    name: Fork refs
+    needs: images
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    env:
+      GAME_IMAGE: ${{ fromJSON(needs.images.outputs.image-refs)['1.7'] }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Install gamecrate
+        run: npm install -g @gamecrate/cli @gamecrate/rimworld
+
+      - name: Log in to ghcr.io
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Pull game image
+        run: docker pull "$GAME_IMAGE"
+
+      - name: Extract fork refs
+        id: extract
+        env:
+          XDG_CONFIG_HOME: ${{ github.workspace }}/.github
+        run: |
+          set -euo pipefail
+          dir=$(gamecrate refs v17 --game rimworld --image "$GAME_IMAGE")
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          echo "staged $(find "$dir" -maxdepth 1 -type f | wc -l) files at $dir"
+
+      - name: Upload fork refs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fork-refs
+          path: ${{ steps.extract.outputs.dir }}
+
+  fork-facts:
+    name: Fork facts
+    needs: refs
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Download fork refs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: fork-refs
+          path: ${{ runner.temp }}/fork-refs
+
+      - name: Require the native fork runtime
+        run: |
+          set -euo pipefail
+          if [ ! -f "$RUNNER_TEMP/fork-refs/libcoreclr.so" ]; then
+            echo "::error::fork-refs/libcoreclr.so is missing, so the fork facts have no native runtime to overlay. The refs job needs a gamecrate release whose refs command copies the fork's .so files." >&2
+            exit 1
+          fi
+
+      - name: Run fork facts
+        env:
+          FORK_RUNTIME_DIR: ${{ runner.temp }}/fork-refs
+        run: |
+          set -o pipefail
+          tests/Concord.Host.Adapter.ForkTests/run-fork-tests.sh -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs" -- --report-trx --report-trx-filename fork-facts.trx --results-directory "$RUNNER_TEMP" 2>&1 | tee "$RUNNER_TEMP/fork-facts.log"
+
+      - name: Upload fork facts log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fork-facts-log
+          path: |
+            ${{ runner.temp }}/fork-facts.log
+            ${{ runner.temp }}/fork-facts.trx
+
   sonar:
     name: SonarCloud
+    needs: refs
     runs-on: ubuntu-latest
-    if: >-
-      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-      && (github.event_name != 'workflow_dispatch' || inputs.runtime_version == '')
+    if: github.event_name != 'workflow_dispatch' || inputs.runtime_version == ''
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -66,10 +168,17 @@ jobs:
       - name: Install scanner
         run: dotnet tool install --global dotnet-sonarscanner --version 11.3.0
 
+      - name: Download fork refs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: fork-refs
+          path: ${{ runner.temp }}/fork-refs
+
       - name: Analyse
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORK_REFS: ${{ runner.temp }}/fork-refs
         run: |
           set -euo pipefail
           dotnet sonarscanner begin \
@@ -81,14 +190,16 @@ jobs:
             /d:sonar.cs.opencover.reportsPaths="coverage/**/coverage.opencover.xml" \
             /d:sonar.coverage.exclusions="tests/**,bench/**" \
             /d:sonar.qualitygate.wait=true
-          dotnet build Concord.ci.slnx -c Release
+          dotnet build Concord.ci.slnx -c Release -p:ForkRuntimeDir="$FORK_REFS"
           dotnet test Concord.ci.slnx -c Release --no-build -f net10.0 \
+            -p:ForkRuntimeDir="$FORK_REFS" \
             --collect:"XPlat Code Coverage;Format=opencover" \
             --results-directory coverage
           dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
 
   test:
     name: Test · ${{ matrix.label }}
+    needs: refs
     if: github.event_name != 'workflow_dispatch' || inputs.runtime_version == ''
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.experimental }}
@@ -101,8 +212,7 @@ jobs:
           - { label: macos-arm64,  runner: macos-latest,   experimental: false, testFilter: '' }
           # TODO(arm64): flip experimental to false once this cell is green
           - { label: linux-arm64,  runner: ubuntu-24.04-arm, experimental: true,  testFilter: '' }
-          # TODO(MonoMod#279): drop the testFilter when MonoMod.Core ships win-arm64
-          - { label: windows-arm64,runner: windows-11-arm,   experimental: false, testFilter: 'FullyQualifiedName!~Concord.Harmony.Tests' }
+          - { label: windows-arm64,runner: windows-11-arm,   experimental: false, testFilter: '' }
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -118,37 +228,17 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props', 'global.json') }}
           restore-keys: ${{ runner.os }}-nuget-
 
+      - name: Download fork refs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: fork-refs
+          path: ${{ runner.temp }}/fork-refs
+
       - name: Restore
-        run: dotnet restore Concord.ci.slnx
+        run: dotnet restore Concord.ci.slnx -p:ForkRuntimeDir="${{ runner.temp }}/fork-refs"
 
       - name: Test
-        run: dotnet test Concord.ci.slnx -c Release --no-restore -f net10.0 --logger trx --results-directory test-results ${{ matrix.testFilter != '' && format('--filter "{0}"', matrix.testFilter) || '' }}
-
-      - name: Test (net472)
-        if: startsWith(matrix.runner, 'windows')
-        shell: pwsh
-        env:
-          TEST_LABEL: ${{ matrix.label }}
-        run: |
-          $failed = @()
-          $suites = @(
-            'tests/Concord.Detour.Tests/Concord.Detour.Tests.csproj',
-            'tests/Concord.Emit.Tests/Concord.Emit.Tests.csproj',
-            'tests/Concord.AttachedData.Tests/Concord.AttachedData.Tests.csproj',
-            'tests/Concord.Orchestration.Tests/Concord.Orchestration.Tests.csproj',
-            'tests/Concord.Harmony.Tests/Concord.Harmony.Tests.csproj'
-          )
-          if ($env:TEST_LABEL -eq 'windows-arm64') {
-            $suites = $suites | Where-Object { $_ -notlike '*Concord.Harmony.Tests*' }
-          }
-          foreach ($suite in $suites) {
-            dotnet test $suite -c Release --no-restore -f net472
-            if ($LASTEXITCODE -ne 0) { $failed += $suite }
-          }
-          if ($failed.Count -gt 0) {
-            Write-Host "::error::net472 suites failed: $($failed -join ', ')"
-            exit 1
-          }
+        run: dotnet test Concord.ci.slnx -c Release --no-restore -f net10.0 -p:ForkRuntimeDir="${{ runner.temp }}/fork-refs" --logger trx --results-directory test-results ${{ matrix.testFilter != '' && format('--filter "{0}"', matrix.testFilter) || '' }}
 
       - name: Upload test results
         if: always()
@@ -157,48 +247,9 @@ jobs:
           name: test-results-${{ matrix.label }}
           path: test-results/**/*.trx
 
-  test-mono:
-    name: Test · mono (net472)
-    if: github.event_name != 'workflow_dispatch' || inputs.runtime_version == ''
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Install mono
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mono-complete
-
-      - name: Cache NuGet
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props', 'global.json') }}
-          restore-keys: ${{ runner.os }}-nuget-
-
-      - name: Restore
-        run: dotnet restore Concord.ci.slnx
-
-      - name: Build net472 test assemblies
-        run: |
-          dotnet build Concord.ci.slnx -c Release --no-restore
-
-      - name: Run suites under mono
-        run: |
-          set -e
-          RUNNER=$(find ~/.nuget/packages/xunit.runner.console -name xunit.console.exe -path '*net472*' | sort -V | tail -1)
-          for dll in Detour Emit AttachedData Orchestration Harmony; do
-            mono "$RUNNER" "tests/Concord.$dll.Tests/bin/Release/net472/Concord.$dll.Tests.dll"
-          done
-
   release:
     name: Release & Publish
-    needs: [test, test-mono, sonar]
+    needs: [test, sonar, refs]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     env:
@@ -225,18 +276,23 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props', 'global.json') }}
           restore-keys: ${{ runner.os }}-nuget-
 
+      - name: Download fork refs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: fork-refs
+          path: ${{ runner.temp }}/fork-refs
+
       - name: Build
-        run: dotnet build Concord.ci.slnx -c Release
+        run: dotnet build Concord.ci.slnx -c Release -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
 
       - name: Smoke pack
         run: |
           set -euo pipefail
-          dotnet pack src/Concord.Ref/Concord.Ref.csproj -c Release -o "$RUNNER_TEMP/pack-smoke"
-          dotnet pack src/Concord.Analyzers/Concord.Analyzers.csproj -c Release -o "$RUNNER_TEMP/pack-smoke"
-          dotnet pack src/Concord.Generators/Concord.Generators.csproj -c Release -o "$RUNNER_TEMP/pack-smoke"
-          dotnet pack src/Concord.Harmony/Concord.Harmony.csproj -c Release -o "$RUNNER_TEMP/pack-smoke"
-          dotnet pack src/Concord/Concord.csproj -c Release -o "$RUNNER_TEMP/pack-smoke"
-          dotnet pack src/Concord.Host.Adapter/Concord.Host.Adapter.csproj -c Release -o "$RUNNER_TEMP/pack-smoke"
+          dotnet pack src/Concord.Ref/Concord.Ref.csproj -c Release -o "$RUNNER_TEMP/pack-smoke" -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
+          dotnet pack src/Concord.Analyzers/Concord.Analyzers.csproj -c Release -o "$RUNNER_TEMP/pack-smoke" -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
+          dotnet pack src/Concord.Generators/Concord.Generators.csproj -c Release -o "$RUNNER_TEMP/pack-smoke" -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
+          dotnet pack src/Concord/Concord.csproj -c Release -o "$RUNNER_TEMP/pack-smoke" -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
+          dotnet pack src/Concord.Host.Adapter/Concord.Host.Adapter.csproj -c Release -o "$RUNNER_TEMP/pack-smoke" -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -285,12 +341,11 @@ jobs:
       - name: Pack
         if: steps.tag.outputs.tag != ''
         run: |
-          dotnet pack src/Concord.Ref/Concord.Ref.csproj -c Release -o artifacts
-          dotnet pack src/Concord.Analyzers/Concord.Analyzers.csproj -c Release -o artifacts
-          dotnet pack src/Concord.Generators/Concord.Generators.csproj -c Release -o artifacts
-          dotnet pack src/Concord.Harmony/Concord.Harmony.csproj -c Release -o artifacts
-          dotnet pack src/Concord/Concord.csproj -c Release -o artifacts
-          dotnet pack src/Concord.Host.Adapter/Concord.Host.Adapter.csproj -c Release -o artifacts
+          dotnet pack src/Concord.Ref/Concord.Ref.csproj -c Release -o artifacts -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
+          dotnet pack src/Concord.Analyzers/Concord.Analyzers.csproj -c Release -o artifacts -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
+          dotnet pack src/Concord.Generators/Concord.Generators.csproj -c Release -o artifacts -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
+          dotnet pack src/Concord/Concord.csproj -c Release -o artifacts -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
+          dotnet pack src/Concord.Host.Adapter/Concord.Host.Adapter.csproj -c Release -o artifacts -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
 
       - name: NuGet login
         if: steps.tag.outputs.tag != ''
