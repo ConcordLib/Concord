@@ -303,7 +303,7 @@ public static class WrapperComposer {
         }
 
         foreach (Type argument in EnumerateGenericArguments(target)) {
-            if (argument.IsGenericParameter || argument.IsValueType) {
+            if (argument.IsGenericParameter || TypeFacts.IsValueType(argument)) {
                 continue;
             }
 
@@ -342,7 +342,7 @@ public static class WrapperComposer {
 
         bool anyReferenceArgument = false;
         foreach (Type argument in EnumerateGenericArguments(target)) {
-            if (!argument.IsGenericParameter && !argument.IsValueType) {
+            if (!argument.IsGenericParameter && !TypeFacts.IsValueType(argument)) {
                 anyReferenceArgument = true;
                 break;
             }
@@ -425,7 +425,7 @@ public static class WrapperComposer {
                 continue;
             }
 
-            if (parameter.IsOut || parameter.IsRetval || parameterType.IsByRef || !parameterType.IsValueType) {
+            if (parameter.IsOut || parameter.IsRetval || parameterType.IsByRef || !TypeFacts.IsValueType(parameterType)) {
                 return true;
             }
         }
@@ -526,7 +526,7 @@ public static class WrapperComposer {
 
     internal static Type ThisParameterType(MethodBase target) {
         Type declaring = target.DeclaringType!;
-        return declaring.IsValueType ? declaring.MakeByRefType() : declaring;
+        return TypeFacts.IsValueType(declaring) ? declaring.MakeByRefType() : declaring;
     }
 
     internal static string WrapperName(MethodBase target) {
@@ -988,11 +988,11 @@ public static class WrapperComposer {
     }
 
     private static bool IsFunctionPointer(Type type) {
-        return type.IsFunctionPointer || type.IsUnmanagedFunctionPointer;
+        return TypeFacts.IsFunctionPointer(type) || TypeFacts.IsUnmanagedFunctionPointer(type);
     }
 
     private static bool IsByRefLike(Type type) {
-        return type.IsByRefLike;
+        return TypeFacts.IsByRefLike(type);
     }
 
     private static MethodBase? BuildProbeInstantiation(MethodBase target) {
@@ -1005,7 +1005,7 @@ public static class WrapperComposer {
         Type[] substituted = new Type[arguments.Length];
         for (int i = 0; i < arguments.Length; i++) {
             Type argument = arguments[i];
-            if (argument.IsValueType) {
+            if (TypeFacts.IsValueType(argument)) {
                 substituted[i] = argument;
                 continue;
             }
@@ -2403,6 +2403,13 @@ public static class WrapperComposer {
         }
 
         ParameterInfo[] parameters = injectionMethod.GetParameters();
+        if (parameters.Length == 0) {
+            throw new ConcordEmitException(
+                CodeCONC039,
+                $"Value injection '{injectionMethod.DeclaringType?.Name}.{injectionMethod.Name}' on '{target.DeclaringType?.Name}.{target.Name}' must declare exactly one parameter, got 0. " +
+                "An argument injection reads the argument through that parameter and returns the replacement, so there is nothing to infer the argument from.");
+        }
+
         Type valueType = parameters[0].ParameterType;
         int found = -1;
         for (int i = 0; i < shape.ParameterTypes.Length; i++) {

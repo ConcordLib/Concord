@@ -19,8 +19,8 @@ public static class LocalSignatureEncoder {
     /// <exception cref="ArgumentNullException">Thrown when either argument is <c>null</c>.</exception>
     /// <exception cref="ArgumentException">Thrown when the list is empty, longer than <see cref="MaxLocals" />, or holds a slot type with no encoding.</exception>
     public static byte[] Encode(IReadOnlyList<ComposedLocal> locals, ITokenSource tokens) {
-        ArgumentNullException.ThrowIfNull(locals);
-        ArgumentNullException.ThrowIfNull(tokens);
+        Guard.ThrowIfNull(locals, nameof(locals));
+        Guard.ThrowIfNull(tokens, nameof(tokens));
 
         if (locals.Count == 0) {
             throw new ArgumentException(
@@ -58,7 +58,7 @@ public static class LocalSignatureEncoder {
 
         if (type.IsArray) {
             Type element = Unwrap(type.GetElementType(), slot);
-            if (type.IsSZArray) {
+            if (TypeFacts.IsSzArray(type)) {
                 EncodeType(encoder.SZArray(), element, tokens, slot);
                 return;
             }
@@ -70,12 +70,12 @@ public static class LocalSignatureEncoder {
             return;
         }
 
-        if (type.IsGenericMethodParameter) {
+        if (TypeFacts.IsGenericMethodParameter(type)) {
             encoder.GenericMethodTypeParameter(type.GenericParameterPosition);
             return;
         }
 
-        if (type.IsGenericTypeParameter) {
+        if (TypeFacts.IsGenericTypeParameter(type)) {
             encoder.GenericTypeParameter(type.GenericParameterPosition);
             return;
         }
@@ -84,11 +84,11 @@ public static class LocalSignatureEncoder {
             throw Reject(slot, type, "void is only encodable as a pointer target");
         }
 
-        if (type.IsFunctionPointer) {
+        if (TypeFacts.IsFunctionPointer(type)) {
             EncodeMethodSignature(
                 encoder.FunctionPointer(PointerConvention(type), FunctionPointerAttributes.None, 0),
-                type.GetFunctionPointerReturnType(),
-                type.GetFunctionPointerParameterTypes(),
+                TypeFacts.FunctionPointerReturnType(type),
+                TypeFacts.FunctionPointerParameterTypes(type),
                 tokens,
                 slot);
             return;
@@ -104,7 +104,7 @@ public static class LocalSignatureEncoder {
             GenericTypeArgumentsEncoder argumentEncoder = encoder.GenericInstantiation(
                 TypeDefOrRef(type.GetGenericTypeDefinition(), tokens, slot),
                 arguments.Length,
-                type.IsValueType);
+                TypeFacts.IsValueType(type));
 
             foreach (Type argument in arguments) {
                 EncodeType(argumentEncoder.AddArgument(), Unwrap(argument, slot), tokens, slot);
@@ -113,7 +113,7 @@ public static class LocalSignatureEncoder {
             return;
         }
 
-        encoder.Type(TypeDefOrRef(type, tokens, slot), type.IsValueType);
+        encoder.Type(TypeDefOrRef(type, tokens, slot), TypeFacts.IsValueType(type));
     }
 
     internal static void EncodeMethodSignature(
@@ -169,11 +169,11 @@ public static class LocalSignatureEncoder {
     }
 
     private static SignatureCallingConvention PointerConvention(Type type) {
-        if (!type.IsUnmanagedFunctionPointer) {
+        if (!TypeFacts.IsUnmanagedFunctionPointer(type)) {
             return SignatureCallingConvention.Default;
         }
 
-        foreach (Type convention in type.GetFunctionPointerCallingConventions()) {
+        foreach (Type convention in TypeFacts.FunctionPointerCallingConventions(type)) {
             switch (convention.Name) {
                 case "CallConvCdecl": return SignatureCallingConvention.CDecl;
                 case "CallConvStdcall": return SignatureCallingConvention.StdCall;

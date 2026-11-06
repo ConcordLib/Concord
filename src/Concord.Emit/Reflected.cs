@@ -317,7 +317,7 @@ internal static class Reflected {
     private static bool Matches(TypeReference reference, Type type, Type declaring) {
         switch (reference) {
             case GenericParameter { Type: GenericParameterType.Method } parameter:
-                return type.IsGenericMethodParameter && type.GenericParameterPosition == parameter.Position;
+                return TypeFacts.IsGenericMethodParameter(type) && type.GenericParameterPosition == parameter.Position;
             case GenericParameter parameter:
                 return Owned(parameter, type, declaring);
             case ByReferenceType byReference:
@@ -338,7 +338,7 @@ internal static class Reflected {
 
     private static bool Owned(GenericParameter parameter, Type type, Type declaring) {
         if (!declaring.IsGenericType || declaring.IsGenericTypeDefinition) {
-            return type.IsGenericTypeParameter && type.GenericParameterPosition == parameter.Position;
+            return TypeFacts.IsGenericTypeParameter(type) && type.GenericParameterPosition == parameter.Position;
         }
 
         Type[] arguments = declaring.GetGenericArguments();

@@ -37,7 +37,7 @@ public readonly struct StackBound {
     /// <exception cref="ArgumentNullException"><paramref name="body" /> is <c>null</c>.</exception>
     /// <exception cref="NotSupportedException">An instruction has a push or pop behaviour with no fixed count.</exception>
     public static StackBound Compute(ComposedBody body) {
-        ArgumentNullException.ThrowIfNull(body);
+        Guard.ThrowIfNull(body, nameof(body));
 
         bool usesLocalloc = false;
         Dictionary<Label, int> targets = new Dictionary<Label, int>();

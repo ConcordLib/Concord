@@ -57,8 +57,8 @@ public static class LocalSignatureDecoder {
         Type[]? typeArguments,
         Type[]? methodArguments,
         out string? refusal) {
-        ArgumentNullException.ThrowIfNull(signature);
-        ArgumentNullException.ThrowIfNull(module);
+        Guard.ThrowIfNull(signature, nameof(signature));
+        Guard.ThrowIfNull(module, nameof(module));
 
         refusal = null;
         if (signature.Length == 0) {
@@ -95,7 +95,7 @@ public static class LocalSignatureDecoder {
     /// <returns>The declaring type's arguments and the method's own, each <see langword="null" /> when that side is not generic.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="method" /> is <c>null</c>.</exception>
     public static (Type[]? TypeArguments, Type[]? MethodArguments) GenericContext(MethodBase method) {
-        ArgumentNullException.ThrowIfNull(method);
+        Guard.ThrowIfNull(method, nameof(method));
 
         return (
             method.DeclaringType is { IsGenericType: true } declaring ? declaring.GetGenericArguments() : null,

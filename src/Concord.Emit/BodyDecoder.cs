@@ -26,8 +26,8 @@ public static class BodyDecoder {
     /// <returns>The decoded body, or <see langword="null" /> when <paramref name="refusal" /> says why not.</returns>
     /// <exception cref="ArgumentNullException">Thrown when either argument is <c>null</c>.</exception>
     public static ComposedBody? Decode(MethodBase method, HostBody body, out string? refusal) {
-        ArgumentNullException.ThrowIfNull(method);
-        ArgumentNullException.ThrowIfNull(body);
+        Guard.ThrowIfNull(method, nameof(method));
+        Guard.ThrowIfNull(body, nameof(body));
 
         refusal = null;
         if (body.Il.Length == 0) {

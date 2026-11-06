@@ -27,6 +27,9 @@ public class ArgInjectionMethods {
     public string Longer(string original) {
         return original + "gg";
     }
+
+    public void TakesNothing() {
+    }
 }
 
 public sealed class ArgumentInjectionTests {
@@ -62,5 +65,17 @@ public sealed class ArgumentInjectionTests {
 
         ConcordEmitException ex = Assert.Throws<ConcordEmitException>(() => WrapperComposer.Compose(target, [rewrite]));
         Assert.Contains("arg:", ex.Message);
+    }
+
+    [Fact]
+    public void ParameterlessInjection_RaisesCONC039_NotIndexOutOfRange() {
+        MethodBase target = typeof(ArgHost).GetMethod(nameof(ArgHost.Total))!;
+        MethodBase injection = typeof(ArgInjectionMethods).GetMethod(nameof(ArgInjectionMethods.TakesNothing))!;
+        Injection rewrite = new Injection(injection, new InjectAt.Invoke(typeof(ArgRules), nameof(ArgRules.Apply), At.Argument, 0, null, 0), "test", 0);
+
+        ConcordEmitException ex = Assert.Throws<ConcordEmitException>(() => WrapperComposer.Compose(target, [rewrite]));
+
+        Assert.Equal("CONC039", ex.Code);
+        Assert.Contains("TakesNothing", ex.Message);
     }
 }

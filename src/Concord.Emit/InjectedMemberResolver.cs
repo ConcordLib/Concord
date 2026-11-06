@@ -71,7 +71,7 @@ internal static class InjectedMemberResolver {
             throw Error(CodeCONC074, "[InjectInstance] cannot be used when patching static target method '" + targetType.Name + "." + target.Name + "'.");
         }
 
-        if (targetType.IsValueType) {
+        if (TypeFacts.IsValueType(targetType)) {
             throw Error(CodeCONC074, "[InjectInstance] does not support value-type target '" + targetType.Name + "'.");
         }
 

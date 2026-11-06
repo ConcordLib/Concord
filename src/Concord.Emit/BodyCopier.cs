@@ -124,7 +124,7 @@ internal static class BodyCopier {
             if (request.Target.IsStatic) {
                 argRemap.Remove(instanceArg);
                 nullInstanceArg = instanceArg;
-            } else if (request.Target.DeclaringType?.IsValueType == true) {
+            } else if (request.Target.DeclaringType is { } instanceDeclaring && TypeFacts.IsValueType(instanceDeclaring)) {
                 argRemap.Remove(instanceArg);
                 structInstanceArg = instanceArg;
             } else if (NarrowsInstance(request, instanceArg)) {
@@ -1055,12 +1055,12 @@ internal static class BodyCopier {
             prologue.Add(LoadArgInstruction(i + offset));
             if (declared.IsByRef) {
                 declared = declared.GetElementType()!;
-                prologue.Add(declared.IsValueType
+                prologue.Add(TypeFacts.IsValueType(declared)
                     ? Instruction.Create(OpCodes.Ldobj, module.ImportReference(declared))
                     : Instruction.Create(OpCodes.Ldind_Ref));
             }
 
-            if (declared.IsValueType) {
+            if (TypeFacts.IsValueType(declared)) {
                 prologue.Add(Instruction.Create(OpCodes.Box, module.ImportReference(declared)));
             }
 
@@ -1690,7 +1690,7 @@ internal static class BodyCopier {
             return false;
         }
 
-        return !declared.IsValueType && !declared.IsByRef && !candidate.IsValueType && !candidate.IsByRef &&
+        return !TypeFacts.IsValueType(declared) && !declared.IsByRef && !TypeFacts.IsValueType(candidate) && !candidate.IsByRef &&
                candidate.IsAssignableFrom(declared);
     }
 
@@ -1710,7 +1710,7 @@ internal static class BodyCopier {
             return true;
         }
 
-        return !declared.IsValueType && !declared.IsByRef && !candidate.IsValueType && !candidate.IsByRef && declared.IsAssignableFrom(candidate);
+        return !TypeFacts.IsValueType(declared) && !declared.IsByRef && !TypeFacts.IsValueType(candidate) && !candidate.IsByRef && declared.IsAssignableFrom(candidate);
     }
 
     private static Dictionary<int, int> BuildArgRemap(

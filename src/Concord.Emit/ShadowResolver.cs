@@ -84,7 +84,7 @@ internal static class ShadowResolver {
                 "Mark it [Attached] to store it beside each instance, or [InjectField(\"name\")] when it shadows a target field under a different name.");
         }
 
-        if (targetType.IsValueType) {
+        if (TypeFacts.IsValueType(targetType)) {
             throw new ConcordEmitException(
                 MissingField,
                 $"Field '{declarationField.Name}' on declaration '{declarationType.Name}' is [Attached], but target '{targetType.Name}' is a value type. Attached state is keyed by instance identity, which a struct does not have.");

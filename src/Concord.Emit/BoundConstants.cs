@@ -129,7 +129,7 @@ internal static class BoundConstants {
         }
 
         if (value is null) {
-            if (declared.IsValueType && Nullable.GetUnderlyingType(declared) is null) {
+            if (TypeFacts.IsValueType(declared) && Nullable.GetUnderlyingType(declared) is null) {
                 throw new ConcordEmitException(
                     Unbindable,
                     BoundParameter + parameter.Name + OnOwner + injectionMethod.Name + "' is a non-nullable value type and cannot be bound to null.");

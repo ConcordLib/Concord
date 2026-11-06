@@ -20,9 +20,9 @@ public static class BodyEncoder {
     /// <exception cref="ArgumentException">Thrown when one label marks two instructions, an operand has the wrong type, or a value overflows its operand.</exception>
     /// <exception cref="NotSupportedException">Thrown when an opcode's operand kind or a clause kind has no encoding here.</exception>
     public static EncodedBody Encode(ComposedBody body, ITokenSource tokens, IMaxStackSource maxStack) {
-        ArgumentNullException.ThrowIfNull(body);
-        ArgumentNullException.ThrowIfNull(tokens);
-        ArgumentNullException.ThrowIfNull(maxStack);
+        Guard.ThrowIfNull(body, nameof(body));
+        Guard.ThrowIfNull(tokens, nameof(tokens));
+        Guard.ThrowIfNull(maxStack, nameof(maxStack));
 
         int count = body.Instructions.Count;
         BlobBuilder code = new BlobBuilder();
@@ -85,7 +85,7 @@ public static class BodyEncoder {
     /// <returns>Indices into <paramref name="clauses" />, later try starts first, then shorter try ranges, then original order.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="clauses" /> is <c>null</c>.</exception>
     public static int[] InnermostFirst(IReadOnlyList<ComposedClause> clauses) {
-        ArgumentNullException.ThrowIfNull(clauses);
+        Guard.ThrowIfNull(clauses, nameof(clauses));
 
         if (clauses.Count <= 1) {
             return clauses.Count == 0 ? [] : [0];
