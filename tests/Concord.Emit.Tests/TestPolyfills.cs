@@ -5,8 +5,16 @@ namespace Concord.Emit.Tests;
 
 internal sealed class MonoOnlyTheoryAttribute : TheoryAttribute {
     public MonoOnlyTheoryAttribute() {
-        if (Type.GetType("Mono.Runtime") is null) {
+        if (!BodyReader.Fenced) {
             Skip = "mono is the only runtime where reflecting over a function-pointer type overflows the process stack, so the net472 fence has nothing to prove elsewhere.";
+        }
+    }
+}
+
+internal sealed class NotOnMonoFactAttribute : FactAttribute {
+    public NotOnMonoFactAttribute() {
+        if (BodyReader.Fenced) {
+            Skip = "mono refuses a function-pointer target with CONC167 before any emit happens, so a compose-and-run expectation cannot hold here.";
         }
     }
 }

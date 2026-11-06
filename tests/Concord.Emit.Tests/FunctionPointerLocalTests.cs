@@ -37,7 +37,7 @@ public static class FunctionPointerTargets {
 }
 
 public sealed class FunctionPointerLocalTests {
-    [Fact]
+    [NotOnMonoFact]
     public void Compose_SpineFunctionPointerLocal_RunsAndReturnsTheRightValue() {
         MethodBase target = typeof(ProvHost).GetMethod(nameof(ProvHost.ViaPointer))!;
 
@@ -46,7 +46,7 @@ public sealed class FunctionPointerLocalTests {
         Assert.Equal(16, result.Wrapper.Invoke(null, [new ProvHost(), 5]));
     }
 
-    [Fact]
+    [NotOnMonoFact]
     public void Compose_InjectionFunctionPointerLocal_RunsAndReturnsTheRightValue() {
         MethodBase target = typeof(ProvHost).GetMethod(nameof(ProvHost.ViaPointer))!;
         MethodBase injectionMethod = typeof(FunctionPointerTargets).GetMethod(nameof(FunctionPointerTargets.Bump))!;
@@ -59,7 +59,7 @@ public sealed class FunctionPointerLocalTests {
         Assert.Equal(2, FunctionPointerTargets.Counter);
     }
 
-    [Fact]
+    [NotOnMonoFact]
     public void Compose_FunctionPointerTypeOperand_RunsAndReturnsTheRightValue() {
         MethodBase target = typeof(FunctionPointerTargets).GetMethod(nameof(FunctionPointerTargets.SizedArray))!;
 
@@ -68,7 +68,7 @@ public sealed class FunctionPointerLocalTests {
         Assert.Equal(12, result.Wrapper.Invoke(null, [5]));
     }
 
-    [Fact]
+    [NotOnMonoFact]
     public void CapturedBody_RefusesTheCalliSignatureByName() {
         MethodBase target = typeof(ProvHost).GetMethod(nameof(ProvHost.ViaPointer))!;
 
@@ -84,7 +84,7 @@ public sealed class FunctionPointerLocalTests {
         Assert.Contains("calli", result.BodyRejection);
     }
 
-    [Fact]
+    [NotOnMonoFact]
     public void Compose_JaggedAndPointerToFunctionPointer_RunsAndReturnsTheRightValue() {
         MethodBase target = typeof(FunctionPointerTargets).GetMethod(nameof(FunctionPointerTargets.JaggedAndPointer))!;
 
@@ -93,7 +93,7 @@ public sealed class FunctionPointerLocalTests {
         Assert.Equal(12, result.Wrapper.Invoke(null, [5]));
     }
 
-    [Fact]
+    [NotOnMonoFact]
     public void Compose_ByRefFunctionPointerLocal_RunsAndReturnsTheRightValue() {
         MethodBase target = typeof(FunctionPointerTargets).GetMethod(nameof(FunctionPointerTargets.ByRefLocal))!;
 

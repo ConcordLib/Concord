@@ -72,7 +72,13 @@ internal sealed class ScratchMethod : IDisposable {
         }
     }
 
-    internal static MethodInfo Generate(ComposedBody body, string name, Type returnType, Type[] parameterTypes) {
+    internal static MethodInfo Generate(
+        ComposedBody body,
+        string name,
+        Type returnType,
+        Type[] parameterTypes,
+        MethodBase origin) {
+#if NET
         DynamicMethod method = new DynamicMethod(name, returnType, parameterTypes, true);
 
         DynamicILInfo scope = method.GetDynamicILInfo();
@@ -84,6 +90,14 @@ internal sealed class ScratchMethod : IDisposable {
         }
 
         return method;
+#else
+        using MonoMod.Utils.DynamicMethodDefinition definition =
+            new MonoMod.Utils.DynamicMethodDefinition(name, returnType, parameterTypes);
+        ComposedBodyWriter.Write(definition.Definition, body, origin);
+        return NeedsCecilGenerator(body)
+            ? MonoMod.Utils.DMDGenerator<MonoMod.Utils.DMDCecilGenerator>.Generate(definition, null)
+            : definition.Generate();
+#endif
     }
 
     internal ILProcessor GetILProcessor() {
@@ -95,8 +109,28 @@ internal sealed class ScratchMethod : IDisposable {
             ComposedBodyFactory.Create(Definition, new TranspilerContext(origin)),
             Definition.Name,
             returnType,
-            parameterTypes);
+            parameterTypes,
+            origin);
     }
+
+#if !NET
+    private static bool NeedsCecilGenerator(ComposedBody body) {
+        HashSet<(int Start, int End)> tries = new HashSet<(int Start, int End)>();
+        foreach (ComposedClause clause in body.Clauses) {
+            if (!tries.Add((clause.TryStart, clause.TryEnd))) {
+                return true;
+            }
+        }
+
+        foreach (ComposedInstruction instruction in body.Instructions) {
+            if (instruction.Instruction.operand is CallSiteSignature) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+#endif
 
     private static byte[] DynamicScopeLocals(ComposedBody body) {
         SignatureHelper helper = SignatureHelper.GetLocalVarSigHelper();

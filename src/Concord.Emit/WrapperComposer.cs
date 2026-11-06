@@ -1193,7 +1193,7 @@ public static class WrapperComposer {
             wrapperMethod = () => generated;
         } else {
             ComposedBody described = body;
-            wrapperMethod = () => ScratchMethod.Generate(described, wrapperName, returnType, parameterTypes);
+            wrapperMethod = () => ScratchMethod.Generate(described, wrapperName, returnType, parameterTypes, resolved);
         }
 
         return new ComposeResult(wrapperMethod, () => OriginalBody.Clone(resolved), rejected, body, bodyRejection);

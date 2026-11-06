@@ -112,7 +112,7 @@ public sealed class CallSiteProvenanceTests {
         }
     }
 
-    [Fact]
+    [NotOnMonoFact]
     public void FunctionPointerArgument_DoesNotResolveToThePointerPush() {
         (ScratchMethod source, List<Instruction> spine, int callIndex) = FindBlendCall(nameof(ProvHost.ViaPointer));
         using (source) {

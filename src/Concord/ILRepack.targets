@@ -8,8 +8,10 @@
       <ConcordMergeInputs Include="$(OutputPath)Concord.Orchestration.dll"/>
       <ConcordMergeInputs Include="$(OutputPath)Concord.Enums.dll"/>
       <ConcordMergeInputs Include="$(OutputPath)Mono.Cecil*.dll"/>
+      <ConcordMergeInputs Include="$(OutputPath)MonoMod.Utils.dll;$(OutputPath)System.*.dll" Condition="'$(TargetFramework)' == 'net472'"/>
       <ConcordMergeLib Include="$(TargetRuntimeDir)" Condition="'$(TargetRuntimeDir)' != ''"/>
       <ConcordMergeLib Include="$(OutputPath)"/>
+      <ConcordMergeLib Include="$(TargetFrameworkRootPath).NETFramework/v4.7.2" Condition="'$(TargetFramework)' == 'net472'"/>
       <ConcordInternalizeExclude Include="^Concord[.]"/>
     </ItemGroup>
     <ILRepack
@@ -29,6 +31,7 @@
       <ConcordLeftovers Include="$(OutputPath)Concord.AttachedData.pdb;$(OutputPath)Concord.AttachedData.xml;$(OutputPath)Concord.Orchestration.pdb;$(OutputPath)Concord.Orchestration.xml"/>
       <ConcordLeftovers Include="$(OutputPath)Concord.Enums.dll"/>
       <ConcordLeftovers Include="$(OutputPath)Concord.Enums.pdb;$(OutputPath)Concord.Enums.xml"/>
+      <ConcordLeftovers Include="$(OutputPath)MonoMod.Utils.*;$(OutputPath)System.*.dll;$(OutputPath)System.*.pdb;$(OutputPath)System.*.xml" Condition="'$(TargetFramework)' == 'net472'"/>
     </ItemGroup>
     <Delete Files="@(ConcordLeftovers)"/>
   </Target>

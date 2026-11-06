@@ -46,13 +46,23 @@ public sealed class EncodedBody {
     public bool InitLocals { get; }
 
     /// <summary>Just the IL stream, with the header and any trailing handler section cut off.</summary>
-    public ReadOnlySpan<byte> Il => Bytes.AsSpan(HeaderSize, CodeSize);
+#if NET
+    public
+#else
+    internal
+#endif
+    ReadOnlySpan<byte> Il => Bytes.AsSpan(HeaderSize, CodeSize);
 
     /// <summary>
     ///     The exception-handling section, its own section header included, empty when there are no regions.
     ///     Offsets inside it are relative to the start of the IL stream.
     /// </summary>
-    public ReadOnlySpan<byte> ExceptionSection {
+#if NET
+    public
+#else
+    internal
+#endif
+    ReadOnlySpan<byte> ExceptionSection {
         get {
             int at = (HeaderSize + CodeSize + 3) & ~3;
             return HeaderSize == 1 || at >= Bytes.Length ? default : Bytes.AsSpan(at);

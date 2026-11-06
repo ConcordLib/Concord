@@ -8,7 +8,7 @@ namespace Concord.Emit;
 internal static class BodyReader {
     internal const string RefusalCode = "CONC167";
 
-    private static readonly bool Fenced = Type.GetType("Mono.Runtime") is not null;
+    internal static readonly bool Fenced = Type.GetType("Mono.Runtime") is not null;
 
     private static readonly object Gate = new object();
 

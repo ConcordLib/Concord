@@ -31,6 +31,7 @@
     <Project Path="tests/Concord.Orchestration.Tests.RegistryAssembly/Concord.Orchestration.Tests.RegistryAssembly.csproj"/>
     <Project Path="tests/Concord.Generators.Tests.Consumer/Concord.Generators.Tests.Consumer.csproj"/>
     <Project Path="tests/Concord.Host.Adapter.Tests/Concord.Host.Adapter.Tests.csproj"/>
+    <Project Path="tests/Concord.Merged.Tests/Concord.Merged.Tests.csproj"/>
   </Folder>
   <Folder Name="/bench/">
     <Project Path="bench/Concord.Benchmarks/Concord.Benchmarks.csproj"/>

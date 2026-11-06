@@ -23,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="MonoMod.Utils" Version="22.5.1.1"/>
     <PackageReference Include="System.Reflection.Metadata" Version="8.0.0"/>
     <PackageReference Include="System.Collections.Immutable" Version="8.0.0"/>
   </ItemGroup>
