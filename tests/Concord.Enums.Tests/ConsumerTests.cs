@@ -1,13 +1,13 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using Concord.Detour;
+using Concord.Backend;
 using Concord.Emit;
 using Concord.Tests.Shared;
 using Xunit;
 
 namespace Concord.Enums.Tests;
 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2263", Justification = "CoreLibEnumDetours only detours the Type-taking overloads, so the generic ones would not exercise the detour.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2263", Justification = "CoreLibEnumPatches only detours the Type-taking overloads, so the generic ones would not exercise the detour.")]
 public static class WeatherUtility {
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static WeatherKind[] All() => [WeatherKind.Clear, WeatherKind.Rain, WeatherKind.Storm];
@@ -29,13 +29,13 @@ public abstract class ConsumerWeather : ExtendedEnum<WeatherKind> {
 }
 
 [Collection(RegistryCollection.Name)]
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2263", Justification = "CoreLibEnumDetours only detours the Type-taking overloads, so the generic ones would not exercise the detour.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2263", Justification = "CoreLibEnumPatches only detours the Type-taking overloads, so the generic ones would not exercise the detour.")]
 public sealed class ConsumerTests {
     [Fact]
     public void EachConsumerShape_PatchesItsMethod_AtTheDeclaredPosition() {
         ApplyMembers();
         RecordingDetourBackend recorder = new RecordingDetourBackend();
-        DetourBackend.Current = recorder;
+        PatchBackend.Current = recorder;
 
         EnumConsumers.For(typeof(WeatherKind))
             .Values(typeof(WeatherUtility), nameof(WeatherUtility.All))

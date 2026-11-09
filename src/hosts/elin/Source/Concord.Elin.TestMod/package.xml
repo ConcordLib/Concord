@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Meta>
+  <title>Concord TestMod</title>
+  <id>concordlib.concord.elin.testmod</id>
+  <author>cryptiklemur</author>
+  <loadPriority>50</loadPriority>
+  <version>0.23.317</version>
+  <description>In-game verification for Concord.Elin. Not for players.</description>
+</Meta>

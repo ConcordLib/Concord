@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="$(MSBuildThisFileDirectory)../../../../Source/Directory.Build.props" />
+
+  <PropertyGroup>
+    <AssemblyName>CoexConcordHalf</AssemblyName>
+    <RootNamespace>Concord.RimWorld.CoexTest</RootNamespace>
+    <OutputPath>../Assemblies</OutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GamecrateRefs)/Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule" Condition="Exists('$(GamecrateRefs)/UnityEngine.CoreModule.dll')">
+      <HintPath>$(GamecrateRefs)/UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityStubs" Condition="Exists('$(GamecrateRefs)/UnityStubs.dll')">
+      <HintPath>$(GamecrateRefs)/UnityStubs.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Concord">
+      <HintPath>$(ConcordCoreDir)/Assemblies/$(GameTfm)/Concord.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(ConcordCoreDir)/src/core/Concord/Concord.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

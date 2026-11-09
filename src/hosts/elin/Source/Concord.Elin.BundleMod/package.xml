@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Meta>
+  <title>Concord BundleMod</title>
+  <id>concordlib.concord.elin.bundlemod</id>
+  <author>cryptiklemur</author>
+  <loadPriority>51</loadPriority>
+  <version>0.23.317</version>
+  <description>Loads a second copy of Concord.dll to prove duplicate-runtime handling. Not for players.</description>
+</Meta>

@@ -8,6 +8,6 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"/>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Concord.AttachedData/Concord.AttachedData.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.AttachedData/Concord.AttachedData.csproj"/>
   </ItemGroup>
 </Project>

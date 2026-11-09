@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>Concord.Backend.Tests</AssemblyName>
+    <RootNamespace>Concord.Backend.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0"/>
+    <PackageReference Include="xunit" Version="2.9.3"/>
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"/>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Shared/RecordingDetourBackend.cs" Link="RecordingDetourBackend.cs"/>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/core/Concord.Backend/Concord.Backend.csproj"/>
+  </ItemGroup>
+</Project>

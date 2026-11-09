@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>Concord Coexistence Harmony Breaker</name>
+  <author>cryptiklemur</author>
+  <packageId>concordtest.harmonybreaker</packageId>
+  <supportedVersions>
+    <li>1.1</li>
+    <li>1.2</li>
+    <li>1.3</li>
+    <li>1.4</li>
+    <li>1.5</li>
+    <li>1.6</li>
+    <li>1.7</li>
+  </supportedVersions>
+  <loadAfter>
+    <li>brrainz.harmony</li>
+    <li>concordlib.concord</li>
+    <li>concordtest.concordhalf</li>
+    <li>concordtest.harmonyhalf</li>
+  </loadAfter>
+  <description>In-game coexistence test harness mod. Applies a non-composable Harmony transpiler (fault-block exception region) on the shared target AFTER Concord has already routed it through the bridge, to prove graceful degrade. Not for workshop distribution.</description>
+</ModMetaData>

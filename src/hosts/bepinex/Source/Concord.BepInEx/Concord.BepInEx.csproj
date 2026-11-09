@@ -1,0 +1,71 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>Concord.BepInEx</AssemblyName>
+    <RootNamespace>Concord.BepInEx</RootNamespace>
+    <OutputPath>../../plugin</OutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <MinVerTagPrefix>bepinex-v</MinVerTagPrefix>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx.Core">
+      <HintPath>$(BepInExCore)/BepInEx.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="BepInEx.Unity">
+      <HintPath>$(BepInExCore)/BepInEx.Unity.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(ElinManaged)/UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ElinManaged)/UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" Version="7.0.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Order-only: build the merged runtime first, but do not let MSBuild pick its reference,
+         which resolves to the metadata-only Concord.Ref output instead of the ILRepack result. -->
+    <ProjectReference Include="../../../../core/Concord/Concord.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../../backends/Concord.HarmonyX/Concord.HarmonyX.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Concord">
+      <HintPath>$(ConcordCoreDir)/Assemblies/net472/Concord.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="StageConcordRuntime" AfterTargets="Build">
+    <Error Condition="!Exists('$(ConcordCoreDir)/Assemblies/net472/Concord.dll')" Text="No merged Concord.dll at $(ConcordCoreDir)/Assemblies/net472. Build src/core/Concord/Concord.csproj first." />
+    <Copy SourceFiles="$(ConcordCoreDir)/Assemblies/net472/Concord.dll" DestinationFolder="$(MSBuildThisFileDirectory)../../plugin" SkipUnchangedFiles="true" />
+    <Error Condition="!Exists('$(MSBuildThisFileDirectory)../../plugin/Concord.HarmonyX.dll')" Text="The Concord.HarmonyX project reference did not land a Concord.HarmonyX.dll beside the plugin. The plugin cannot patch without its backend." />
+  </Target>
+
+  <Target Name="WriteBuildVersion" AfterTargets="MinVer" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <BuildVersionValue>$(MinVerVersion)</BuildVersionValue>
+      <BuildVersionValue Condition="'$(BuildVersionValue)' == ''">0.0.0</BuildVersionValue>
+      <BuildVersionFile>$(IntermediateOutputPath)Version.g.cs</BuildVersionFile>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(BuildVersionFile)" Overwrite="true" WriteOnlyWhenDifferent="true" Lines="namespace Concord.BepInEx%3B internal static class BuildVersion { internal const string Value = &quot;$(BuildVersionValue)&quot;%3B }" />
+    <ItemGroup>
+      <Compile Include="$(BuildVersionFile)" />
+      <FileWrites Include="$(BuildVersionFile)" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Concord.BepInEx.Tests" />
+  </ItemGroup>
+
+</Project>

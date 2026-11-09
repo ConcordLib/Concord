@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>Concord Stale Wrapper Probe</name>
+  <author>cryptiklemur</author>
+  <packageId>concordtest.stalewrapper</packageId>
+  <supportedVersions>
+    <li>1.7</li>
+  </supportedVersions>
+  <description>In-game probe for the stale-method handler: a Concord patch on a RimWorld method keeps running after a mod injects a field onto that method's type. Field injection is a Waylith runtime feature, so 1.7 only. Not for workshop distribution.</description>
+</ModMetaData>

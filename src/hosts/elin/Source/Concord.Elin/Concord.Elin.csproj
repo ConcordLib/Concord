@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>Concord.Elin</AssemblyName>
+    <RootNamespace>Concord.Elin</RootNamespace>
+    <OutputPath>../..</OutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <MinVerTagPrefix>elin-v</MinVerTagPrefix>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../../../games/elin/**/*.cs" LinkBase="games" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Elin">
+      <HintPath>$(ElinManaged)/Elin.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Plugins.BaseCore">
+      <HintPath>$(ElinManaged)/Plugins.BaseCore.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(ElinManaged)/Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Plugins.UI">
+      <HintPath>$(ElinManaged)/Plugins.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(ElinManaged)/UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ElinManaged)/UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="BepInEx.Core">
+      <HintPath>$(BepInExCore)/BepInEx.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="BepInEx.Unity">
+      <HintPath>$(BepInExCore)/BepInEx.Unity.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" Version="8.0.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../../hosts/bepinex/Source/Concord.BepInEx/Concord.BepInEx.csproj" Private="false" />
+    <!-- Order-only: build the merged runtime first, but do not let MSBuild pick its reference,
+         which resolves to the metadata-only Concord.Ref output instead of the ILRepack result. -->
+    <ProjectReference Include="../../../../core/Concord/Concord.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Concord">
+      <HintPath>$(ConcordCoreDir)/Assemblies/net472/Concord.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Concord.Elin.Tests" />
+  </ItemGroup>
+
+</Project>

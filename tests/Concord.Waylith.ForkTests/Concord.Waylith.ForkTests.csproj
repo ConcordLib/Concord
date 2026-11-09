@@ -1,0 +1,95 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../../build/Fork.targets"/>
+
+  <PropertyGroup>
+    <RootNamespace>Concord.Waylith.ForkTests</RootNamespace>
+    <AssemblyName>Concord.Waylith.ForkTests</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <!-- the fork framework assemblies are R2R composite images, not x64 PE -->
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <SkipForkRuntimeOverlay Condition="'$(SkipForkRuntimeOverlay)' == ''">false</SkipForkRuntimeOverlay>
+    <ForkRefsArgs Condition="'$(SkipForkRuntimeOverlay)' != 'true'">--runtime</ForkRefsArgs>
+    <NoWarn>$(NoWarn);xUnit3003</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="System.Reflection.Metadata"/>
+    <Using Include="System.Reflection.Metadata.Ecma335"/>
+    <Using Include="Concord.Emit"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="dnlib" Version="4.5.0"/>
+    <PackageReference Include="xunit.v3" Version="4.0.1"/>
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.4.0"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="WaylithClr.FieldInjection" Value="true" Trim="false"/>
+    <RuntimeHostConfigurationOption Include="WaylithClr.FieldInjectionGCDescReserve" Value="4" Trim="false"/>
+    <RuntimeHostConfigurationOption Include="WaylithClr.JitPatchableAssemblies" Value="$(AssemblyName)" Trim="false"/>
+    <RuntimeHostConfigurationOption Include="WaylithClr.SkipAccessChecks" Value="true" Trim="false"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../Concord.Waylith.Tests/RealBodies.cs" Link="RealBodies.cs"/>
+    <Compile Include="../Concord.Waylith.Tests/Fakes.cs" Link="Fakes.cs"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/backends/Concord.Waylith/Concord.Waylith.csproj"/>
+    <!-- Order-only: build the merged runtime first, but do not let MSBuild pick its reference,
+         which resolves to the metadata-only Concord.Ref output instead of the ILRepack result. -->
+    <ProjectReference Include="../../src/core/Concord/Concord.csproj" ReferenceOutputAssembly="false"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Concord">
+      <HintPath>../../Assemblies/$(TargetFramework)/Concord.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- A self-contained app resolves by deps.json, which OverlayForkRuntime does not write, so the
+       host wrapper the stale-handler facts bind to needs a reference of its own. -->
+  <Target Name="AddForkHostReference" DependsOnTargets="ResolveForkRuntimeDir"
+          BeforeTargets="_HandlePackageFileConflicts;ResolveAssemblyReferences">
+    <ItemGroup Condition="Exists('$(ForkRuntimeDir)/Waylith.Injection.dll')">
+      <Reference Include="Waylith.Injection">
+        <HintPath>$(ForkRuntimeDir)/Waylith.Injection.dll</HintPath>
+        <Private>true</Private>
+      </Reference>
+    </ItemGroup>
+  </Target>
+
+  <!-- Runs before the input cache hashes RuntimeHostConfigurationOption, so a build that switched
+       ForkRuntimeDir rewrites the runtimeconfig instead of keeping the previous dir. -->
+  <Target Name="SetForkRuntimeDirConfigOption" DependsOnTargets="ResolveForkRuntimeDir"
+          BeforeTargets="_GenerateRuntimeConfigurationFilesInputCache;GenerateBuildRuntimeConfigurationFiles">
+    <ItemGroup>
+      <RuntimeHostConfigurationOption Include="Concord.ForkRuntimeDir" Value="$(ForkRuntimeDir)" Trim="false"/>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="RequireForkRuntime" DependsOnTargets="ResolveForkRuntimeDir" BeforeTargets="Build"
+          Condition="'$(SkipForkRuntimeOverlay)' != 'true' And !Exists('$(ForkRuntimeDir)/libcoreclr.so')">
+    <Error Text="ForkRuntimeDir '$(ForkRuntimeDir)' has no libcoreclr.so, so the facts in this project would silently run off-fork and report every fact [SKIP]. Pass -p:ForkRuntimeDir=&lt;path&gt; pointing at the fork runtime, or -p:SkipForkRuntimeOverlay=true to build off-fork on purpose."/>
+  </Target>
+
+  <Target Name="OverlayForkRuntime" DependsOnTargets="ResolveForkRuntimeDir" AfterTargets="Build"
+          Condition="'$(SkipForkRuntimeOverlay)' != 'true' And Exists('$(ForkRuntimeDir)/libcoreclr.so')">
+    <ItemGroup>
+      <ForkCandidate Include="$(ForkRuntimeDir)/*"/>
+      <ForkOverlay Include="@(ForkCandidate)" Condition="Exists('$(OutDir)%(Filename)%(Extension)')"/>
+    </ItemGroup>
+    <Copy SourceFiles="@(ForkOverlay)" DestinationFolder="$(OutDir)"/>
+    <Message Importance="high" Text="fork overlay: @(ForkOverlay->Count()) files from $(ForkRuntimeDir)"/>
+  </Target>
+
+</Project>

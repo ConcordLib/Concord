@@ -1,0 +1,10 @@
+{
+  "name": "concord-bepinex",
+  "version": "0.0.0-semantically-released",
+  "private": true,
+  "devDependencies": {
+    "@semantic-release/exec": "^7.1.0",
+    "semantic-release": "^25",
+    "conventional-changelog-conventionalcommits": "^9"
+  }
+}

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using System.Threading.Tasks;
-using Concord.Detour;
+using Concord.Backend;
 using Concord.Emit;
 using Xunit;
 
@@ -12,11 +12,11 @@ public class CanonicalTargetTests : IDisposable {
     private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
 
     public CanonicalTargetTests() {
-        DetourBackend.Current = backend;
+        PatchBackend.Current = backend;
     }
 
     public void Dispose() {
-        DetourBackend.Reset();
+        PatchBackend.Reset();
     }
 
     private static async Task<int> AsyncTarget() {

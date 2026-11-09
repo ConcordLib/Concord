@@ -1,0 +1,89 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using Concord;
+using Concord.Backend;
+using Concord.Emit;
+using Concord.MonoMod;
+using Concord.MonoMod.Harmony;
+using HarmonyLib;
+using Xunit;
+
+namespace Concord.MonoMod.Tests;
+
+public static class OwnersBridgeTarget
+{
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static int Compute()
+    {
+        return 4;
+    }
+}
+
+public static class OwnersBridgeMods
+{
+    public static void ConcordHead(ControlHandle ch)
+    {
+    }
+
+    public static void ForeignPrefix()
+    {
+    }
+}
+
+// Serialized with the rest of the Harmony tests: the notifier hook and Harmony's own patch state are
+// process-wide, so these cannot run alongside another test that patches.
+[Collection("HarmonySerial")]
+public class PatchOwnersBridgeTests
+{
+    [Fact]
+    public void OwnersOf_StillNamesTheOwner_AfterTheTargetMovesOntoTheBridge()
+    {
+        MethodBase target = Method(typeof(OwnersBridgeTarget), nameof(OwnersBridgeTarget.Compute));
+        HarmonyLib.Harmony foreign = new HarmonyLib.Harmony("test.foreign.owners");
+
+        RoutingBackend router = new RoutingBackend(new MonoModBackend(), Noop);
+        HarmonyBridge bridge = new HarmonyBridge(Noop);
+
+        try
+        {
+            router.ActivateHost(bridge);
+
+            using IBackendHandle handle = router.ApplyComposed(target, new[] { Head() });
+            Assert.Equal(RouteState.Raw, router.GetRoute(target));
+            Assert.Equal(new[] { "test.concord.owners" }, Patcher.OwnersOf(target));
+
+            foreign.Patch(
+                target,
+                prefix: new HarmonyMethod(Method(typeof(OwnersBridgeMods), nameof(OwnersBridgeMods.ForeignPrefix))));
+
+            // The injections now live in Harmony's wrapper, so only the bridge can still name the owner.
+            Assert.Equal(RouteState.HarmonyOwned, router.GetRoute(target));
+            Assert.Equal(new[] { "test.concord.owners" }, Patcher.OwnersOf(target));
+        }
+        finally
+        {
+            TestUnpatch.Own(foreign, "test.foreign.owners");
+            UpdateWrapperHook.DetachObserver();
+        }
+    }
+
+    private static void Noop(string message)
+    {
+    }
+
+    private static MethodInfo Method(Type type, string name)
+    {
+        return type.GetMethod(name) ?? throw new InvalidOperationException(type.Name + "." + name + " not found");
+    }
+
+    private static Injection Head()
+    {
+        return new Injection(
+            Method(typeof(OwnersBridgeMods), nameof(OwnersBridgeMods.ConcordHead)),
+            new InjectAt.Head(),
+            "test.concord.owners",
+            0);
+    }
+}

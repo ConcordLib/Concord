@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef>
+    <defName>ConcordProbeThing</defName>
+    <label>concord probe</label>
+    <description>Test-only item used by the attached-field probe.</description>
+    <thingClass>Concord.RimWorld.AttachedTest.ProbeThing</thingClass>
+    <category>Item</category>
+    <useHitPoints>false</useHitPoints>
+    <selectable>false</selectable>
+    <altitudeLayer>Item</altitudeLayer>
+  </ThingDef>
+</Defs>

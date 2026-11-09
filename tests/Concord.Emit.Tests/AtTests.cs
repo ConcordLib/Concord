@@ -65,4 +65,31 @@ public sealed class AtTests {
         ConcordEmitException ex = Assert.Throws<ConcordEmitException>(() => attr.ResolvedAt);
         Assert.Equal("CONC116", ex.Code);
     }
+
+    [Fact]
+    public void InjectAttribute_ConstantThroughPlainCtor_NamesConstantCtor() {
+        InjectAttribute attr = new InjectAttribute(At.Constant, "M");
+        ConcordEmitException ex = Assert.Throws<ConcordEmitException>(() => attr.ResolvedAt);
+        Assert.Equal("CONC116", ex.Code);
+        Assert.Contains("[Inject(method, constant, At.Constant, by:)]", ex.Message);
+        Assert.Contains("no host refused this patch", ex.Message);
+    }
+
+    [Fact]
+    public void InjectAttribute_ArgumentThroughPlainCtor_NamesInvokeSpliceCtor() {
+        InjectAttribute attr = new InjectAttribute(At.Argument, "M");
+        ConcordEmitException ex = Assert.Throws<ConcordEmitException>(() => attr.ResolvedAt);
+        Assert.Equal("CONC116", ex.Code);
+        Assert.Contains("[Inject(method, invokeDeclaringType, invokeDeclaringMethod, At.Argument, arg:)]", ex.Message);
+        Assert.Contains("no host refused this patch", ex.Message);
+    }
+
+    [Fact]
+    public void InjectAttribute_LocalThroughPlainCtor_NamesLocalCtor() {
+        InjectAttribute attr = new InjectAttribute(At.Local, "M");
+        ConcordEmitException ex = Assert.Throws<ConcordEmitException>(() => attr.ResolvedAt);
+        Assert.Equal("CONC116", ex.Code);
+        Assert.Contains("[Inject(method, localType, access, At.Local, by:)]", ex.Message);
+        Assert.Contains("no host refused this patch", ex.Message);
+    }
 }

@@ -66,7 +66,7 @@ actually used:
 
 ```bash
 scripts/fork-refs.sh
-dotnet run --project tests/Concord.Host.Adapter.ForkTests/Concord.Host.Adapter.ForkTests.csproj -c Release -f net10.0 -p:ForkRuntimeDir=<dir>
+dotnet run --project tests/Concord.Waylith.ForkTests/Concord.Waylith.ForkTests.csproj -c Release -f net10.0 -p:ForkRuntimeDir=<dir>
 ```
 
 CI builds the game image that backs this with the steam image action, so

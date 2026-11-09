@@ -1,0 +1,91 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <RootNamespace>Concord.MonoMod</RootNamespace>
+    <AssemblyName>Concord.MonoMod</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <ConcordDir Condition="'$(ConcordDir)' == ''">$(MSBuildThisFileDirectory)../../../Assemblies/$(TargetFramework)</ConcordDir>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>Concord.MonoMod</PackageId>
+    <Description>Emit backend for Concord on .NET Framework and mono runtimes, where there is no DynamicILInfo to write a method body through. It emits each composed body through MonoMod's DynamicMethodDefinition.</Description>
+    <!-- Concord.dll is supplied by the host runtime, so it does not belong in this package's
+         dependency group. Suppressing dependencies leaves a lib/ folder with no matching group,
+         which the SDK flags as NU5128. -->
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <WarningsNotAsErrors>NU5128</WarningsNotAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+    <!-- 25.0.12 is what MonoMod.Core 1.3.4 depends on. PrivateAssets keeps the public Mono.Cecil
+         this drags in out of every project that references this one: core's Concord.dll carries its
+         own internalized Mono.Cecil, and both in scope makes every cecil type name ambiguous. -->
+    <PackageReference Include="MonoMod.Utils" Version="25.0.12" PrivateAssets="all"/>
+    <PackageReference Include="MonoMod.Core" Version="1.3.4" PrivateAssets="all"/>
+    <PackageReference Include="ILRepack.Lib.MSBuild.Task" Version="2.0.45" PrivateAssets="all"/>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <HarmonyExcludeAssets>runtime</HarmonyExcludeAssets>
+  </PropertyGroup>
+  <Import Project="../../../build/Harmony.targets"/>
+
+  <ItemGroup>
+    <!-- Order-only: build the merged runtime first, but do not let MSBuild pick its reference,
+         which resolves to the metadata-only Concord.Ref output instead of the ILRepack result. -->
+    <ProjectReference Include="../../core/Concord/Concord.csproj" ReferenceOutputAssembly="false"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Concord">
+      <HintPath>../../../Assemblies/$(TargetFramework)/Concord.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../../core/Shared/Polyfills.cs" Link="Polyfills.cs"/>
+    <Compile Include="../../core/Shared/ExceptionReason.cs" Link="ExceptionReason.cs"/>
+    <Compile Include="../../core/Shared/PatchDebugLog.cs" Link="PatchDebugLog.cs"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Concord.MonoMod.Tests"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Reflection.Emit.ILGeneration"/>
+  </ItemGroup>
+
+  <UsingTask TaskName="ReadConcordBuildSha" TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <AssemblyPath ParameterType="System.String" Required="true"/>
+      <Sha ParameterType="System.String" Output="true"/>
+    </ParameterGroup>
+    <Task>
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+        string version = System.Diagnostics.FileVersionInfo.GetVersionInfo(AssemblyPath).ProductVersion ?? "";
+        int plus = version.IndexOf('+');
+        Sha = plus < 0 ? "" : version.Substring(plus + 1);
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="StampConcordBuild" BeforeTargets="GetAssemblyAttributes"
+          Condition="Exists('$(ConcordDir)/Concord.dll')">
+    <ReadConcordBuildSha AssemblyPath="$(ConcordDir)/Concord.dll">
+      <Output TaskParameter="Sha" PropertyName="ConcordBuildSha"/>
+    </ReadConcordBuildSha>
+    <ItemGroup>
+      <AssemblyMetadata Include="ConcordBuild" Value="$(ConcordBuildSha)" Condition="'$(ConcordBuildSha)' != ''"/>
+    </ItemGroup>
+  </Target>
+
+</Project>

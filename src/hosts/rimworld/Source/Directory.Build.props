@@ -1,0 +1,39 @@
+<Project>
+  <Import Project="$(MSBuildThisFileDirectory)Local.props" Condition="Exists('$(MSBuildThisFileDirectory)Local.props')" />
+  <PropertyGroup>
+    <GameVersion Condition="'$(GameVersion)' == ''">1.7</GameVersion>
+    <ConcordVersion Condition="'$(ConcordVersion)' == ''">0.*</ConcordVersion>
+    <GamecrateCache Condition="'$(GamecrateCache)' == '' And '$(XDG_CACHE_HOME)' != ''">$(XDG_CACHE_HOME)</GamecrateCache>
+    <GamecrateCache Condition="'$(GamecrateCache)' == ''">$([System.IO.Path]::Combine($([System.Environment]::GetFolderPath(SpecialFolder.UserProfile)), '.cache'))</GamecrateCache>
+    <GamecrateRefs Condition="'$(GamecrateRefs)' == '' And '$(GameManagedDir)' != ''">$(GameManagedDir)</GamecrateRefs>
+    <GamecrateRefs Condition="'$(GamecrateRefs)' == ''">$([System.IO.Path]::Combine($(GamecrateCache), 'gamecrate', 'refs', 'version', 'rimworld', $(GameVersion)))</GamecrateRefs>
+    <GameTfm Condition="'$(GameVersion)' == '1.7'">net10.0</GameTfm>
+    <GameTfm Condition="'$(GameTfm)' == ''">net472</GameTfm>
+    <TargetFramework>$(GameTfm)</TargetFramework>
+    <DebugType>embedded</DebugType>
+    <ConcordCoreDir>$(MSBuildThisFileDirectory)../../../..</ConcordCoreDir>
+
+    <!-- A project reached only through a ProjectReference builds in the parent's configuration,
+         not its own default. -->
+    <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <DefineConstants>$(DefineConstants);RW_$(GameVersion.Replace('.','_'))</DefineConstants>
+    <GameSteamBranch>unstable</GameSteamBranch>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(GameTfm)' == 'net472'">
+    <PackageReference Include="IsExternalInit" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <RequiredGameRef Include="Assembly-CSharp.dll" />
+    <RequiredGameRef Include="UnityStubs.dll" Condition="'$(GameTfm)' == 'net10.0'" />
+    <RequiredGameRef Include="UnityEngine.CoreModule.dll" Condition="'$(GameTfm)' != 'net10.0'" />
+    <RequiredGameRef Include="UnityEngine.IMGUIModule.dll" Condition="'$(GameTfm)' != 'net10.0'" />
+  </ItemGroup>
+  <Target Name="RequireGameRefs" BeforeTargets="ResolveAssemblyReferences">
+    <Error Text="no rimworld $(GameVersion) assembly %(RequiredGameRef.Identity) at $(GamecrateRefs)/%(RequiredGameRef.Identity). run: gamecrate steam build --game rimworld --beta $(GameSteamBranch)"
+           Condition="!Exists('$(GamecrateRefs)/%(RequiredGameRef.Identity)')" />
+  </Target>
+</Project>

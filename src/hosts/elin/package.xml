@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Meta>
+  <title>Concord</title>
+  <id>concordlib.concord.elin</id>
+  <author>cryptiklemur</author>
+  <loadPriority>-50</loadPriority>
+  <version>0.23.317</version>
+  <description>Saved per-instance state for mods built on Concord. Needs the Concord BepInEx plugin installed at BepInEx/plugins/Concord.</description>
+</Meta>

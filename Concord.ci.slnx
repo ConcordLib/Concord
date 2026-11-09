@@ -2,27 +2,30 @@
   CI solution: every project that compiles and tests against -p:ForkRuntimeDir, a directory of
   the WaylithCLR fork's own framework assemblies. A runner points that property at a game image
   it downloaded; a developer's machine points it at a local checkout. Concord.slnx is the full
-  developer solution. The fork test project, tests/Concord.Host.Adapter.ForkTests, is in neither
-  solution: its build fails without a fork runtime, so tests/Concord.Host.Adapter.ForkTests/run-fork-tests.sh
-  builds and runs it.
+  developer solution. The fork test project, tests/Concord.Waylith.ForkTests, is in neither
+  solution: its build fails without a fork runtime, so tests/Concord.Waylith.ForkTests/run-fork-tests.sh
+  builds and runs it. src/backends/Concord.MonoMod, src/backends/Concord.HarmonyX,
+  tests/Concord.Emit.Mono.Tests and tests/Concord.HarmonyX.Tests are net472 only, and
+  `dotnet test -f net10.0` fails on a project with no net10 output, so they sit in Concord.slnx
+  and a mono job builds them by path.
 -->
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Concord/Concord.csproj"/>
-    <Project Path="src/Concord.Analyzers/Concord.Analyzers.csproj"/>
-    <Project Path="src/Concord.Generators/Concord.Generators.csproj"/>
-    <Project Path="src/Concord.Detour/Concord.Detour.csproj"/>
-    <Project Path="src/Concord.Emit/Concord.Emit.csproj"/>
-    <Project Path="src/Concord.AttachedData/Concord.AttachedData.csproj"/>
-    <Project Path="src/Concord.Orchestration/Concord.Orchestration.csproj"/>
-    <Project Path="src/Concord.Enums/Concord.Enums.csproj"/>
-    <Project Path="src/Concord.Ref/Concord.Ref.csproj"/>
-    <Project Path="src/Concord.Host.Adapter/Concord.Host.Adapter.csproj"/>
+    <Project Path="src/core/Concord/Concord.csproj"/>
+    <Project Path="src/core/Concord.Analyzers/Concord.Analyzers.csproj"/>
+    <Project Path="src/core/Concord.Generators/Concord.Generators.csproj"/>
+    <Project Path="src/core/Concord.Backend/Concord.Backend.csproj"/>
+    <Project Path="src/core/Concord.Emit/Concord.Emit.csproj"/>
+    <Project Path="src/core/Concord.AttachedData/Concord.AttachedData.csproj"/>
+    <Project Path="src/core/Concord.Orchestration/Concord.Orchestration.csproj"/>
+    <Project Path="src/core/Concord.Enums/Concord.Enums.csproj"/>
+    <Project Path="src/core/Concord.Ref/Concord.Ref.csproj"/>
+    <Project Path="src/backends/Concord.Waylith/Concord.Waylith.csproj"/>
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Concord.Analyzers.Tests/Concord.Analyzers.Tests.csproj"/>
     <Project Path="tests/Concord.Generators.Tests/Concord.Generators.Tests.csproj"/>
-    <Project Path="tests/Concord.Detour.Tests/Concord.Detour.Tests.csproj"/>
+    <Project Path="tests/Concord.Backend.Tests/Concord.Backend.Tests.csproj"/>
     <Project Path="tests/Concord.Emit.Tests/Concord.Emit.Tests.csproj"/>
     <Project Path="tests/Concord.Emit.Tests.ForeignTargets/Concord.Emit.Tests.ForeignTargets.csproj"/>
     <Project Path="tests/Concord.AttachedData.Tests/Concord.AttachedData.Tests.csproj"/>
@@ -30,7 +33,7 @@
     <Project Path="tests/Concord.Orchestration.Tests/Concord.Orchestration.Tests.csproj"/>
     <Project Path="tests/Concord.Orchestration.Tests.RegistryAssembly/Concord.Orchestration.Tests.RegistryAssembly.csproj"/>
     <Project Path="tests/Concord.Generators.Tests.Consumer/Concord.Generators.Tests.Consumer.csproj"/>
-    <Project Path="tests/Concord.Host.Adapter.Tests/Concord.Host.Adapter.Tests.csproj"/>
+    <Project Path="tests/Concord.Waylith.Tests/Concord.Waylith.Tests.csproj"/>
     <Project Path="tests/Concord.Merged.Tests/Concord.Merged.Tests.csproj"/>
   </Folder>
   <Folder Name="/bench/">

@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="$(MSBuildThisFileDirectory)../../../../Source/Directory.Build.props" />
+
+  <PropertyGroup>
+    <AssemblyName>AttachedFieldProbe</AssemblyName>
+    <RootNamespace>Concord.RimWorld.AttachedTest</RootNamespace>
+    <OutputPath>../Assemblies</OutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GamecrateRefs)/Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule" Condition="Exists('$(GamecrateRefs)/UnityEngine.CoreModule.dll')">
+      <HintPath>$(GamecrateRefs)/UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule" Condition="Exists('$(GamecrateRefs)/UnityEngine.IMGUIModule.dll')">
+      <HintPath>$(GamecrateRefs)/UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityStubs" Condition="Exists('$(GamecrateRefs)/UnityStubs.dll')">
+      <HintPath>$(GamecrateRefs)/UnityStubs.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Concord">
+      <HintPath>$(ConcordCoreDir)/Assemblies/$(GameTfm)/Concord.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(ConcordCoreDir)/src/core/Concord/Concord.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(ConcordCoreDir)/src/core/Concord.Analyzers/Concord.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

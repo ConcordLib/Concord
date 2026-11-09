@@ -1,12 +1,12 @@
 using System.Reflection;
-using Concord.Detour;
+using Concord.Backend;
 using Concord.Emit;
 
 namespace Concord.Orchestration.Tests;
 
 public sealed record AppliedInjection(MethodBase Target, Injection Injection);
 
-public sealed class RecordingDetourBackend : IDetourBackend {
+public sealed class RecordingDetourBackend : IPatchBackend {
     private readonly List<AppliedInjection> applied = [];
     private readonly List<AppliedInjection> live = [];
 
@@ -20,12 +20,26 @@ public sealed class RecordingDetourBackend : IDetourBackend {
 
     public Func<MethodBase, Injection, Exception?>? FailOn { get; set; }
 
+    public string Name => nameof(RecordingDetourBackend);
+
     public int PatchedTargetCount {
         get {
             lock (applied) {
                 return live.Select(entry => entry.Target).Distinct().Count();
             }
         }
+    }
+
+    public TargetVerdict Judge(MethodBase target) {
+        return TargetVerdict.Accept();
+    }
+
+    public bool OwnsBody(MethodBase target) {
+        return false;
+    }
+
+    public bool Recompose(MethodBase target) {
+        return false;
     }
 
     public IReadOnlyList<string> OwnersOf(MethodBase target) {
@@ -41,7 +55,7 @@ public sealed class RecordingDetourBackend : IDetourBackend {
         return owners;
     }
 
-    public IDetourHandle ApplyComposed(MethodBase target, IReadOnlyList<Injection> added) {
+    public IBackendHandle ApplyComposed(MethodBase target, IReadOnlyList<Injection> added) {
         foreach (Injection injection in added) {
             if (FailOn?.Invoke(target, injection) is Exception failure) {
                 throw failure;
@@ -77,7 +91,7 @@ public sealed class RecordingDetourBackend : IDetourBackend {
         }
     }
 
-    private sealed class Handle(RecordingDetourBackend backend, MethodBase original, AppliedInjection[] entries) : IDetourHandle {
+    private sealed class Handle(RecordingDetourBackend backend, MethodBase original, AppliedInjection[] entries) : IBackendHandle {
         public MethodBase Original { get; } = original;
 
         public bool IsApplied { get; private set; } = true;

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit" Version="2.9.3"/>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+    <PackageReference Include="xunit.runner.console" Version="2.9.3" PrivateAssets="all"/>
+  </ItemGroup>
+  <Import Project="../../build/Harmony.targets"/>
+  <ItemGroup>
+    <PackageDownload Include="Lib.Harmony" Version="[2.2.2];[2.3.3];[2.3.6];[2.4.2];[2.4.3];[3.0.0-rc.4]"/>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>NuGetPackageRoot</_Parameter1>
+      <_Parameter2>$(NuGetPackageRoot)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/backends/Concord.MonoMod/Concord.MonoMod.csproj"/>
+    <!-- Order-only: build the merged runtime first, but do not let MSBuild pick its reference,
+         which resolves to the metadata-only Concord.Ref output instead of the ILRepack result. -->
+    <ProjectReference Include="../../src/core/Concord/Concord.csproj" ReferenceOutputAssembly="false"/>
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Concord">
+      <HintPath>../../Assemblies/$(TargetFramework)/Concord.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../src/core/Shared/Polyfills.cs" Link="Polyfills.cs"/>
+  </ItemGroup>
+</Project>

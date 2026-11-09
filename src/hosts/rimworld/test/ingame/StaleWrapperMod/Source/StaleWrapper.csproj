@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="$(MSBuildThisFileDirectory)../../../../Source/Directory.Build.props" />
+
+  <PropertyGroup>
+    <AssemblyName>StaleWrapperProbe</AssemblyName>
+    <RootNamespace>Concord.RimWorld.StaleTest</RootNamespace>
+    <OutputPath>../Assemblies</OutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <Target Name="RequireWaylith" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(GameVersion)' != '1.7'"
+           Text="the stale wrapper probe injects a field through the Waylith runtime, and only rimworld 1.7 runs Waylith. build it with -p:GameVersion=1.7." />
+  </Target>
+
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GamecrateRefs)/Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityStubs">
+      <HintPath>$(GamecrateRefs)/UnityStubs.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Waylith.Injection">
+      <HintPath>$(GamecrateRefs)/Waylith.Injection.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Concord">
+      <HintPath>$(ConcordCoreDir)/Assemblies/$(GameTfm)/Concord.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(ConcordCoreDir)/src/core/Concord/Concord.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(ConcordCoreDir)/src/core/Concord.Analyzers/Concord.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

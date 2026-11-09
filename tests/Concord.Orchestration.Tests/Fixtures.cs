@@ -1,5 +1,5 @@
 using System.Reflection;
-using Concord.Detour;
+using Concord.Backend;
 using Concord.Emit;
 
 namespace Concord.Orchestration.Tests;
@@ -134,7 +134,7 @@ public sealed class FakeAttachedPropertyRegistry : IAttachedPropertyRegistry {
     }
 }
 
-public sealed class FakeDetourHandle : IDetourHandle {
+public sealed class FakeDetourHandle : IBackendHandle {
     private bool _isApplied = true;
 
     public MethodBase Original { get; }
@@ -150,7 +150,7 @@ public sealed class FakeDetourHandle : IDetourHandle {
 }
 
 public sealed class RecordingApplier : IPatchApplier {
-    public List<IDetourHandle> AppliedHandles { get; } = [];
+    public List<IBackendHandle> AppliedHandles { get; } = [];
 
     public void ApplyPatch(MethodBase target, Injection injection) {
         FakeDetourHandle handle = new FakeDetourHandle(target);

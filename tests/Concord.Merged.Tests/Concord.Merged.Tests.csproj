@@ -12,14 +12,14 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"/>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="../../src/Shared/Polyfills.cs" Link="Polyfills.cs"/>
+    <Compile Include="../../src/core/Shared/Polyfills.cs" Link="Polyfills.cs"/>
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
     <PackageReference Include="xunit.runner.console" Version="2.9.3" PrivateAssets="all"/>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Concord/Concord.csproj" ReferenceOutputAssembly="false"/>
+    <ProjectReference Include="../../src/core/Concord/Concord.csproj" ReferenceOutputAssembly="false"/>
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Concord">

@@ -1,0 +1,16 @@
+.git
+.github
+Source
+TestMod
+BundleMod
+node_modules/
+.gitignore
+.steamignore
+release.config.mjs
+Concord.Elin.slnx
+package.json
+README.template.md
+VERIFICATION.md
+Concord.zip
+Concord.Elin.pdb
+package-lock.json

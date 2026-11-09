@@ -9,7 +9,7 @@
     <PackageReference Include="BenchmarkDotNet" Version="0.15.8"/>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Concord.Emit/Concord.Emit.csproj"/>
-    <ProjectReference Include="../../src/Concord.AttachedData/Concord.AttachedData.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Emit/Concord.Emit.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.AttachedData/Concord.AttachedData.csproj"/>
   </ItemGroup>
 </Project>

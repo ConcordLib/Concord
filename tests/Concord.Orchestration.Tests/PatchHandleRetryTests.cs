@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Concord.Detour;
+using Concord.Backend;
 using Concord.Emit;
 using Xunit;
 
@@ -9,10 +9,10 @@ namespace Concord.Orchestration.Tests;
 
 [Collection(SharedAssemblyApplyCollection.Name)]
 public class PatchHandleRetryTests {
-    private sealed class FailOnceDisposeBackend : IDetourBackend {
+    private sealed class FailOnceDisposeBackend : IPatchBackend {
         public int DisposeCalls;
 
-        public IDetourHandle ApplyComposed(MethodBase target, IReadOnlyList<Injection> added) {
+        public IBackendHandle ApplyComposed(MethodBase target, IReadOnlyList<Injection> added) {
             return new FailOnceHandle(this, target);
         }
 
@@ -20,9 +20,23 @@ public class PatchHandleRetryTests {
             return [];
         }
 
+        public string Name => nameof(FailOnceDisposeBackend);
+
         public int PatchedTargetCount => 0;
 
-        private sealed class FailOnceHandle(FailOnceDisposeBackend owner, MethodBase original) : IDetourHandle {
+        public TargetVerdict Judge(MethodBase target) {
+            return TargetVerdict.Accept();
+        }
+
+        public bool OwnsBody(MethodBase target) {
+            return false;
+        }
+
+        public bool Recompose(MethodBase target) {
+            return false;
+        }
+
+        private sealed class FailOnceHandle(FailOnceDisposeBackend owner, MethodBase original) : IBackendHandle {
             private bool disposed;
 
             public MethodBase Original { get; } = original;
@@ -54,7 +68,7 @@ public class PatchHandleRetryTests {
     [Fact]
     public void FailedDisposeLeavesHandleRetryable() {
         FailOnceDisposeBackend backend = new FailOnceDisposeBackend();
-        DetourBackend.Current = backend;
+        PatchBackend.Current = backend;
         try {
             MethodBase target = typeof(PatchHandleRetryTests).GetMethod(nameof(Target))!;
             Injection head = new Injection(typeof(PatchHandleRetryTests).GetMethod(nameof(Head), BindingFlags.Static | BindingFlags.NonPublic)!, new InjectAt.Head(), "test", 0);
@@ -66,7 +80,7 @@ public class PatchHandleRetryTests {
             Assert.Equal(2, backend.DisposeCalls);
             Assert.False(handle.IsApplied);
         } finally {
-            DetourBackend.Reset();
+            PatchBackend.Reset();
         }
     }
 }

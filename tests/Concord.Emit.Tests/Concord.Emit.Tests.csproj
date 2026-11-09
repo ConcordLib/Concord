@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net10.0;net472</TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup>
@@ -13,17 +12,12 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"/>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="../../src/Shared/Polyfills.cs" Link="Polyfills.cs"/>
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
-    <PackageReference Include="xunit.runner.console" Version="2.9.3" PrivateAssets="all"/>
-    <Compile Remove="ReflectedResolutionTests.cs"/>
+    <Compile Include="../../src/core/Shared/Polyfills.cs" Link="Polyfills.cs"/>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Concord.Emit/Concord.Emit.csproj"/>
-    <ProjectReference Include="../../src/Concord.Detour/Concord.Detour.csproj"/>
-    <ProjectReference Include="../../src/Concord.Orchestration/Concord.Orchestration.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Emit/Concord.Emit.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Backend/Concord.Backend.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Orchestration/Concord.Orchestration.csproj"/>
     <ProjectReference Include="../Concord.Emit.Tests.ForeignTargets/Concord.Emit.Tests.ForeignTargets.csproj"/>
   </ItemGroup>
 </Project>

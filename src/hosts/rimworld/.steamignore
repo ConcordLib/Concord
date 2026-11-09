@@ -1,0 +1,5 @@
+.superpowers
+.gitignore.local
+NuGet.config
+TestMod/
+test/

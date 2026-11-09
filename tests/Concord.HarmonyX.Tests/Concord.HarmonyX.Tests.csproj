@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit" Version="2.9.3"/>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+    <PackageReference Include="xunit.runner.console" Version="2.9.3" PrivateAssets="all"/>
+  </ItemGroup>
+
+  <!-- The same net35 builds elin keeps loose in BepInEx/core, copied into bin so the suite runs
+       against the identities the backend was compiled for. -->
+  <ItemGroup>
+    <PackageDownload Include="HarmonyX" Version="[2.10.0]"/>
+    <PackageDownload Include="MonoMod.RuntimeDetour" Version="[22.5.1.1]"/>
+    <PackageDownload Include="MonoMod.Utils" Version="[22.5.1.1]"/>
+    <PackageDownload Include="Mono.Cecil" Version="[0.10.4]"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>$(NuGetPackageRoot)harmonyx/2.10.0/lib/net35/0Harmony.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="MonoMod.RuntimeDetour">
+      <HintPath>$(NuGetPackageRoot)monomod.runtimedetour/22.5.1.1/lib/net35/MonoMod.RuntimeDetour.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="MonoMod.Utils">
+      <HintPath>$(NuGetPackageRoot)monomod.utils/22.5.1.1/lib/net35/MonoMod.Utils.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Mono.Cecil">
+      <HintPath>$(NuGetPackageRoot)mono.cecil/0.10.4/lib/net35/Mono.Cecil.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/backends/Concord.HarmonyX/Concord.HarmonyX.csproj"/>
+    <!-- Order-only: build the merged runtime first, but do not let MSBuild pick its reference,
+         which resolves to the metadata-only Concord.Ref output instead of the ILRepack result. -->
+    <ProjectReference Include="../../src/core/Concord/Concord.csproj" ReferenceOutputAssembly="false"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Concord">
+      <HintPath>../../Assemblies/$(TargetFramework)/Concord.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../../src/core/Shared/Polyfills.cs" Link="Polyfills.cs"/>
+  </ItemGroup>
+</Project>

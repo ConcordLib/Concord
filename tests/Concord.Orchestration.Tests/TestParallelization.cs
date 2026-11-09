@@ -1,6 +1,6 @@
 using Xunit;
 
-// Concord's patching surface is process-wide: DetourBackend.Current is a static, and so are the
+// Concord's patching surface is process-wide: PatchBackend.Current is a static, and so are the
 // registries behind it. A test that installs its own backend and then asserts nothing reached it
 // is really asserting about global state, so any test patching concurrently in another collection
 // lands in the first test's backend and fails it.

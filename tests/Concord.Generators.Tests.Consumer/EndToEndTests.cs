@@ -1,5 +1,5 @@
 using System.Reflection;
-using Concord.Detour;
+using Concord.Backend;
 using Concord.Tests.Shared;
 using Xunit;
 
@@ -18,7 +18,7 @@ public sealed class EndToEndTests {
     [Fact]
     public void GeneratedRegistry_ComposesEveryDeclaredTarget() {
         RecordingDetourBackend recorder = new RecordingDetourBackend();
-        DetourBackend.Current = recorder;
+        PatchBackend.Current = recorder;
 
         MethodBase tick = typeof(SecretCounter).GetMethod(nameof(SecretCounter.Tick))!;
         MethodBase ring = typeof(SurfaceRegister).GetMethod(nameof(SurfaceRegister.Ring))!;

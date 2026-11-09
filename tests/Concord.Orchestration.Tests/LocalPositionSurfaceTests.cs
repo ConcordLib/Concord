@@ -84,18 +84,18 @@ public sealed class LocalPositionSurfaceTests {
 
     [Fact]
     public void UseLog_RoutesPatchReportsToTheHost() {
-        Action<string>? previous = Concord.Detour.PatchLog.Sink;
+        Action<string>? previous = Concord.Backend.PatchLog.Sink;
         List<string> reported = new List<string>();
 
         try {
             Action<string> sink = reported.Add;
             Patcher.UseLog(sink);
-            Assert.Same(sink, Concord.Detour.PatchLog.Sink);
+            Assert.Same(sink, Concord.Backend.PatchLog.Sink);
 
             Patcher.UseLog(null);
-            Assert.Null(Concord.Detour.PatchLog.Sink);
+            Assert.Null(Concord.Backend.PatchLog.Sink);
         } finally {
-            Concord.Detour.PatchLog.Sink = previous;
+            Concord.Backend.PatchLog.Sink = previous;
         }
     }
 

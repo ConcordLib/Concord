@@ -1,5 +1,5 @@
 using System.Reflection;
-using Concord.Detour;
+using Concord.Backend;
 using Concord.Orchestration.Tests.RegistryAssembly;
 using Xunit;
 
@@ -9,11 +9,11 @@ public sealed class PatchRegistryTests : IDisposable {
     private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
 
     public PatchRegistryTests() {
-        DetourBackend.Current = backend;
+        PatchBackend.Current = backend;
     }
 
     public void Dispose() {
-        DetourBackend.Reset();
+        PatchBackend.Reset();
     }
 
     [Fact]

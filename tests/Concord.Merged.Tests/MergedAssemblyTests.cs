@@ -36,6 +36,7 @@ public class MergedAssemblyTests {
         Assert.True(leaked.Length == 0, "exported non-Concord types: " + string.Join(", ", leaked));
     }
 
+#if NET
     [Fact]
     public void AWrapperWithALocalAndAFinallyRegionRunsFromTheMergedAssembly() {
         MethodInfo? target = typeof(MergedTargets).GetMethod(nameof(MergedTargets.Work));
@@ -58,24 +59,32 @@ public class MergedAssemblyTests {
 
         Assert.Equal(42, Assert.IsType<int>(result.Wrapper.Invoke(null, Array.Empty<object>())));
     }
+#endif
 
-#if NET
     [Fact]
-    public void TheNet10MergedAssemblyHasNoMonoModTypeInIt() {
-        string[] monomod = Merged.GetTypes()
-            .Where(t => t.Namespace?.StartsWith("MonoMod", StringComparison.Ordinal) == true)
+    public void TheMergedAssemblyHasNoForeignPatchTypeInIt() {
+        string[] namespaces = { "MonoMod", "HarmonyLib" };
+        string[] foreign = Merged.GetTypes()
+            .Where(t => t.Namespace != null && namespaces.Any(n => t.Namespace.StartsWith(n, StringComparison.Ordinal)))
             .Select(t => t.FullName ?? t.Name)
             .OrderBy(n => n, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.True(monomod.Length == 0, "monomod types: " + string.Join(", ", monomod));
+        Assert.True(foreign.Length == 0, "foreign patch types: " + string.Join(", ", foreign));
     }
-#endif
 
-#if !NET
     [Fact]
-    public void TheNet472MergedAssemblyReferencesTheFrameworkOnly() {
+    public void TheMergedAssemblyReferencesTheFrameworkOnly() {
+#if NET
+        string[] expected = {
+            "netstandard", "System.Collections", "System.Collections.Immutable", "System.Console",
+            "System.Diagnostics.StackTrace", "System.Diagnostics.TraceSource", "System.Linq", "System.Memory",
+            "System.Reflection.Emit.ILGeneration", "System.Reflection.Emit.Lightweight", "System.Reflection.Metadata",
+            "System.Reflection.Primitives", "System.Runtime", "System.Runtime.InteropServices", "System.Threading"
+        };
+#else
         string[] expected = { "mscorlib", "System", "System.Core", "System.Numerics" };
+#endif
         string[] unexpected = Merged.GetReferencedAssemblies()
             .Select(a => a.Name ?? string.Empty)
             .Where(n => !expected.Contains(n, StringComparer.Ordinal))
@@ -84,5 +93,4 @@ public class MergedAssemblyTests {
 
         Assert.True(unexpected.Length == 0, "non-framework references: " + string.Join(", ", unexpected));
     }
-#endif
 }

@@ -1,0 +1,71 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>ConcordRimWorld</AssemblyName>
+    <RootNamespace>Concord.RimWorld</RootNamespace>
+    <OutputPath>../../$(GameVersion)/Assemblies</OutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <MinVerTagPrefix>rimworld-v</MinVerTagPrefix>
+    <ModVersionDir>$(MSBuildThisFileDirectory)../../$(GameVersion)</ModVersionDir>
+    <ConcordBackendDir Condition="'$(GameTfm)' == 'net10.0'">$(ConcordCoreDir)/src/backends/Concord.Waylith/bin/$(Configuration)/net10.0/</ConcordBackendDir>
+    <ConcordBackendDir Condition="'$(GameTfm)' != 'net10.0'">$(ConcordCoreDir)/src/backends/Concord.MonoMod/bin/$(Configuration)/net472/</ConcordBackendDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GamecrateRefs)/Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityStubs" Condition="'$(GameTfm)' == 'net10.0'">
+      <HintPath>$(GamecrateRefs)/UnityStubs.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule" Condition="'$(GameTfm)' != 'net10.0'">
+      <HintPath>$(GamecrateRefs)/UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule" Condition="'$(GameTfm)' != 'net10.0'">
+      <HintPath>$(GamecrateRefs)/UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Concord">
+      <HintPath>$(ConcordCoreDir)/Assemblies/$(GameTfm)/Concord.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../../core/Concord/Concord.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../../backends/Concord.Waylith/Concord.Waylith.csproj" ReferenceOutputAssembly="false" Condition="'$(GameTfm)' == 'net10.0'" />
+    <ProjectReference Include="../../../../backends/Concord.MonoMod/Concord.MonoMod.csproj" ReferenceOutputAssembly="false" Condition="'$(GameTfm)' != 'net10.0'" />
+    <PackageReference Include="MinVer" Version="8.0.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../../../../games/rimworld/**/*.cs" Link="Game/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="GameVersion" Value="$(GameVersion)" />
+  </ItemGroup>
+
+  <Target Name="StageConcordRuntime" AfterTargets="Build">
+    <Exec Command="bash &quot;$(MSBuildThisFileDirectory)../stage-concord-runtime.sh&quot; &quot;$(ConcordCoreDir)&quot; &quot;$(GameTfm)&quot; &quot;$(ModVersionDir)&quot;" />
+  </Target>
+
+  <!-- Probed at runtime, so it stays out of <version>/Assemblies, which the game reflects over
+       before any mod constructor runs. -->
+  <Target Name="StageBackend" AfterTargets="StageConcordRuntime">
+    <ItemGroup>
+      <ConcordBackendFiles Include="$(ConcordBackendDir)Concord.*.dll" Exclude="$(ConcordBackendDir)Concord.dll" />
+    </ItemGroup>
+    <Error Condition="'@(ConcordBackendFiles)' == ''" Text="The backend project reference did not land a Concord.*.dll at $(ConcordBackendDir). The $(GameVersion) mod cannot patch without its backend." />
+    <Copy SourceFiles="@(ConcordBackendFiles)" DestinationFolder="$(ModVersionDir)/Backend" SkipUnchangedFiles="true" />
+  </Target>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ConcordRimWorld.Tests" />
+  </ItemGroup>
+
+</Project>

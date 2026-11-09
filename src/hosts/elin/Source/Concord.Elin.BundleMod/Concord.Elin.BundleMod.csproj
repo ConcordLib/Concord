@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>Concord.Elin.BundleMod</AssemblyName>
+    <RootNamespace>Concord.Elin.BundleMod</RootNamespace>
+    <OutputPath>../../BundleMod</OutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Elin"><HintPath>$(ElinManaged)/Elin.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Plugins.BaseCore"><HintPath>$(ElinManaged)/Plugins.BaseCore.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(ElinManaged)/UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(ElinManaged)/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="BepInEx.Core"><HintPath>$(BepInExCore)/BepInEx.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="BepInEx.Unity"><HintPath>$(BepInExCore)/BepInEx.Unity.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="package.xml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="BundleRuntime" AfterTargets="Build">
+    <Copy SourceFiles="$(ConcordCoreDir)/Assemblies/net472/Concord.dll" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

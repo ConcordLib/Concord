@@ -5,6 +5,7 @@ obj/
 .vscode/
 .idea/
 artifacts/
+node_modules/
 BenchmarkDotNet.Artifacts/
 *.nupkg
 *.snupkg
@@ -15,4 +16,4 @@ Assemblies/
 # Coverage reports produced by `dotnet test --collect`
 coverage/
 
-tests/Concord.Host.Adapter.Tests/Integration/*/out/
+tests/Concord.Waylith.Tests/Integration/*/out/

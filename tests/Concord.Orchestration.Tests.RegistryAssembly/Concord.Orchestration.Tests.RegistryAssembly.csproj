@@ -5,8 +5,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Concord.Orchestration/Concord.Orchestration.csproj"/>
-    <ProjectReference Include="../../src/Concord.Emit/Concord.Emit.csproj"/>
-    <ProjectReference Include="../../src/Concord.Detour/Concord.Detour.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Orchestration/Concord.Orchestration.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Emit/Concord.Emit.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Backend/Concord.Backend.csproj"/>
   </ItemGroup>
 </Project>

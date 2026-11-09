@@ -1,0 +1,9 @@
+bin/
+obj/
+*.user
+plugin/
+TestMod/
+Concord.BepInEx.zip
+
+# local in-game verification notes (kept out of git)
+VERIFICATION.md

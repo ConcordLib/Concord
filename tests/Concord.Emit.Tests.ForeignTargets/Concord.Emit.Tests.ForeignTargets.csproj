@@ -9,7 +9,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="../../src/Shared/Polyfills.cs" Link="Polyfills.cs"/>
+    <Compile Include="../../src/core/Shared/Polyfills.cs" Link="Polyfills.cs"/>
   </ItemGroup>
 
   <PropertyGroup>
@@ -18,7 +18,17 @@
     <Optimize>true</Optimize>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="../../src/Concord.Emit/Concord.Emit.csproj"/>
+  <ItemGroup Condition="'$(TargetFramework)' != 'net472'">
+    <ProjectReference Include="../../src/core/Concord.Emit/Concord.Emit.csproj"/>
+  </ItemGroup>
+
+  <!-- On net472 the targets run beside the ILRepack-merged Concord.dll. Compiling them against the
+       unmerged Concord.Emit would give their signatures a ControlHandle from a second assembly, and
+       the composer would not recognise it as the protocol type. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <ProjectReference Include="../../src/core/Concord/Concord.csproj" ReferenceOutputAssembly="false"/>
+    <Reference Include="Concord">
+      <HintPath>../../Assemblies/net472/Concord.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>

@@ -1,0 +1,22 @@
+<Project>
+  <PropertyGroup>
+    <ConcordCoreDir Condition="'$(ConcordCoreDir)' == ''">$(MSBuildThisFileDirectory)../../../..</ConcordCoreDir>
+    <ElinDir Condition="'$(ElinDir)' == ''">/mnt/games/SteamLibrary/steamapps/common/Elin</ElinDir>
+    <ElinManaged>$(ElinDir)/Elin_Data/Managed</ElinManaged>
+    <BepInExCore>$(ElinDir)/BepInEx/core</BepInExCore>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- A project reached only through a ProjectReference builds in the parent's configuration,
+         not its own default. -->
+    <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
+    <!-- The bepinex plugin ships its own copy of the backend. A second copy in a second plugin
+         directory builds a second MonoMod hook chain. -->
+    <DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="IsExternalInit" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

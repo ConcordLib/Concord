@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit" Version="2.9.3"/>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+    <PackageReference Include="xunit.runner.console" Version="2.9.3" PrivateAssets="all"/>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/backends/Concord.MonoMod/Concord.MonoMod.csproj"/>
+    <ProjectReference Include="../Concord.Emit.Tests.ForeignTargets/Concord.Emit.Tests.ForeignTargets.csproj"/>
+    <!-- Order-only: build the merged runtime first, but do not let MSBuild pick its reference,
+         which resolves to the metadata-only Concord.Ref output instead of the ILRepack result. -->
+    <ProjectReference Include="../../src/core/Concord/Concord.csproj" ReferenceOutputAssembly="false"/>
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Concord">
+      <HintPath>../../Assemblies/$(TargetFramework)/Concord.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../src/core/Shared/Polyfills.cs" Link="Polyfills.cs"/>
+    <Compile Include="../Concord.Emit.Tests/**/*.cs"
+             Exclude="../Concord.Emit.Tests/obj/**;../Concord.Emit.Tests/bin/**;../Concord.Emit.Tests/ReflectedResolutionTests.cs"
+             Link="Emit/%(RecursiveDir)%(Filename)%(Extension)"/>
+  </ItemGroup>
+</Project>

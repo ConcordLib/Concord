@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>net10.0;net472</TargetFrameworks>
+    <AssemblyName>Concord.Backend</AssemblyName>
+    <RootNamespace>Concord.Backend</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../Shared/ExceptionReason.cs" Link="ExceptionReason.cs"/>
+    <Compile Include="../Shared/PatchDebugLog.cs" Link="PatchDebugLog.cs"/>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Concord.Emit/Concord.Emit.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Concord.Backend.Tests"/>
+    <InternalsVisibleTo Include="Concord.Orchestration"/>
+    <InternalsVisibleTo Include="Concord.Orchestration.Tests"/>
+    <InternalsVisibleTo Include="Concord.Waylith.Tests"/>
+  </ItemGroup>
+
+</Project>

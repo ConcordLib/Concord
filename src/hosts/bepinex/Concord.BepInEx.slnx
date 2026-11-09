@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Source/Concord.BepInEx/Concord.BepInEx.csproj" />
+  <Project Path="Source/Concord.BepInEx.Tests/Concord.BepInEx.Tests.csproj" />
+  <Project Path="Source/Concord.BepInEx.TestMod/Concord.BepInEx.TestMod.csproj" />
+</Solution>

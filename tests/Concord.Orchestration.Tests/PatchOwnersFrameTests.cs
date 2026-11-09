@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using Concord.Detour;
+using Concord.Backend;
 using Concord.Emit;
 using Xunit;
 
@@ -17,11 +17,11 @@ public class PatchOwnersFrameTests : IDisposable {
     private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
 
     public PatchOwnersFrameTests() {
-        DetourBackend.Current = backend;
+        PatchBackend.Current = backend;
     }
 
     public void Dispose() {
-        DetourBackend.Reset();
+        PatchBackend.Reset();
     }
 
     [Fact]

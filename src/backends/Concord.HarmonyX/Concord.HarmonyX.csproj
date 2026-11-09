@@ -1,0 +1,88 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <RootNamespace>Concord.HarmonyX</RootNamespace>
+    <AssemblyName>Concord.HarmonyX</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>Concord.HarmonyX</PackageId>
+    <Description>Patch backend for Concord on HarmonyX hosts such as BepInEx. It joins MonoMod's hook chain with one ILHook per target, so Concord's injections and HarmonyX's patches share a method instead of fighting over its body.</Description>
+    <!-- Concord.dll, 0Harmony.dll, MonoMod.* and Mono.Cecil are all supplied by the host runtime, so
+         none of them belong in this package's dependency group. Suppressing dependencies leaves a
+         lib/ folder with no matching group, which the SDK flags as NU5128. -->
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <WarningsNotAsErrors>NU5128</WarningsNotAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+  </ItemGroup>
+
+  <!-- Elin ships the net35 build of all four of these, byte for byte, and binds the loose copies in
+       BepInEx/core at runtime, so the compile reference points at that exact lib folder. They come
+       in through PackageDownload rather than PackageReference because a PackageReference also
+       carries the package's own dependency graph: MonoMod 22.5.1.1 asks for Mono.Cecil 0.11.4,
+       which the host does not have, and pinning 0.10.4 beside it is a downgrade. Nothing is merged
+       in, because the RuntimeDetour hook chain is private static state in the host's copy and a
+       second copy of the assembly would build a second chain. -->
+  <ItemGroup>
+    <PackageDownload Include="HarmonyX" Version="[2.10.0]"/>
+    <PackageDownload Include="MonoMod.RuntimeDetour" Version="[22.5.1.1]"/>
+    <PackageDownload Include="MonoMod.Utils" Version="[22.5.1.1]"/>
+    <PackageDownload Include="Mono.Cecil" Version="[0.10.4]"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>$([MSBuild]::EnsureTrailingSlash('$(NuGetPackageRoot)'))harmonyx/2.10.0/lib/net35/0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MonoMod.RuntimeDetour">
+      <HintPath>$([MSBuild]::EnsureTrailingSlash('$(NuGetPackageRoot)'))monomod.runtimedetour/22.5.1.1/lib/net35/MonoMod.RuntimeDetour.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MonoMod.Utils">
+      <HintPath>$([MSBuild]::EnsureTrailingSlash('$(NuGetPackageRoot)'))monomod.utils/22.5.1.1/lib/net35/MonoMod.Utils.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Mono.Cecil">
+      <HintPath>$([MSBuild]::EnsureTrailingSlash('$(NuGetPackageRoot)'))mono.cecil/0.10.4/lib/net35/Mono.Cecil.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Order-only: build the merged runtime first, but do not let MSBuild pick its reference,
+         which resolves to the metadata-only Concord.Ref output instead of the ILRepack result. -->
+    <ProjectReference Include="../../core/Concord/Concord.csproj" ReferenceOutputAssembly="false"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Concord">
+      <HintPath>../../../Assemblies/$(TargetFramework)/Concord.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../Concord.MonoMod/MonoModEmit.cs" Link="MonoModEmit.cs"/>
+    <Compile Include="../Concord.MonoMod/MonoModScratchGenerator.cs" Link="MonoModScratchGenerator.cs"/>
+    <Compile Include="../Concord.MonoMod/MonoModScratchBody.cs" Link="MonoModScratchBody.cs"/>
+    <Compile Include="../../core/Shared/Polyfills.cs" Link="Polyfills.cs"/>
+    <Compile Include="../../core/Shared/ExceptionReason.cs" Link="ExceptionReason.cs"/>
+    <Compile Include="../../core/Shared/PatchDebugLog.cs" Link="PatchDebugLog.cs"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Concord.HarmonyX.Tests"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Reflection.Emit.ILGeneration"/>
+  </ItemGroup>
+
+</Project>

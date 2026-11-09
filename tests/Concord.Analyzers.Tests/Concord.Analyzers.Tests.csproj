@@ -11,6 +11,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Concord.Analyzers/Concord.Analyzers.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Analyzers/Concord.Analyzers.csproj"/>
   </ItemGroup>
 </Project>

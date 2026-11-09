@@ -110,7 +110,7 @@ public static class ByRefReturnTarget {
     }
 }
 
-public static class SpanParamTarget {
+internal static class SpanParamTarget {
     public static int Sum(Span<int> values) {
         int total = 0;
         foreach (int value in values) {

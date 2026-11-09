@@ -12,8 +12,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Concord.Generators/Concord.Generators.csproj"/>
-    <ProjectReference Include="../../src/Concord.Orchestration/Concord.Orchestration.csproj"/>
-    <ProjectReference Include="../../src/Concord.Emit/Concord.Emit.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Generators/Concord.Generators.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Orchestration/Concord.Orchestration.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Emit/Concord.Emit.csproj"/>
   </ItemGroup>
 </Project>

@@ -1,0 +1,55 @@
+using System.Threading;
+using Concord.Backend;
+
+namespace Concord.Orchestration;
+
+internal sealed class PatchHandle : IPatchHandle {
+    private readonly Action? onDispose;
+    private int disposed;
+
+    public PatchHandle(IReadOnlyList<IBackendHandle> detours, Action? onDispose) {
+        Detours = detours;
+        this.onDispose = onDispose;
+    }
+
+    public bool IsApplied {
+        get {
+            if (Volatile.Read(ref disposed) != 0) {
+                return false;
+            }
+
+            foreach (IBackendHandle detour in Detours) {
+                if (!detour.IsApplied) {
+                    return false;
+                }
+            }
+
+            return Detours.Count > 0;
+        }
+    }
+
+    public IReadOnlyList<IBackendHandle> Detours { get; }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Blocker Code Smell", "S3877", Justification = "Dispose aggregates and surfaces detour-revert failures. Silently swallowing them would hide broken unpatching.")]
+    public void Dispose() {
+        if (Interlocked.Exchange(ref disposed, 1) != 0) {
+            return;
+        }
+
+        List<Exception>? failures = null;
+        foreach (IBackendHandle detour in Detours) {
+            try {
+                detour.Dispose();
+            } catch (Exception ex) {
+                (failures ??= []).Add(ex);
+            }
+        }
+
+        if (failures is not null) {
+            Volatile.Write(ref disposed, 0);
+            throw new AggregateException("One or more detours failed to revert.", failures);
+        }
+
+        onDispose?.Invoke();
+    }
+}

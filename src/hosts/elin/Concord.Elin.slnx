@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Source/Concord.Elin/Concord.Elin.csproj" />
+  <Project Path="Source/Concord.Elin.Tests/Concord.Elin.Tests.csproj" />
+  <Project Path="Source/Concord.Elin.TestMod/Concord.Elin.TestMod.csproj" />
+  <Project Path="Source/Concord.Elin.BundleMod/Concord.Elin.BundleMod.csproj" />
+</Solution>

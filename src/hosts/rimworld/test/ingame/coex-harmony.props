@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup>
+    <CoexHarmonyVersion Condition="'$(GameVersion)' == '1.2' Or '$(GameVersion)' == '1.3' Or '$(GameVersion)' == '1.4'">2.2.2</CoexHarmonyVersion>
+    <CoexHarmonyVersion Condition="'$(GameVersion)' == '1.5'">2.3.3</CoexHarmonyVersion>
+    <CoexHarmonyVersion Condition="'$(GameVersion)' == '1.6'">2.4.3</CoexHarmonyVersion>
+    <CoexHarmonyVersion Condition="'$(GameVersion)' == '1.7'">3.0.*-*</CoexHarmonyVersion>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(CoexHarmonyVersion)' != ''">
+    <PackageReference Include="Lib.Harmony" Version="$(CoexHarmonyVersion)" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+  <Target Name="RequireCoexHarmony" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(CoexHarmonyVersion)' == ''"
+           Text="rimworld $(GameVersion) has no Harmony mod to build against: the workshop Harmony (2009463077) declares 1.2 and up. The coexistence scenarios that need Harmony do not run on this version." />
+  </Target>
+</Project>

@@ -1,16 +1,30 @@
 using System.Reflection;
-using Concord.Detour;
+using Concord.Backend;
 using Concord.Emit;
 
 namespace Concord.Tests.Shared;
 
-public sealed class RecordingDetourBackend : IDetourBackend {
+public sealed class RecordingDetourBackend : IPatchBackend {
     public List<(MethodBase Target, IReadOnlyList<Injection> Added)> ComposedDetours { get; } =
         new List<(MethodBase Target, IReadOnlyList<Injection> Added)>();
 
-    public List<IDetourHandle> Handles { get; } = new List<IDetourHandle>();
+    public List<IBackendHandle> Handles { get; } = new List<IBackendHandle>();
+
+    public string Name => nameof(RecordingDetourBackend);
 
     public int PatchedTargetCount => ComposedDetours.Select(entry => entry.Target).Distinct().Count();
+
+    public TargetVerdict Judge(MethodBase target) {
+        return TargetVerdict.Accept();
+    }
+
+    public bool OwnsBody(MethodBase target) {
+        return false;
+    }
+
+    public bool Recompose(MethodBase target) {
+        return false;
+    }
 
     public IReadOnlyList<string> OwnersOf(MethodBase target) {
         List<string> owners = new List<string>();
@@ -29,14 +43,14 @@ public sealed class RecordingDetourBackend : IDetourBackend {
         return owners;
     }
 
-    public IDetourHandle ApplyComposed(MethodBase target, IReadOnlyList<Injection> added) {
+    public IBackendHandle ApplyComposed(MethodBase target, IReadOnlyList<Injection> added) {
         ComposedDetours.Add((target, added));
         RecordingHandle handle = new RecordingHandle(target);
         Handles.Add(handle);
         return handle;
     }
 
-    private sealed class RecordingHandle(MethodBase original) : IDetourHandle {
+    private sealed class RecordingHandle(MethodBase original) : IBackendHandle {
         public MethodBase Original { get; } = original;
 
         public bool IsApplied { get; private set; } = true;

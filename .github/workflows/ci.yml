@@ -1,0 +1,466 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Changed paths
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      rimworld: ${{ steps.filter.outputs.rimworld }}
+      bepinex: ${{ steps.filter.outputs.bepinex }}
+      elin: ${{ steps.filter.outputs.elin }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine changed paths
+        id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "workflow_dispatch: every output is true"
+            {
+              echo "core=true"
+              echo "rimworld=true"
+              echo "bepinex=true"
+              echo "elin=true"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            files=$(git show --name-only --pretty=format: "$HEAD_SHA")
+          else
+            files=$(git diff --name-only "$BEFORE_SHA" "$HEAD_SHA")
+          fi
+          echo "changed files:"
+          echo "$files"
+
+          core=false
+          if echo "$files" | grep -Eq '^(src/core/|src/backends/|build/|tests/|Concord\.slnx$|Concord\.ci\.slnx$|Directory\.Build\.props$|StyleCop\.props$|global\.json$|scripts/|release\.config\.mjs$|package\.json$)'; then
+            core=true
+          fi
+
+          rimworld=$core
+          bepinex=$core
+          elin=$core
+          if [ "$core" = "false" ]; then
+            echo "$files" | grep -q '^src/hosts/rimworld/' && rimworld=true
+            echo "$files" | grep -q '^src/hosts/bepinex/' && bepinex=true
+            echo "$files" | grep -q '^src/hosts/elin/' && elin=true
+            echo "$files" | grep -q '^src/games/rimworld/' && rimworld=true
+            echo "$files" | grep -q '^src/games/elin/' && elin=true
+            echo "$files" | grep -q '^src/games/elin/' && bepinex=true
+          fi
+
+          {
+            echo "core=$core"
+            echo "rimworld=$rimworld"
+            echo "bepinex=$bepinex"
+            echo "elin=$elin"
+          } >> "$GITHUB_OUTPUT"
+
+  images:
+    name: Game image
+    uses: RimWorks/mod-ci/.github/workflows/game-image.yml@v5
+    permissions:
+      contents: read
+      packages: write
+    with:
+      artifact-prefix: core-image-ref
+      image: ghcr.io/concordlib/rimworld-game
+      branches: |
+        1.1=version-1.1
+        1.2=version-1.2
+        1.3=version-1.3-latest
+        1.4=version-1.4.3901
+        1.5=version-1.5
+        1.6=public
+        1.7=unstable
+    secrets:
+      STEAM_USERNAME: ${{ vars.STEAM_USERNAME }}
+      STEAM_CONFIG_VDF_B64: ${{ secrets.STEAM_CONFIG_VDF_B64 }}
+      DEPOTDOWNLOADER_ACCOUNT_B64: ${{ secrets.DEPOTDOWNLOADER_ACCOUNT_B64 }}
+
+  refs:
+    name: Fork refs
+    needs: images
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    env:
+      GAME_IMAGE: ${{ fromJSON(needs.images.outputs.image-refs)['1.7'] }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Install gamecrate
+        run: npm install -g @gamecrate/cli @gamecrate/rimworld
+
+      - name: Log in to ghcr.io
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Pull game image
+        run: docker pull "$GAME_IMAGE"
+
+      - name: Extract fork refs
+        id: extract
+        env:
+          XDG_CONFIG_HOME: ${{ github.workspace }}/.github
+        run: |
+          set -euo pipefail
+          dir=$(gamecrate refs v17 --game rimworld --image "$GAME_IMAGE")
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          echo "staged $(find "$dir" -maxdepth 1 -type f | wc -l) files at $dir"
+
+      - name: Upload fork refs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fork-refs
+          path: ${{ steps.extract.outputs.dir }}
+
+  fork-facts:
+    name: Fork facts
+    needs: refs
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Download fork refs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: fork-refs
+          path: ${{ runner.temp }}/fork-refs
+
+      - name: Require the native fork runtime
+        run: |
+          set -euo pipefail
+          if [ ! -f "$RUNNER_TEMP/fork-refs/libcoreclr.so" ]; then
+            echo "::error::fork-refs/libcoreclr.so is missing, so the fork facts have no native runtime to overlay. The refs job needs a gamecrate release whose refs command copies the fork's .so files." >&2
+            exit 1
+          fi
+
+      - name: Run fork facts
+        env:
+          FORK_RUNTIME_DIR: ${{ runner.temp }}/fork-refs
+        run: |
+          set -o pipefail
+          tests/Concord.Waylith.ForkTests/run-fork-tests.sh -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs" -- --report-trx --report-trx-filename fork-facts.trx --results-directory "$RUNNER_TEMP" 2>&1 | tee "$RUNNER_TEMP/fork-facts.log"
+
+      - name: Upload fork facts log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fork-facts-log
+          path: |
+            ${{ runner.temp }}/fork-facts.log
+            ${{ runner.temp }}/fork-facts.trx
+
+  sonar:
+    name: SonarCloud
+    needs: refs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache NuGet
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props', 'global.json') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Cache SonarCloud packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Install scanner
+        run: dotnet tool install --global dotnet-sonarscanner --version 11.3.0
+
+      - name: Install coverlet
+        run: dotnet tool install --global coverlet.console --version 10.0.1
+
+      - name: Download fork refs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: fork-refs
+          path: ${{ runner.temp }}/fork-refs
+
+      - name: Run fork facts with coverage
+        env:
+          FORK_REFS: ${{ runner.temp }}/fork-refs
+          FORK_FACTS_COVERAGE: ${{ github.workspace }}/coverage/fork/coverage.opencover.xml
+        run: tests/Concord.Waylith.ForkTests/run-fork-tests.sh -p:ForkRuntimeDir="$FORK_REFS"
+
+      - name: Analyse
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORK_REFS: ${{ runner.temp }}/fork-refs
+        run: |
+          set -euo pipefail
+          dotnet sonarscanner begin \
+            /k:"ConcordLib_Core" \
+            /o:"concordlib" \
+            /d:sonar.token="$SONAR_TOKEN" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.scanner.scanAll=false \
+            /d:sonar.cs.opencover.reportsPaths="coverage/**/coverage.opencover.xml" \
+            /d:sonar.coverage.exclusions="tests/**,bench/**" \
+            /d:sonar.qualitygate.wait=true
+          dotnet build Concord.ci.slnx -c Release --no-incremental -p:ForkRuntimeDir="$FORK_REFS"
+          dotnet test Concord.ci.slnx -c Release --no-build -f net10.0 \
+            -p:ForkRuntimeDir="$FORK_REFS" \
+            --collect:"XPlat Code Coverage;Format=opencover" \
+            --results-directory coverage
+          dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+
+  test:
+    name: Test · ${{ matrix.label }}
+    needs: refs
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { label: linux-x64,    runner: ubuntu-24.04,   experimental: false, testFilter: '' }
+          - { label: windows-x64,  runner: windows-latest, experimental: false, testFilter: '' }
+          - { label: macos-arm64,  runner: macos-latest,   experimental: false, testFilter: '' }
+          # TODO(arm64): flip experimental to false once this cell is green
+          - { label: linux-arm64,  runner: ubuntu-24.04-arm, experimental: true,  testFilter: '' }
+          - { label: windows-arm64,runner: windows-11-arm,   experimental: false, testFilter: '' }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props', 'global.json') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Download fork refs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: fork-refs
+          path: ${{ runner.temp }}/fork-refs
+
+      - name: Restore
+        run: dotnet restore Concord.ci.slnx -p:ForkRuntimeDir="${{ runner.temp }}/fork-refs"
+
+      - name: Test
+        run: dotnet test Concord.ci.slnx -c Release --no-restore -f net10.0 -p:ForkRuntimeDir="${{ runner.temp }}/fork-refs" --logger trx --results-directory test-results ${{ matrix.testFilter != '' && format('--filter "{0}"', matrix.testFilter) || '' }}
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-results-${{ matrix.label }}
+          path: test-results/**/*.trx
+
+  mono:
+    name: Mono · net472
+    needs: refs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install mono
+        run: sudo apt-get update && sudo apt-get install -y mono-devel
+
+      - name: Download fork refs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: fork-refs
+          path: ${{ runner.temp }}/fork-refs
+
+      - name: Build
+        run: dotnet build Concord.slnx -c Release -p:ForkRuntimeDir="${{ runner.temp }}/fork-refs"
+
+      - name: Test
+        run: CONFIG=Release ./tests/run-net472.sh
+
+      - name: Test against each Lib.Harmony release
+        run: |
+          set -euo pipefail
+          for version in 2.2.2 2.3.3 2.3.6 2.4.2 2.4.3 3.0.0-rc.4; do
+            echo "::group::Lib.Harmony $version"
+            CONFIG=Release HARMONY_VERSION="$version" ./tests/run-net472.sh
+            echo "::endgroup::"
+          done
+
+  package-contract:
+    name: Package contract
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Download fork refs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: fork-refs
+          path: ${{ runner.temp }}/fork-refs
+
+      - name: Check package contract
+        run: scripts/package-contract.sh
+        env:
+          FORK_RUNTIME_DIR: ${{ runner.temp }}/fork-refs
+
+  host-rimworld:
+    name: Host · rimworld
+    needs: [changes, images, test, mono]
+    if: needs.changes.outputs.rimworld == 'true'
+    uses: ./.github/workflows/hosts.yml
+    permissions:
+      contents: read
+      packages: read
+    with:
+      host: rimworld
+    secrets: inherit
+
+  host-bepinex:
+    name: Host · bepinex
+    needs: [changes, test, mono]
+    if: needs.changes.outputs.bepinex == 'true'
+    uses: ./.github/workflows/hosts.yml
+    permissions:
+      contents: read
+      packages: read
+    with:
+      host: bepinex
+    secrets: inherit
+
+  host-elin:
+    name: Host · elin
+    needs: [changes, test, mono]
+    if: needs.changes.outputs.elin == 'true'
+    uses: ./.github/workflows/hosts.yml
+    permissions:
+      contents: read
+      packages: read
+    with:
+      host: elin
+    secrets: inherit
+
+  release-core:
+    name: Release · core
+    needs: [changes, images, refs, fork-facts, sonar, test, mono, package-contract]
+    if: github.event_name == 'push' && vars.RELEASES_ENABLED == 'true' && needs.changes.outputs.core == 'true'
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+      packages: read
+    with:
+      shippable: core
+    secrets: inherit
+
+  release-rimworld:
+    name: Release · rimworld
+    needs: [changes, images, refs, fork-facts, sonar, test, mono, package-contract, host-rimworld]
+    if: github.event_name == 'push' && vars.RELEASES_ENABLED == 'true' && needs.changes.outputs.rimworld == 'true'
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+      packages: read
+    with:
+      shippable: rimworld
+    secrets: inherit
+
+  release-bepinex:
+    name: Release · bepinex
+    needs: [changes, images, refs, fork-facts, sonar, test, mono, package-contract, host-bepinex]
+    if: github.event_name == 'push' && vars.RELEASES_ENABLED == 'true' && needs.changes.outputs.bepinex == 'true'
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+      packages: read
+    with:
+      shippable: bepinex
+    secrets: inherit
+
+  release-elin:
+    name: Release · elin
+    needs: [changes, images, refs, fork-facts, sonar, test, mono, package-contract, host-elin]
+    if: github.event_name == 'push' && vars.RELEASES_ENABLED == 'true' && needs.changes.outputs.elin == 'true'
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+      packages: read
+    with:
+      shippable: elin
+    secrets: inherit

@@ -1,265 +1,20 @@
-name: CI & Release
+name: release
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      runtime_version:
-        description: Released Core tag to resend to a runtime repository (for example, v0.7.1)
-        required: false
+      shippable:
+        description: Which shippable to release — core, rimworld, bepinex or elin.
+        required: true
         type: string
-      runtime_repository:
-        description: Runtime repository to rebuild
-        required: false
-        default: RimWorld
-        type: string
-      runtime_release_type:
-        description: Release the runtime cuts for that Core tag
-        required: false
-        default: patch
-        type: choice
-        options: [patch, minor, major]
 
 permissions:
   contents: read
 
 jobs:
-  images:
-    name: Game image
-    if: github.event_name != 'workflow_dispatch' || inputs.runtime_version == ''
-    uses: RimWorks/mod-ci/.github/workflows/game-image.yml@v5
-    permissions:
-      contents: read
-      packages: write
-    with:
-      artifact-prefix: core-image-ref
-      image: ghcr.io/concordlib/rimworld-game
-      branches: |
-        1.7=unstable
-    secrets:
-      STEAM_USERNAME: ${{ vars.STEAM_USERNAME }}
-      STEAM_CONFIG_VDF_B64: ${{ secrets.STEAM_CONFIG_VDF_B64 }}
-      DEPOTDOWNLOADER_ACCOUNT_B64: ${{ secrets.DEPOTDOWNLOADER_ACCOUNT_B64 }}
-
-  refs:
-    name: Fork refs
-    needs: images
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: read
-    env:
-      GAME_IMAGE: ${{ fromJSON(needs.images.outputs.image-refs)['1.7'] }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
-
-      - name: Install gamecrate
-        run: npm install -g @gamecrate/cli @gamecrate/rimworld
-
-      - name: Log in to ghcr.io
-        env:
-          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Pull game image
-        run: docker pull "$GAME_IMAGE"
-
-      - name: Extract fork refs
-        id: extract
-        env:
-          XDG_CONFIG_HOME: ${{ github.workspace }}/.github
-        run: |
-          set -euo pipefail
-          dir=$(gamecrate refs v17 --game rimworld --image "$GAME_IMAGE")
-          echo "dir=$dir" >> "$GITHUB_OUTPUT"
-          echo "staged $(find "$dir" -maxdepth 1 -type f | wc -l) files at $dir"
-
-      - name: Upload fork refs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: fork-refs
-          path: ${{ steps.extract.outputs.dir }}
-
-  fork-facts:
-    name: Fork facts
-    needs: refs
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Download fork refs
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: fork-refs
-          path: ${{ runner.temp }}/fork-refs
-
-      - name: Require the native fork runtime
-        run: |
-          set -euo pipefail
-          if [ ! -f "$RUNNER_TEMP/fork-refs/libcoreclr.so" ]; then
-            echo "::error::fork-refs/libcoreclr.so is missing, so the fork facts have no native runtime to overlay. The refs job needs a gamecrate release whose refs command copies the fork's .so files." >&2
-            exit 1
-          fi
-
-      - name: Run fork facts
-        env:
-          FORK_RUNTIME_DIR: ${{ runner.temp }}/fork-refs
-        run: |
-          set -o pipefail
-          tests/Concord.Host.Adapter.ForkTests/run-fork-tests.sh -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs" -- --report-trx --report-trx-filename fork-facts.trx --results-directory "$RUNNER_TEMP" 2>&1 | tee "$RUNNER_TEMP/fork-facts.log"
-
-      - name: Upload fork facts log
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: fork-facts-log
-          path: |
-            ${{ runner.temp }}/fork-facts.log
-            ${{ runner.temp }}/fork-facts.trx
-
-  sonar:
-    name: SonarCloud
-    needs: refs
-    runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_dispatch' || inputs.runtime_version == ''
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Setup Java
-        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Cache NuGet
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props', 'global.json') }}
-          restore-keys: ${{ runner.os }}-nuget-
-
-      - name: Cache SonarCloud packages
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
-
-      - name: Install scanner
-        run: dotnet tool install --global dotnet-sonarscanner --version 11.3.0
-
-      - name: Install coverlet
-        run: dotnet tool install --global coverlet.console --version 10.0.1
-
-      - name: Download fork refs
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: fork-refs
-          path: ${{ runner.temp }}/fork-refs
-
-      - name: Run fork facts with coverage
-        env:
-          FORK_REFS: ${{ runner.temp }}/fork-refs
-          FORK_FACTS_COVERAGE: ${{ github.workspace }}/coverage/fork/coverage.opencover.xml
-        run: tests/Concord.Host.Adapter.ForkTests/run-fork-tests.sh -p:ForkRuntimeDir="$FORK_REFS"
-
-      - name: Analyse
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          FORK_REFS: ${{ runner.temp }}/fork-refs
-        run: |
-          set -euo pipefail
-          dotnet sonarscanner begin \
-            /k:"ConcordLib_Core" \
-            /o:"concordlib" \
-            /d:sonar.token="$SONAR_TOKEN" \
-            /d:sonar.host.url="https://sonarcloud.io" \
-            /d:sonar.scanner.scanAll=false \
-            /d:sonar.cs.opencover.reportsPaths="coverage/**/coverage.opencover.xml" \
-            /d:sonar.coverage.exclusions="tests/**,bench/**" \
-            /d:sonar.qualitygate.wait=true
-          dotnet build Concord.ci.slnx -c Release --no-incremental -p:ForkRuntimeDir="$FORK_REFS"
-          dotnet test Concord.ci.slnx -c Release --no-build -f net10.0 \
-            -p:ForkRuntimeDir="$FORK_REFS" \
-            --collect:"XPlat Code Coverage;Format=opencover" \
-            --results-directory coverage
-          dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
-
-  test:
-    name: Test · ${{ matrix.label }}
-    needs: refs
-    if: github.event_name != 'workflow_dispatch' || inputs.runtime_version == ''
-    runs-on: ${{ matrix.runner }}
-    continue-on-error: ${{ matrix.experimental }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { label: linux-x64,    runner: ubuntu-24.04,   experimental: false, testFilter: '' }
-          - { label: windows-x64,  runner: windows-latest, experimental: false, testFilter: '' }
-          - { label: macos-arm64,  runner: macos-latest,   experimental: false, testFilter: '' }
-          # TODO(arm64): flip experimental to false once this cell is green
-          - { label: linux-arm64,  runner: ubuntu-24.04-arm, experimental: true,  testFilter: '' }
-          - { label: windows-arm64,runner: windows-11-arm,   experimental: false, testFilter: '' }
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Cache NuGet
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props', 'global.json') }}
-          restore-keys: ${{ runner.os }}-nuget-
-
-      - name: Download fork refs
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: fork-refs
-          path: ${{ runner.temp }}/fork-refs
-
-      - name: Restore
-        run: dotnet restore Concord.ci.slnx -p:ForkRuntimeDir="${{ runner.temp }}/fork-refs"
-
-      - name: Test
-        run: dotnet test Concord.ci.slnx -c Release --no-restore -f net10.0 -p:ForkRuntimeDir="${{ runner.temp }}/fork-refs" --logger trx --results-directory test-results ${{ matrix.testFilter != '' && format('--filter "{0}"', matrix.testFilter) || '' }}
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: test-results-${{ matrix.label }}
-          path: test-results/**/*.trx
-
-  release:
-    name: Release & Publish
-    needs: [test, sonar, refs]
-    if: github.event_name == 'push'
+  core:
+    name: Release · core
+    if: inputs.shippable == 'core' && vars.RELEASES_ENABLED == 'true'
     runs-on: ubuntu-latest
     env:
       RUNTIME_DISPATCH_REPOS: ${{ secrets.RUNTIME_DISPATCH_REPOS }}
@@ -297,16 +52,32 @@ jobs:
       - name: Smoke pack
         run: |
           set -euo pipefail
-          dotnet pack src/Concord.Ref/Concord.Ref.csproj -c Release -o "$RUNNER_TEMP/pack-smoke" -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
-          dotnet pack src/Concord.Analyzers/Concord.Analyzers.csproj -c Release -o "$RUNNER_TEMP/pack-smoke" -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
-          dotnet pack src/Concord.Generators/Concord.Generators.csproj -c Release -o "$RUNNER_TEMP/pack-smoke" -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
-          dotnet pack src/Concord/Concord.csproj -c Release -o "$RUNNER_TEMP/pack-smoke" -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
-          dotnet pack src/Concord.Host.Adapter/Concord.Host.Adapter.csproj -c Release -o "$RUNNER_TEMP/pack-smoke" -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
+          for project in \
+            src/core/Concord.Ref/Concord.Ref.csproj \
+            src/core/Concord.Analyzers/Concord.Analyzers.csproj \
+            src/core/Concord.Generators/Concord.Generators.csproj \
+            src/core/Concord/Concord.csproj \
+            src/backends/Concord.Waylith/Concord.Waylith.csproj \
+            src/backends/Concord.MonoMod/Concord.MonoMod.csproj \
+            src/backends/Concord.HarmonyX/Concord.HarmonyX.csproj; do
+            dotnet pack "$project" -c Release -o "$RUNNER_TEMP/pack-smoke" -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
+          done
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
+
+      - name: Install release dependencies
+        run: npm install --no-audit --no-fund --ignore-scripts
+
+      - name: Require a seeded core tag
+        run: |
+          set -euo pipefail
+          if [ -z "$(git tag --list 'core-v*')" ]; then
+            echo "::error::no core-v* tag exists. Seed one on this merge-base before enabling releases, e.g. git tag core-v0.31.0 <sha> && git push origin core-v0.31.0." >&2
+            exit 1
+          fi
 
       - name: Snapshot tags on HEAD
         env:
@@ -316,7 +87,7 @@ jobs:
       - name: Semantic release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx -y -p semantic-release@24.2.9 -p conventional-changelog-conventionalcommits@9.3.1 semantic-release
+        run: ./node_modules/.bin/semantic-release
 
       - name: Detect release tag
         id: tag
@@ -325,17 +96,17 @@ jobs:
         run: |
           set -euo pipefail
           git tag --points-at HEAD | sort > "$RUNNER_TEMP/tags-after"
-          TAG=$(grep '^v' "$RUNNER_TEMP/tags-after" | sort -V | tail -1 || true)
-          RELEASED=$(comm -13 "$RUNNER_TEMP/tags-before" "$RUNNER_TEMP/tags-after" | grep '^v' | sort -V | tail -1 || true)
+          TAG=$(grep '^core-v' "$RUNNER_TEMP/tags-after" | sort -V | tail -1 || true)
+          RELEASED=$(comm -13 "$RUNNER_TEMP/tags-before" "$RUNNER_TEMP/tags-after" | grep '^core-v' | sort -V | tail -1 || true)
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "released=$RELEASED" >> "$GITHUB_OUTPUT"
-          echo "newest v-tag on HEAD: ${TAG:-none}"
+          echo "newest core tag on HEAD: ${TAG:-none}"
           echo "cut by this run: ${RELEASED:-none}"
           TYPE=""
           if [ -n "$RELEASED" ]; then
-            PREVIOUS=$(git tag --list 'v*' --sort=-v:refname | grep -vx "$RELEASED" | head -1 || true)
-            IFS=. read -r NEW_MAJOR NEW_MINOR _ <<< "${RELEASED#v}"
-            IFS=. read -r OLD_MAJOR OLD_MINOR _ <<< "${PREVIOUS#v}"
+            PREVIOUS=$(git tag --list 'core-v*' --sort=-v:refname | grep -vx "$RELEASED" | head -1 || true)
+            IFS=. read -r NEW_MAJOR NEW_MINOR _ <<< "${RELEASED#core-v}"
+            IFS=. read -r OLD_MAJOR OLD_MINOR _ <<< "${PREVIOUS#core-v}"
             if [ -z "$PREVIOUS" ] || [ "$NEW_MAJOR" != "$OLD_MAJOR" ]; then
               TYPE="major"
             elif [ "$NEW_MINOR" != "$OLD_MINOR" ]; then
@@ -350,11 +121,17 @@ jobs:
       - name: Pack
         if: steps.tag.outputs.tag != ''
         run: |
-          dotnet pack src/Concord.Ref/Concord.Ref.csproj -c Release -o artifacts -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
-          dotnet pack src/Concord.Analyzers/Concord.Analyzers.csproj -c Release -o artifacts -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
-          dotnet pack src/Concord.Generators/Concord.Generators.csproj -c Release -o artifacts -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
-          dotnet pack src/Concord/Concord.csproj -c Release -o artifacts -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
-          dotnet pack src/Concord.Host.Adapter/Concord.Host.Adapter.csproj -c Release -o artifacts -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
+          set -euo pipefail
+          for project in \
+            src/core/Concord.Ref/Concord.Ref.csproj \
+            src/core/Concord.Analyzers/Concord.Analyzers.csproj \
+            src/core/Concord.Generators/Concord.Generators.csproj \
+            src/core/Concord/Concord.csproj \
+            src/backends/Concord.Waylith/Concord.Waylith.csproj \
+            src/backends/Concord.MonoMod/Concord.MonoMod.csproj \
+            src/backends/Concord.HarmonyX/Concord.HarmonyX.csproj; do
+            dotnet pack "$project" -c Release -o artifacts -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs"
+          done
 
       - name: NuGet login
         if: steps.tag.outputs.tag != ''
@@ -425,36 +202,257 @@ jobs:
               -F "client_payload[release_type]=${{ steps.tag.outputs.type }}"
           done
 
-  dispatch-runtime:
-    name: Dispatch runtime rebuild
-    if: github.event_name == 'workflow_dispatch' && inputs.runtime_version != ''
+  rimworld:
+    name: Release · rimworld
+    if: inputs.shippable == 'rimworld' && vars.RELEASES_ENABLED == 'true'
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/hosts/rimworld
     permissions:
-      contents: read
+      contents: write
+      issues: write
+      pull-requests: write
+      packages: read
+    outputs:
+      published: ${{ steps.after.outputs.published }}
+      version: ${{ steps.after.outputs.version }}
+      tag: ${{ steps.after.outputs.tag }}
+      previous-tag: ${{ steps.before.outputs.tag }}
     steps:
-      - name: Mask runtime repository name
-        env:
-          RUNTIME_REPOSITORY: ${{ inputs.runtime_repository }}
-        run: echo "::add-mask::${RUNTIME_REPOSITORY}"
-
-      - name: Generate runtime-repository token
-        id: apptoken
-        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          app-id: ${{ vars.RUNTIME_DISPATCH_APP_ID }}
-          private-key: ${{ secrets.RUNTIME_DISPATCH_APP_PRIVATE_KEY }}
-          owner: ConcordLib
-          repositories: ${{ inputs.runtime_repository }}
+          fetch-depth: 0
 
-      - name: Trigger runtime rebuild
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Install gamecrate
+        run: npm install -g @gamecrate/cli @gamecrate/rimworld
+
+      - name: Install release dependencies
+        run: npm install --no-audit --no-fund --ignore-scripts
+
+      - name: Log in to ghcr.io
         env:
-          GH_TOKEN: ${{ steps.apptoken.outputs.token }}
-          RUNTIME_REPOSITORY: ${{ inputs.runtime_repository }}
-          RUNTIME_VERSION: ${{ inputs.runtime_version }}
-          RUNTIME_RELEASE_TYPE: ${{ inputs.runtime_release_type }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Extract game refs
+        working-directory: .
+        env:
+          XDG_CONFIG_HOME: ${{ github.workspace }}/.github
         run: |
           set -euo pipefail
-          gh api "repos/ConcordLib/${RUNTIME_REPOSITORY}/dispatches" \
-            -f event_type=core-released \
-            -F "client_payload[core_version]=${RUNTIME_VERSION}" \
-            -F "client_payload[release_type]=${RUNTIME_RELEASE_TYPE}"
+          for version in 1.1 1.2 1.3 1.4 1.5 1.6 1.7; do
+            image="ghcr.io/concordlib/rimworld-game:$version"
+            if ! docker pull "$image"; then
+              echo "::error::no image at $image. ghcr.io/concordlib/rimworld-game has published no tag for RimWorld $version." >&2
+              exit 1
+            fi
+            dir=$(gamecrate refs "v${version/./}" --game rimworld --image "$image")
+            echo "GAME_MANAGED_${version/./_}=$dir" >> "$GITHUB_ENV"
+            echo "staged RimWorld $version at $dir"
+          done
+
+      - name: Require a seeded rimworld tag
+        run: |
+          set -euo pipefail
+          if [ -z "$(git tag --list 'rimworld-v*')" ]; then
+            echo "::error::no rimworld-v* tag exists. Seed one on this merge-base before enabling releases, e.g. git tag rimworld-v2.0.0 <sha> && git push origin rimworld-v2.0.0." >&2
+            exit 1
+          fi
+
+      - name: Record the tag before releasing
+        id: before
+        run: echo "tag=$(git describe --tags --match 'rimworld-v*' --abbrev=0 2>/dev/null || true)" >> "$GITHUB_OUTPUT"
+
+      - name: Semantic release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SPLIT_PUBLISH: '1'
+          FORK_RUNTIME_DIR: ${{ env.GAME_MANAGED_1_7 }}
+        run: ./node_modules/.bin/semantic-release
+
+      - name: Read the tag it just cut
+        id: after
+        run: |
+          set -euo pipefail
+          tag=$(git describe --tags --match 'rimworld-v*' --abbrev=0 2>/dev/null || true)
+          if [ "$tag" = "${{ steps.before.outputs.tag }}" ] || [ -z "$tag" ]; then
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "published=true"
+              echo "tag=$tag"
+              echo "version=${tag#rimworld-v}"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload the release zips
+        if: steps.after.outputs.published == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-zips
+          path: src/hosts/rimworld/dist/Concord-*.zip
+          if-no-files-found: error
+
+  rimworld-publish:
+    name: Publish · rimworld
+    needs: rimworld
+    if: needs.rimworld.outputs.published == 'true' && vars.RELEASES_ENABLED == 'true'
+    uses: RimWorks/mod-ci/.github/workflows/publish.yml@792acaa8df9fe5823e66d34fbd85ff5a9365d7fa # v6
+    permissions:
+      contents: read
+    secrets:
+      STEAM_USERNAME: ${{ vars.STEAM_USERNAME }}
+      STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
+      STEAM_CONFIG_VDF_B64: ${{ secrets.STEAM_CONFIG_VDF_B64 }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+    with:
+      workdir: src/hosts/rimworld
+      release-config: release.config.mjs
+      version: ${{ needs.rimworld.outputs.version }}
+      zip-artifact: release-zips
+      discord-mod-name: Concord
+      discord-workshop-id: '3758333473'
+      discord-embed-color: 9B59B6
+      tag: ${{ needs.rimworld.outputs.tag }}
+      previous-tag: ${{ needs.rimworld.outputs.previous-tag }}
+
+  bepinex:
+    name: Release · bepinex
+    if: inputs.shippable == 'bepinex' && vars.RELEASES_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/hosts/bepinex
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Fetch Elin refs
+        env:
+          ELIN_REFS_URL: ${{ secrets.ELIN_REFS_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$ELIN_REFS_URL" ]; then
+            echo "::error::ELIN_REFS_URL is unset. Set it to a tarball whose root holds Elin_Data/Managed/*.dll and BepInEx/core/*.dll." >&2
+            exit 1
+          fi
+          dir="$RUNNER_TEMP/elin-refs"
+          mkdir -p "$dir"
+          curl -fsSL "$ELIN_REFS_URL" | tar -xz -C "$dir"
+          echo "ELIN_DIR=$dir" >> "$GITHUB_ENV"
+
+      - name: Install mono
+        run: sudo apt-get update && sudo apt-get install -y mono-devel
+
+      - name: Install release dependencies
+        run: npm install --no-audit --no-fund --ignore-scripts
+
+      - name: Require a seeded bepinex tag
+        run: |
+          set -euo pipefail
+          if [ -z "$(git tag --list 'bepinex-v*')" ]; then
+            echo "::error::no bepinex-v* tag exists. Seed one on this merge-base before enabling releases, e.g. git tag bepinex-v1.0.0 <sha> && git push origin bepinex-v1.0.0." >&2
+            exit 1
+          fi
+
+      - name: Semantic release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./node_modules/.bin/semantic-release
+
+  elin:
+    name: Release · elin
+    if: inputs.shippable == 'elin' && vars.RELEASES_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/hosts/elin
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Fetch Elin refs
+        env:
+          ELIN_REFS_URL: ${{ secrets.ELIN_REFS_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$ELIN_REFS_URL" ]; then
+            echo "::error::ELIN_REFS_URL is unset. Set it to a tarball whose root holds Elin_Data/Managed/*.dll, BepInEx/core/*.dll, and Package/_ModdingKit/package.xml." >&2
+            exit 1
+          fi
+          dir="$RUNNER_TEMP/elin-refs"
+          mkdir -p "$dir"
+          curl -fsSL "$ELIN_REFS_URL" | tar -xz -C "$dir"
+          echo "ELIN_DIR=$dir" >> "$GITHUB_ENV"
+
+      - name: Stamp the game version
+        run: |
+          set -euo pipefail
+          kit_file="$ELIN_DIR/Package/_ModdingKit/package.xml"
+          if [ ! -f "$kit_file" ]; then
+            echo "::error::$kit_file is missing. ELIN_REFS_URL must also hold Package/_ModdingKit/package.xml." >&2
+            exit 1
+          fi
+          game_version=$(grep -oP '<version>\K[^<]+' "$kit_file")
+          sed -i "s|<version>[^<]*</version>|<version>$game_version</version>|" package.xml
+          grep '<version>' package.xml
+
+      - name: Install mono
+        run: sudo apt-get update && sudo apt-get install -y mono-devel
+
+      - name: Install release dependencies
+        run: npm install --no-audit --no-fund --ignore-scripts
+
+      - name: Require a seeded elin tag
+        run: |
+          set -euo pipefail
+          if [ -z "$(git tag --list 'elin-v*')" ]; then
+            echo "::error::no elin-v* tag exists. Seed one on this merge-base before enabling releases, e.g. git tag elin-v1.0.0 <sha> && git push origin elin-v1.0.0." >&2
+            exit 1
+          fi
+
+      - name: Semantic release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./node_modules/.bin/semantic-release

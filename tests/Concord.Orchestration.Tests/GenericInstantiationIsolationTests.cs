@@ -42,11 +42,11 @@ public class GenericInstantiationIsolationTests : IDisposable {
     private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
 
     public GenericInstantiationIsolationTests() {
-        Concord.Detour.DetourBackend.Current = backend;
+        Concord.Backend.PatchBackend.Current = backend;
     }
 
     public void Dispose() {
-        Concord.Detour.DetourBackend.Reset();
+        Concord.Backend.PatchBackend.Reset();
     }
 
     [Fact]

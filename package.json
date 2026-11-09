@@ -1,0 +1,9 @@
+{
+  "name": "concord-core",
+  "version": "0.0.0-semantically-released",
+  "private": true,
+  "devDependencies": {
+    "semantic-release": "^25",
+    "conventional-changelog-conventionalcommits": "^9"
+  }
+}

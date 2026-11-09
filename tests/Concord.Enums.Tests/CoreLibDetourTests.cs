@@ -1,5 +1,5 @@
 using System.Reflection;
-using Concord.Detour;
+using Concord.Backend;
 using Concord.Emit;
 using Concord.Tests.Shared;
 using Xunit;
@@ -13,11 +13,11 @@ public sealed class CoreLibDetourTests {
         RecordingDetourBackend recorder = Record();
 
         try {
-            CoreLibEnumDetours.Install();
+            CoreLibEnumPatches.Install();
 
             Assert.Equal(Expected(includeFormat: true), Describe(recorder));
         } finally {
-            CoreLibEnumDetours.Uninstall();
+            CoreLibEnumPatches.Uninstall();
         }
     }
 
@@ -26,11 +26,11 @@ public sealed class CoreLibDetourTests {
         RecordingDetourBackend recorder = Record();
 
         try {
-            CoreLibEnumDetours.Install(includeFormat: false);
+            CoreLibEnumPatches.Install(includeFormat: false);
 
             Assert.Equal(Expected(includeFormat: false), Describe(recorder));
         } finally {
-            CoreLibEnumDetours.Uninstall();
+            CoreLibEnumPatches.Uninstall();
         }
     }
 
@@ -39,40 +39,40 @@ public sealed class CoreLibDetourTests {
         RecordingDetourBackend recorder = Record();
 
         try {
-            CoreLibEnumDetours.Install();
+            CoreLibEnumPatches.Install();
             int afterFirst = recorder.ComposedDetours.Count;
 
-            CoreLibEnumDetours.Install();
+            CoreLibEnumPatches.Install();
 
             Assert.Equal(afterFirst, recorder.ComposedDetours.Count);
         } finally {
-            CoreLibEnumDetours.Uninstall();
+            CoreLibEnumPatches.Uninstall();
         }
     }
 
     [Fact]
     public void Uninstall_ReleasesEveryHandle_AndLetsInstallRunAgain() {
         RecordingDetourBackend recorder = Record();
-        CoreLibEnumDetours.Install();
+        CoreLibEnumPatches.Install();
         int installed = recorder.ComposedDetours.Count;
 
-        CoreLibEnumDetours.Uninstall();
+        CoreLibEnumPatches.Uninstall();
 
         Assert.NotEmpty(recorder.Handles);
         Assert.All(recorder.Handles, handle => Assert.False(handle.IsApplied));
 
         try {
-            CoreLibEnumDetours.Install();
+            CoreLibEnumPatches.Install();
 
             Assert.Equal(installed * 2, recorder.ComposedDetours.Count);
         } finally {
-            CoreLibEnumDetours.Uninstall();
+            CoreLibEnumPatches.Uninstall();
         }
     }
 
     private static RecordingDetourBackend Record() {
         RecordingDetourBackend recorder = new RecordingDetourBackend();
-        DetourBackend.Current = recorder;
+        PatchBackend.Current = recorder;
         return recorder;
     }
 

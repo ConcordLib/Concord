@@ -88,10 +88,32 @@ public sealed class PublicSurfaceTests {
             RefGlobbedAssemblies().Select(assembly => assembly.GetName().Name).OrderBy(name => name, StringComparer.Ordinal));
     }
 
+    [Fact]
+    public void LabelAndLocalMintingStayInternal() {
+        Assembly emit = typeof(Label).Assembly;
+
+        foreach (string name in new[] { "Concord.LabelFactory", "Concord.LocalRefFactory" }) {
+            Type factory = emit.GetType(name)
+                           ?? throw new InvalidOperationException($"{emit.GetName().Name} has no type '{name}'.");
+
+            Assert.False(
+                factory.IsPublic,
+                $"{name} is public, so every mod compiles against a way to mint a label or a local out of a bare slot number. "
+                + "Only a backend inside Concord has the slot numbers to mint one safely.");
+        }
+
+        PropertyInfo id = typeof(Label).GetProperty("Id", Declared)
+                          ?? throw new InvalidOperationException("Label has no 'Id' property, so this guard no longer checks anything.");
+
+        Assert.False(
+            VisibleOutsideAssembly(id),
+            "Label.Id is visible outside Concord.Emit, which publishes the label's internal numbering as API.");
+    }
+
     private static Assembly[] RefGlobbedAssemblies() {
         return [
             typeof(LocalAttribute).Assembly,
-            typeof(Concord.Detour.IDetourBackend).Assembly,
+            typeof(Concord.Backend.IPatchBackend).Assembly,
             typeof(Concord.AttachedData.AttachedStorage).Assembly,
             typeof(Concord.PatchAttribute).Assembly,
             typeof(Concord.ExtendedEnum<>).Assembly,

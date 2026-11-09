@@ -1,21 +1,24 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Concord/Concord.csproj"/>
-    <Project Path="src/Concord.Analyzers/Concord.Analyzers.csproj"/>
-    <Project Path="src/Concord.Generators/Concord.Generators.csproj"/>
-    <Project Path="src/Concord.Detour/Concord.Detour.csproj"/>
-    <Project Path="src/Concord.Emit/Concord.Emit.csproj"/>
-    <Project Path="src/Concord.AttachedData/Concord.AttachedData.csproj"/>
-    <Project Path="src/Concord.Orchestration/Concord.Orchestration.csproj"/>
-    <Project Path="src/Concord.Enums/Concord.Enums.csproj"/>
-    <Project Path="src/Concord.Ref/Concord.Ref.csproj"/>
-    <Project Path="src/Concord.Host.Adapter/Concord.Host.Adapter.csproj"/>
+    <Project Path="src/core/Concord/Concord.csproj"/>
+    <Project Path="src/core/Concord.Analyzers/Concord.Analyzers.csproj"/>
+    <Project Path="src/core/Concord.Generators/Concord.Generators.csproj"/>
+    <Project Path="src/core/Concord.Backend/Concord.Backend.csproj"/>
+    <Project Path="src/core/Concord.Emit/Concord.Emit.csproj"/>
+    <Project Path="src/core/Concord.AttachedData/Concord.AttachedData.csproj"/>
+    <Project Path="src/core/Concord.Orchestration/Concord.Orchestration.csproj"/>
+    <Project Path="src/core/Concord.Enums/Concord.Enums.csproj"/>
+    <Project Path="src/core/Concord.Ref/Concord.Ref.csproj"/>
+    <Project Path="src/backends/Concord.Waylith/Concord.Waylith.csproj"/>
+    <Project Path="src/backends/Concord.MonoMod/Concord.MonoMod.csproj"/>
+    <Project Path="src/backends/Concord.HarmonyX/Concord.HarmonyX.csproj"/>
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Concord.Analyzers.Tests/Concord.Analyzers.Tests.csproj"/>
     <Project Path="tests/Concord.Generators.Tests/Concord.Generators.Tests.csproj"/>
-    <Project Path="tests/Concord.Detour.Tests/Concord.Detour.Tests.csproj"/>
+    <Project Path="tests/Concord.Backend.Tests/Concord.Backend.Tests.csproj"/>
     <Project Path="tests/Concord.Emit.Tests/Concord.Emit.Tests.csproj"/>
+    <Project Path="tests/Concord.Emit.Mono.Tests/Concord.Emit.Mono.Tests.csproj"/>
     <Project Path="tests/Concord.Emit.Tests.ForeignTargets/Concord.Emit.Tests.ForeignTargets.csproj"/>
     <Project Path="tests/Concord.AttachedData.Tests/Concord.AttachedData.Tests.csproj"/>
     <Project Path="tests/Concord.Enums.Tests/Concord.Enums.Tests.csproj"/>
@@ -23,8 +26,10 @@
     <Project Path="tests/Concord.Orchestration.Tests.RollbackAssembly/Concord.Orchestration.Tests.RollbackAssembly.csproj"/>
     <Project Path="tests/Concord.Orchestration.Tests.RegistryAssembly/Concord.Orchestration.Tests.RegistryAssembly.csproj"/>
     <Project Path="tests/Concord.Generators.Tests.Consumer/Concord.Generators.Tests.Consumer.csproj"/>
-    <Project Path="tests/Concord.Host.Adapter.Tests/Concord.Host.Adapter.Tests.csproj"/>
+    <Project Path="tests/Concord.Waylith.Tests/Concord.Waylith.Tests.csproj"/>
     <Project Path="tests/Concord.Merged.Tests/Concord.Merged.Tests.csproj"/>
+    <Project Path="tests/Concord.MonoMod.Tests/Concord.MonoMod.Tests.csproj"/>
+    <Project Path="tests/Concord.HarmonyX.Tests/Concord.HarmonyX.Tests.csproj"/>
   </Folder>
   <Folder Name="/bench/">
     <Project Path="bench/Concord.Benchmarks/Concord.Benchmarks.csproj"/>

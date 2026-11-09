@@ -1,0 +1,12 @@
+bin/
+obj/
+*.user
+Concord.Elin.dll
+Concord.Elin.pdb
+TestMod/
+BundleMod/
+Concord.zip
+mono_crash*.json
+
+# local in-game verification notes (kept out of git)
+VERIFICATION.md

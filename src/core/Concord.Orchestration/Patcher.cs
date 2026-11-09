@@ -1,0 +1,469 @@
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+using Concord.AttachedData;
+using Concord.Backend;
+using Concord.Emit;
+using Concord.Orchestration;
+
+namespace Concord;
+
+/// <summary>
+///     The high-level entry point for applying Concord patches. Wraps the scan + compose + apply
+///     pipeline so mod authors apply an assembly's <see cref="PatchAttribute" /> declarations, or a single
+///     explicit patch, with one call and revert by disposing the returned <see cref="IPatchHandle" />.
+/// </summary>
+public static class Patcher {
+    private static readonly object Gate = new object();
+    private static readonly Dictionary<Assembly, IPatchHandle> Applied = [];
+    private static readonly HashSet<IPatchHandle> Live = [];
+    private static readonly AttachedPropertyStore Seen = new AttachedPropertyStore();
+    private static readonly List<IAttachedPropertyRegistry> Registries = [];
+    private static readonly FanOutRegistry Properties = new FanOutRegistry();
+
+    /// <summary>
+    ///     How many methods the active <see cref="PatchBackend.Current" /> currently has a body on.
+    /// </summary>
+    public static int PatchedTargetCount {
+        get {
+            return PatchBackend.TryGetCurrent(out IPatchBackend? backend) ? backend!.PatchedTargetCount : 0;
+        }
+    }
+
+    internal static IAttachedPropertyRegistry AttachedPropertyFanOut => Properties;
+
+    /// <summary>
+    ///     Registers the host's log, so Concord's non-fatal patch reports reach the game log instead of
+    ///     <see cref="Trace" />. An evicted <c>[Local]</c> is the main one: the injection is gone and
+    ///     nothing throws, so without a log the owning mod never learns why its code stopped running.
+    /// </summary>
+    /// <param name="log">Receives each report, or null to fall back to <see cref="Trace" />.</param>
+    public static void UseLog(Action<string>? log) {
+        PatchLog.Sink = log;
+    }
+
+    /// <summary>
+    ///     Writes one report to the same log <see cref="UseLog" /> installed, so a patch backend in
+    ///     another assembly reports on the stream players already read rather than its own.
+    /// </summary>
+    /// <param name="message">The report.</param>
+    public static void WriteLog(string message) {
+        PatchLog.Write(message);
+    }
+
+    /// <summary>
+    ///     Registers an adapter hook that maps a loaded module to the file its debug symbols sit beside.
+    ///     <c>[Local(Name = ...)]</c> needs symbols, and it finds them through
+    ///     <see cref="Assembly.Location" />, which a host that loads an assembly from bytes leaves empty.
+    ///     RimWorld is one such host, so without this hook <c>Name</c> resolves nothing there.
+    /// </summary>
+    /// <param name="resolver">
+    ///     Returns the path to the module's file, or null to fall back to <see cref="Assembly.Location" />.
+    ///     Pass null to clear the hook.
+    /// </param>
+    public static void UseLocalNameResolver(Func<Module, string?>? resolver) {
+        LocalNames.PathResolver = resolver;
+    }
+
+    /// <summary>
+    ///     Adds a registry that receives every attached property declared by <see cref="Apply(Assembly)" />.
+    ///     Everything declared before the call is replayed into it first, so install order does not matter.
+    /// </summary>
+    /// <param name="registry">The registry to add. Adding the same instance twice does nothing.</param>
+    public static void UseAttachedPropertyRegistry(IAttachedPropertyRegistry registry) {
+        lock (Gate) {
+            if (Registries.Contains(registry)) {
+                return;
+            }
+
+            Seen.ReplayInto(registry);
+            Registries.Add(registry);
+        }
+    }
+
+    /// <summary>
+    ///     Applies every <see cref="PatchAttribute" /> declaration in <paramref name="assembly" />, composing each
+    ///     as a patch and registering each declared field as an attached property. Idempotent: a repeated call
+    ///     with the same assembly returns the same handle without applying twice.
+    /// </summary>
+    /// <param name="assembly">The assembly whose declarations are applied.</param>
+    /// <returns>A handle that reverts every applied patch when disposed.</returns>
+    public static IPatchHandle Apply(Assembly assembly) {
+        lock (Gate) {
+            if (Applied.TryGetValue(assembly, out IPatchHandle? existing)) {
+                return existing;
+            }
+
+            CollectingPatchApplier applier = new CollectingPatchApplier();
+            try {
+                IReadOnlyList<Type> declarations =
+                    PatchDeclarationScanner.TryGetRegistryDeclarations(assembly, out IReadOnlyList<Type> registryDeclarations)
+                        ? registryDeclarations
+                        : assembly.GetTypes();
+
+                PatchDeclarationScanner.ScanExtendedEnums(declarations);
+                PatchDeclarationScanner.ScanDeclarations(declarations, applier, Properties);
+            } catch {
+                foreach (IBackendHandle handle in applier.Handles) {
+                    try {
+                        handle.Dispose();
+                    } catch (Exception ex) {
+                        PatchLog.Write("[Concord] rollback dispose failed: " + ExceptionReason.Of(ex));
+                    }
+                }
+
+                throw;
+            }
+
+            PatchHandle patchHandle = new PatchHandle(applier.Handles, () => Remove(assembly));
+            Applied[assembly] = patchHandle;
+            return patchHandle;
+        }
+    }
+
+    /// <summary>
+    ///     Applies a single explicit patch without scanning for attributes: composes
+    ///     <paramref name="injectionMethod" /> onto <paramref name="target" /> at the given position
+    ///     (Head, Return, Tail, Around, Finally, Catch, Transpiler, or TranspilerFinal).
+    /// </summary>
+    /// <remarks>
+    ///     The returned handle is retained in a static registry, so the patch stays applied even when the
+    ///     caller discards the handle. Dispose the handle to revert the patch and release it from the registry.
+    /// </remarks>
+    /// <param name="target">The method to patch.</param>
+    /// <param name="injectionMethod">The injection method supplying the injected body.</param>
+    /// <param name="at">
+    ///     The injection position where the injection method runs relative to the target.
+    ///     <see cref="At.Constant" />, <see cref="At.Argument" /> and <see cref="At.Local" /> are not reachable
+    ///     through this method: use <see cref="InjectAttribute" /> for <see cref="At.Constant" />, or build an
+    ///     <see cref="Injection" /> around an <see cref="InjectAt.Invoke" /> shifted <see cref="At.Argument" />
+    ///     or an <see cref="InjectAt.Local" /> and apply it via <see cref="PatchInjection" />.
+    /// </param>
+    /// <returns>A handle that reverts the applied patch when disposed.</returns>
+    /// <exception cref="ConcordEmitException">
+    ///     Thrown with code <c>CONC116</c> when <paramref name="at" /> is <see cref="At.Constant" />,
+    ///     <see cref="At.Argument" /> or <see cref="At.Local" />, none of which this method can express.
+    /// </exception>
+    public static IPatchHandle Patch(MethodBase target, MethodBase injectionMethod, At at) {
+        if (injectionMethod.DeclaringType is null) {
+            throw new ConcordDeclarationException("Injection method '" + injectionMethod.Name + "' has no declaring type. Only methods declared on a type can be used as injections.");
+        }
+
+        lock (Gate) {
+            CollectingPatchApplier applier = new CollectingPatchApplier();
+            Injection injection = new Injection(injectionMethod, ToInjectAt(at), injectionMethod.DeclaringType.FullName!, 0);
+            applier.ApplyPatch(target, injection);
+            return RegisterLive(applier.Handles);
+        }
+    }
+
+    /// <summary>
+    ///     Applies a single, already-constructed <see cref="Injection" /> at any position <see cref="InjectAt" />
+    ///     can express, composing it directly rather than through the simplified <see cref="At" /> enum used by
+    ///     <see cref="Patch" />.
+    /// </summary>
+    /// <remarks>
+    ///     The returned handle is retained in a static registry, so the patch stays applied even when the
+    ///     caller discards the handle. Dispose the handle to revert the patch and release it from the registry.
+    /// </remarks>
+    /// <param name="target">The method to patch.</param>
+    /// <param name="injection">The injection to compose onto <paramref name="target" />.</param>
+    /// <returns>A handle that reverts the applied patch when disposed.</returns>
+    public static IPatchHandle PatchInjection(MethodBase target, Injection injection) {
+        lock (Gate) {
+            CollectingPatchApplier applier = new CollectingPatchApplier();
+            applier.ApplyPatch(target, injection);
+            return RegisterLive(applier.Handles);
+        }
+    }
+
+    /// <summary>
+    ///     Lists every patch owner live on <paramref name="target" />, in the order they run.
+    /// </summary>
+    /// <param name="target">The method to inspect.</param>
+    /// <returns>Distinct owner ids in run order, empty when Concord has no injections on the method.</returns>
+    public static IReadOnlyList<string> OwnersOf(MethodBase target) {
+        return PatchBackend.TryGetCurrent(out IPatchBackend? backend) ? backend!.OwnersOf(target) : [];
+    }
+
+    /// <summary>
+    ///     Lists every patch owner live on the method a stack frame is running, in the order they run. The
+    ///     composed body is installed on the target itself, so the frame reports the target.
+    /// </summary>
+    /// <param name="frame">The stack frame to inspect.</param>
+    /// <returns>
+    ///     Distinct owner ids in run order, empty when Concord has no injections on the method the frame is
+    ///     running or the frame reports no method at all.
+    /// </returns>
+    [SuppressMessage("Usage", "CA1510:Use ArgumentNullException.ThrowIfNull", Justification = "ThrowIfNull is net6+ and this project also targets netstandard2.0 and net472.")]
+    public static IReadOnlyList<string> OwnersOfFrame(StackFrame frame) {
+        if (frame is null) {
+            throw new ArgumentNullException(nameof(frame));
+        }
+
+        MethodBase? method = frame.GetMethod();
+        if (method is null) {
+            return [];
+        }
+
+        return OwnersOf(method);
+    }
+
+    /// <summary>
+    ///     Creates a fluent <see cref="PatchBuilder" /> targeting the given method.
+    /// </summary>
+    /// <param name="target">The method to patch.</param>
+    /// <returns>A <see cref="PatchBuilder" /> configured for <paramref name="target" />.</returns>
+    public static PatchBuilder For(MethodBase target) {
+        return new PatchBuilder(target);
+    }
+
+    /// <summary>
+    ///     Creates a fluent <see cref="PatchBuilder" /> targeting a method by name on the given type.
+    /// </summary>
+    /// <param name="type">The type that declares the method.</param>
+    /// <param name="method">The name of the method to target.</param>
+    /// <returns>A <see cref="PatchBuilder" /> configured for the resolved method.</returns>
+    /// <exception cref="ConcordDeclarationException">Thrown when the method is not found or is ambiguous.</exception>
+    public static PatchBuilder For(Type type, string method) {
+        return new PatchBuilder(ResolveMethod(type, method));
+    }
+
+    /// <summary>
+    ///     Creates a fluent <see cref="PatchBuilder" /> targeting a method by name on the given type,
+    ///     disambiguating by parameter types.
+    /// </summary>
+    /// <param name="type">The type that declares the method.</param>
+    /// <param name="method">The name of the method to target.</param>
+    /// <param name="parameterTypes">The parameter types used to select a specific overload.</param>
+    /// <returns>A <see cref="PatchBuilder" /> configured for the resolved method.</returns>
+    /// <exception cref="ConcordDeclarationException">Thrown when the method is not found.</exception>
+    public static PatchBuilder For(Type type, string method, Type[] parameterTypes) {
+        return new PatchBuilder(ResolveMethod(type, method, parameterTypes));
+    }
+
+    /// <summary>
+    ///     Creates a fluent <see cref="PatchBuilder" /> targeting a method by name on <typeparamref name="T" />.
+    /// </summary>
+    /// <typeparam name="T">The type that declares the method.</typeparam>
+    /// <param name="method">The name of the method to target.</param>
+    /// <returns>A <see cref="PatchBuilder" /> configured for the resolved method.</returns>
+    /// <exception cref="ConcordDeclarationException">Thrown when the method is not found or is ambiguous.</exception>
+    public static PatchBuilder For<T>(string method) {
+        return For(typeof(T), method);
+    }
+
+    /// <summary>
+    ///     Creates a fluent <see cref="PatchBuilder" /> targeting a method by name on <typeparamref name="T" />,
+    ///     disambiguating by parameter types.
+    /// </summary>
+    /// <typeparam name="T">The type that declares the method.</typeparam>
+    /// <param name="method">The name of the method to target.</param>
+    /// <param name="parameterTypes">The parameter types used to select a specific overload.</param>
+    /// <returns>A <see cref="PatchBuilder" /> configured for the resolved method.</returns>
+    /// <exception cref="ConcordDeclarationException">Thrown when the method is not found.</exception>
+    public static PatchBuilder For<T>(string method, Type[] parameterTypes) {
+        return For(typeof(T), method, parameterTypes);
+    }
+
+    /// <summary>
+    ///     Creates a fluent <see cref="PatchBuilder" /> targeting a method by name on a type resolved by name.
+    /// </summary>
+    /// <param name="typeName">The full name of the type that declares the method.</param>
+    /// <param name="method">The name of the method to target.</param>
+    /// <returns>A <see cref="PatchBuilder" /> configured for the resolved method.</returns>
+    /// <exception cref="ConcordDeclarationException">Thrown when the type or method is not found or is ambiguous.</exception>
+    public static PatchBuilder For(string typeName, string method) {
+        Type type = PatchDeclarationScanner.ResolveTypeByName(typeName);
+        return new PatchBuilder(ResolveMethod(type, method));
+    }
+
+    /// <summary>
+    ///     Creates a fluent <see cref="PatchBuilder" /> targeting a method by name on a type resolved by name,
+    ///     disambiguating by parameter types.
+    /// </summary>
+    /// <param name="typeName">The full name of the type that declares the method.</param>
+    /// <param name="method">The name of the method to target.</param>
+    /// <param name="parameterTypes">The parameter types used to select a specific overload.</param>
+    /// <returns>A <see cref="PatchBuilder" /> configured for the resolved method.</returns>
+    /// <exception cref="ConcordDeclarationException">Thrown when the type or method is not found.</exception>
+    public static PatchBuilder For(string typeName, string method, Type[] parameterTypes) {
+        Type type = PatchDeclarationScanner.ResolveTypeByName(typeName);
+        return new PatchBuilder(ResolveMethod(type, method, parameterTypes));
+    }
+
+    /// <summary>
+    ///     Creates a fluent <see cref="PatchBuilder" /> targeting a specific instance constructor on
+    ///     <paramref name="type" />, selected by parameter types.
+    /// </summary>
+    /// <param name="type">The type that declares the constructor.</param>
+    /// <param name="parameterTypes">
+    ///     The parameter types of the constructor to target. Pass an empty array to select the
+    ///     parameterless constructor. Only instance constructors are supported.
+    /// </param>
+    /// <returns>A <see cref="PatchBuilder" /> configured for the resolved constructor.</returns>
+    /// <exception cref="ConcordDeclarationException">Thrown when no matching instance constructor is found.</exception>
+    public static PatchBuilder ForConstructor(Type type, Type[] parameterTypes) {
+        return new PatchBuilder(ResolveConstructor(type, parameterTypes));
+    }
+
+    /// <summary>
+    ///     Creates a fluent <see cref="PatchBuilder" /> targeting a specific instance constructor on
+    ///     <typeparamref name="T" />, selected by parameter types.
+    /// </summary>
+    /// <typeparam name="T">The type that declares the constructor.</typeparam>
+    /// <param name="parameterTypes">
+    ///     The parameter types of the constructor to target. Pass an empty array to select the
+    ///     parameterless constructor. Only instance constructors are supported.
+    /// </param>
+    /// <returns>A <see cref="PatchBuilder" /> configured for the resolved constructor.</returns>
+    /// <exception cref="ConcordDeclarationException">Thrown when no matching instance constructor is found.</exception>
+    public static PatchBuilder ForConstructor<T>(Type[] parameterTypes) {
+        return ForConstructor(typeof(T), parameterTypes);
+    }
+
+    internal static void ForgetAttachedPropertyRegistries() {
+        lock (Gate) {
+            Registries.Clear();
+            Seen.Clear();
+        }
+    }
+
+    internal static IPatchHandle ApplyInjections(IReadOnlyList<(MethodBase Target, Injection Injection)> items) {
+        lock (Gate) {
+            CollectingPatchApplier applier = new CollectingPatchApplier();
+            try {
+                foreach ((MethodBase target, Injection injection) in items) {
+                    applier.ApplyPatch(target, injection);
+                }
+            } catch {
+                foreach (IBackendHandle handle in applier.Handles) {
+                    try {
+                        handle.Dispose();
+                    } catch (Exception ex) {
+                        PatchLog.Write("[Concord] rollback dispose failed: " + ExceptionReason.Of(ex));
+                    }
+                }
+
+                throw;
+            }
+
+            return RegisterLive(applier.Handles);
+        }
+    }
+
+    internal static IPatchHandle RegisterLive(IReadOnlyList<IBackendHandle> detours) {
+        PatchHandle handle = null!;
+        handle = new PatchHandle(detours, () => Unregister(handle));
+        lock (Gate) {
+            Live.Add(handle);
+        }
+
+        return handle;
+    }
+
+    private static void Remove(Assembly assembly) {
+        lock (Gate) {
+            Applied.Remove(assembly);
+        }
+    }
+
+    private static void Unregister(IPatchHandle handle) {
+        lock (Gate) {
+            Live.Remove(handle);
+        }
+    }
+
+    private static InjectAt ToInjectAt(At at) {
+        return at switch {
+            At.Head => new InjectAt.Head(),
+            At.Return => new InjectAt.Return(0),
+            At.Tail => new InjectAt.Tail(),
+            At.Around => new InjectAt.Around(),
+            At.Finally => new InjectAt.Finally(),
+            At.Transpiler => new InjectAt.Transpiler(false),
+            At.TranspilerFinal => new InjectAt.Transpiler(true),
+            At.Catch => new InjectAt.Catch(),
+            At.Constant => throw new ConcordEmitException(
+                "CONC116",
+                "At.Constant needs a constant to match, and no PatchBuilder call carries one: use the constant-targeting attribute constructor [Inject(method, constant, At.Constant, by:)]. The plain position overload carries no constant, so no host was asked and no host refused this patch."),
+            At.Argument => throw new ConcordEmitException(
+                "CONC116",
+                "At.Argument needs a call site to match: use PatchBuilder.Invoke(callSiteType, callSiteMethod, injectionMethod, shift: At.Argument, by:) or PatchBuilder.NewObj(constructedType, injectionMethod, shift: At.Argument, by:). The plain position overload carries no call site, so no host was asked and no host refused this patch."),
+            At.Local => throw new ConcordEmitException(
+                "CONC116",
+                "At.Local needs a local to match: use PatchBuilder.Local(localType, access, injectionMethod, by:). The plain position overload carries no local, so no host was asked and no host refused this patch."),
+            _ => throw new ConcordEmitException("CONC116", $"Unsupported injection position '{at}'."),
+        };
+    }
+
+    private static MethodBase ResolveMethod(Type type, string method) {
+        MethodInfo? resolved;
+        try {
+            resolved = type.GetMethod(
+                method,
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static); // NOSONAR concord reaches private target members by design; validated at resolve time
+        } catch (AmbiguousMatchException) {
+            throw new ConcordDeclarationException(
+                "Method '" +
+                method +
+                "' on " +
+                type.FullName +
+                " is ambiguous (multiple overloads). Use the parameterTypes overload to disambiguate.");
+        }
+
+        if (resolved == null) {
+            throw new ConcordDeclarationException("Method '" + method + "' not found on " + type.FullName + ".");
+        }
+
+        return resolved;
+    }
+
+    private static MethodBase ResolveMethod(Type type, string method, Type[] parameterTypes) {
+        MethodInfo? resolved = type.GetMethod(
+            method,
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static, // NOSONAR concord reaches private target members by design; validated at resolve time
+            null,
+            parameterTypes,
+            null);
+        if (resolved == null) {
+            throw new ConcordDeclarationException(
+                "Method '" + method + "' with specified parameter types not found on " + type.FullName + ".");
+        }
+
+        return resolved;
+    }
+
+    private static ConstructorInfo ResolveConstructor(Type type, Type[] parameterTypes) {
+        ConstructorInfo? resolved = type.GetConstructor(
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, // NOSONAR concord reaches private target members by design; validated at resolve time
+            null,
+            parameterTypes,
+            null);
+        if (resolved == null) {
+            throw new ConcordDeclarationException(
+                "No instance constructor with the specified parameter types was found on " +
+                type.FullName +
+                ". Only instance constructors are supported. Static constructors (.cctor) cannot be patched.");
+        }
+
+        return resolved;
+    }
+
+    private sealed class FanOutRegistry : IAttachedPropertyRegistry {
+        public void RegisterAttachedProperty(Type declarationType, Type baseType, string name, Type valueType, IAttachedSlot slot) {
+            lock (Gate) {
+                Seen.RegisterAttachedProperty(declarationType, baseType, name, valueType, slot);
+                foreach (IAttachedPropertyRegistry registry in Registries) {
+                    try {
+                        registry.RegisterAttachedProperty(declarationType, baseType, name, valueType, slot);
+                    } catch (Exception ex) {
+                        PatchLog.Write(
+                            "[Concord] attached property registry " + registry.GetType().FullName +
+                            " threw for " + declarationType.FullName + "." + name + ": " + ExceptionReason.Of(ex));
+                    }
+                }
+            }
+        }
+    }
+}

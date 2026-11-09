@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using Concord.Detour;
+using Concord.Backend;
 using Concord.Emit;
 using Concord.Orchestration.Tests.RollbackAssembly;
 using Xunit;
@@ -41,11 +41,11 @@ public sealed class TranspilerDowngradeTests : IDisposable {
     private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
 
     public TranspilerDowngradeTests() {
-        DetourBackend.Current = backend;
+        PatchBackend.Current = backend;
     }
 
     public void Dispose() {
-        DetourBackend.Reset();
+        PatchBackend.Reset();
     }
 
     [Fact]

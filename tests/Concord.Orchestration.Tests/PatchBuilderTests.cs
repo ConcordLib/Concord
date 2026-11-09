@@ -205,11 +205,11 @@ public sealed class PatchBuilderTests : IDisposable {
     private readonly RecordingDetourBackend backend = new RecordingDetourBackend();
 
     public PatchBuilderTests() {
-        Concord.Detour.DetourBackend.Current = backend;
+        Concord.Backend.PatchBackend.Current = backend;
     }
 
     public void Dispose() {
-        Concord.Detour.DetourBackend.Reset();
+        Concord.Backend.PatchBackend.Reset();
     }
 
     [Fact]

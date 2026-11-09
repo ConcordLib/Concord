@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using Concord.Detour;
+using Concord.Backend;
 using Concord.Emit;
 using Xunit;
 

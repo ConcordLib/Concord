@@ -1,0 +1,18 @@
+game: rimworld
+defaultProfile: concord
+library:
+  concordlib.concord:
+    path: .
+profiles:
+  concord:
+    mods:
+      - concordlib.concord
+  concord-only:
+    mods:
+      - concordlib.concord
+      - RimWorks.RimLogging
+      - rimworks.quickstarts
+    autoDependencies: false
+    settings:
+      gameArgs:
+        - -quickstart=ProfilingQuickstart

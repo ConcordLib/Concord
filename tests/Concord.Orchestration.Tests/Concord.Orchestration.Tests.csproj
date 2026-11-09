@@ -10,16 +10,16 @@
   <ItemGroup>
     <!-- PublicSurfaceTests reads the ref project's own Compile globs, so the list of assemblies it
          scans comes from the file that decides that list rather than a copy of it. -->
-    <None Include="../../src/Concord.Ref/Concord.Ref.csproj" Link="Concord.Ref.csproj" CopyToOutputDirectory="PreserveNewest"/>
+    <None Include="../../src/core/Concord.Ref/Concord.Ref.csproj" Link="Concord.Ref.csproj" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Concord.Orchestration/Concord.Orchestration.csproj"/>
-    <ProjectReference Include="../../src/Concord.Emit/Concord.Emit.csproj"/>
-    <ProjectReference Include="../../src/Concord.Detour/Concord.Detour.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Orchestration/Concord.Orchestration.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Emit/Concord.Emit.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Backend/Concord.Backend.csproj"/>
     <ProjectReference Include="../Concord.Orchestration.Tests.RollbackAssembly/Concord.Orchestration.Tests.RollbackAssembly.csproj"/>
     <ProjectReference Include="../Concord.Orchestration.Tests.RegistryAssembly/Concord.Orchestration.Tests.RegistryAssembly.csproj"/>
     <!-- Referenced only so PublicSurfaceTests can read the analyzer's twin of the [Local] position
          help string out of the built assembly. Loaded by name, never compiled against. -->
-    <ProjectReference Include="../../src/Concord.Analyzers/Concord.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Content" CopyToOutputDirectory="PreserveNewest"/>
+    <ProjectReference Include="../../src/core/Concord.Analyzers/Concord.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Content" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
 </Project>

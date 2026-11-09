@@ -1,0 +1,31 @@
+<Project>
+  <Target Name="MergeConcordMonoMod" AfterTargets="Build">
+    <ItemGroup>
+      <MonoModMergeInputs Include="$(OutputPath)Concord.MonoMod.dll"/>
+      <!-- MonoMod.Utils is PrivateAssets=all, which keeps its runtime assets out of this project's
+           own output as well, so the merge inputs come from the resolved reference paths. -->
+      <MonoModMergeInputs Include="@(ReferencePath)"
+                          Condition="$([System.String]::Copy('%(Filename)').StartsWith('MonoMod.')) Or $([System.String]::Copy('%(Filename)').StartsWith('Mono.Cecil'))"/>
+      <MonoModMergeInputs Include="$(OutputPath)System.*.dll"/>
+      <MonoModMergeLib Include="$(OutputPath)"/>
+      <MonoModMergeLib Include="$(MSBuildThisFileDirectory)../../../Assemblies/$(TargetFramework)"/>
+      <MonoModMergeLib Include="@(ReferencePath->'%(RootDir)%(Directory)'->Distinct())"/>
+      <MonoModMergeLib Include="$(TargetFrameworkRootPath).NETFramework/v4.7.2"/>
+      <MonoModInternalizeExclude Include="^Concord[.]"/>
+    </ItemGroup>
+    <ILRepack
+      Parallel="true"
+      DebugInfo="true"
+      Internalize="true"
+      InternalizeExclude="@(MonoModInternalizeExclude)"
+      InputAssemblies="@(MonoModMergeInputs)"
+      LibraryPath="@(MonoModMergeLib)"
+      TargetKind="Dll"
+      OutputFile="$(OutputPath)Concord.MonoMod.dll"/>
+    <ItemGroup>
+      <MonoModLeftovers Include="$(OutputPath)MonoMod.*;$(OutputPath)Mono.Cecil*"/>
+      <MonoModLeftovers Include="$(OutputPath)System.*.dll;$(OutputPath)System.*.pdb;$(OutputPath)System.*.xml"/>
+    </ItemGroup>
+    <Delete Files="@(MonoModLeftovers)"/>
+  </Target>
+</Project>

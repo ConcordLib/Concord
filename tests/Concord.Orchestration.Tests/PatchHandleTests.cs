@@ -1,5 +1,5 @@
 using System.Reflection;
-using Concord.Detour;
+using Concord.Backend;
 using Xunit;
 
 namespace Concord.Orchestration.Tests;
@@ -36,7 +36,7 @@ public sealed class PatchHandleTests {
         FakeHandle a = new FakeHandle();
         PatchHandle handle = new PatchHandle([a], null);
 
-        IReadOnlyList<IDetourHandle> detours = handle.Detours;
+        IReadOnlyList<IBackendHandle> detours = handle.Detours;
 
         Assert.Single(detours);
         Assert.Same(a, detours[0]);
@@ -83,7 +83,7 @@ public sealed class PatchHandleTests {
         Assert.False(onDisposeRan);
     }
 
-    private sealed class ThrowingDetour : IDetourHandle {
+    private sealed class ThrowingDetour : IBackendHandle {
         public MethodBase Original => typeof(object).GetMethod(nameof(ToString))!;
         public bool IsApplied => true;
         public void Dispose() {
@@ -91,7 +91,7 @@ public sealed class PatchHandleTests {
         }
     }
 
-    private sealed class CountingDetour : IDetourHandle {
+    private sealed class CountingDetour : IBackendHandle {
         public int DisposeCount;
         public MethodBase Original => typeof(object).GetMethod(nameof(ToString))!;
         public bool IsApplied => DisposeCount == 0;
@@ -100,7 +100,7 @@ public sealed class PatchHandleTests {
         }
     }
 
-    private sealed class FakeHandle : IDetourHandle {
+    private sealed class FakeHandle : IBackendHandle {
         public bool Disposed { get; set; }
 
         public MethodBase Original => typeof(object).GetMethod(nameof(ToString))!;
