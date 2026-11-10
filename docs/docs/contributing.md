@@ -24,18 +24,22 @@ CI tests the runtime libraries on .NET Framework 4.7.2. Windows runs those tests
 
 ### Choose the right project
 
-Core keeps each runtime job in a separate project. The `Concord` project merges the four runtime libraries into one `Concord.dll` during packaging.
+The repository keeps each runtime job in a separate project. Runtime libraries live under `src/core`, and backends live under `src/backends`. The `Concord` project merges the five runtime libraries into one `Concord.dll` during packaging.
 
 | Project | Change it for |
 | --- | --- |
 | `Concord.Emit` | IL copying, injection positions, control handles, operation handles, or wrapper composition |
-| `Concord.Detour` | Installing wrappers, ordering live injections, recomposing a target, or removing detours |
+| `Concord.Backend` | The backend contract, injection ordering, target verdicts, or method identity keys |
+| `Concord.Enums` | Extended enum members and their registry |
 | `Concord.Orchestration` | `Patcher`, the fluent builder, patch discovery, declaration scanning, or apply and undo behavior |
 | `Concord.AttachedData` | Weak-reference storage used by attached fields |
 | `Concord.Analyzers` | Compiler diagnostics for patch declarations |
 | `Concord.Generators` | Patch registries, generated shadow members, or IDE refactorings |
 | `Concord.Ref` | Reference-package construction and public API verification |
 | `Concord` | Merging and packaging the runtime assembly |
+| `Concord.MonoMod` | Emitting composed bodies on .NET Framework and Mono, or the Harmony bridge |
+| `Concord.HarmonyX` | Patching on HarmonyX hosts such as BepInEx |
+| `Concord.Waylith` | Staging composed bodies on the WaylithCLR runtime |
 
 Tests follow the same layout under `tests/`. For example, changes in `Concord.Emit` belong with tests in `Concord.Emit.Tests`.
 
@@ -45,9 +49,9 @@ Tests follow the same layout under `tests/`. For example, changes in `Concord.Em
 
 1. `Patcher.Apply` gets patch declarations from the generated registry. It scans the assembly when no registry exists.
 2. `PatchDeclarationScanner` reads `[Patch]`, `[Inject]`, and related attributes. It creates an `Injection` for each resolved injection method.
-3. `CollectingPatchApplier` sends each target and injection to `IDetourBackend.ApplyComposed`.
-4. `TargetDetourRegistry` keeps the live injections for that target. `InjectionOrderer` resolves priority and before or after rules.
-5. `WrapperComposer` builds a wrapper from the target body and the ordered injections. MonoMod installs that wrapper as the target's runtime entry point.
+3. `CollectingPatchApplier` sends each target and injection to `IPatchBackend.ApplyComposed`.
+4. The backend keeps the live injections for that target. `InjectionOrderer` resolves priority and before or after rules.
+5. `WrapperComposer` builds a wrapper from the target body and the ordered injections. The backend installs that wrapper on the target method.
 6. Disposing the returned handle removes its injections. Concord rebuilds the wrapper for any injections that remain, or removes the detour when the target has none.
 
 For a runtime bug, find the last correct value in that sequence and follow the next call. Keep the existing boundaries between layers.
@@ -62,12 +66,12 @@ The composer returns a `ComposeResult`. Its `Wrapper` becomes the detour target.
 
 ### Public API changes
 
-`Concord.Ref` compiles the source files from the four runtime libraries into a metadata-only assembly. Compiling the same source keeps its public surface tied to the runtime implementation.
+`Concord.Ref` compiles the source files from the five runtime libraries into a metadata-only assembly. Compiling the same source keeps its public surface tied to the runtime implementation.
 
 Build the reference package after changing a public type or member:
 
 ```bash
-dotnet build src/Concord.Ref/Concord.Ref.csproj -c Release --no-restore
+dotnet build src/core/Concord.Ref/Concord.Ref.csproj -c Release --no-restore
 ```
 
 Keep MonoMod types out of public signatures. Add XML documentation for public APIs, and update the user docs when behavior changes.
@@ -87,7 +91,7 @@ Run the smallest relevant suite while you work:
 
 ```bash
 dotnet test tests/Concord.Emit.Tests/Concord.Emit.Tests.csproj -f net10.0
-dotnet test tests/Concord.Detour.Tests/Concord.Detour.Tests.csproj -f net10.0
+dotnet test tests/Concord.Backend.Tests/Concord.Backend.Tests.csproj -f net10.0
 dotnet test tests/Concord.Orchestration.Tests/Concord.Orchestration.Tests.csproj -f net10.0
 ```
 

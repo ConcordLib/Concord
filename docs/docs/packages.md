@@ -30,7 +30,7 @@ Add it to the mod project:
 
 The package contains no runtime implementation. Its assembly identity matches the Concord Assembly, so code compiled against `Concord.Ref` binds to the `Concord.dll` loaded by the target runtime.
 
-`Concord.Ref` provides `net10.0` and `netstandard2.0` assets. A .NET Framework 4.7.2 mod can compile against the `netstandard2.0` asset.
+`Concord.Ref` provides `net10.0` and `net472` assets.
 
 ### Optional build tools
 
@@ -59,16 +59,16 @@ The shadow-member generator handles `[Shadow]` on partial patch classes. `[Shado
 
 The package also has IDE actions that can create patches, injections, and shadow members. Those editor actions are separate from the source generators.
 
-### Use a local Core checkout
+### Use a local Concord checkout
 
-You can reference a sibling Core checkout while developing against changes that have not been published. The explicit assembly reference keeps the reference assembly out of the mod output. The project references only set the build order.
+You can reference a sibling Concord checkout while developing against changes that have not been published. The explicit assembly reference keeps the reference assembly out of the mod output. The project references only set the build order.
 
 ```xml
 <PropertyGroup>
-  <ConcordRoot Condition="'$(ConcordRoot)' == ''">$(MSBuildProjectDirectory)/../../Concord/Core</ConcordRoot>
+  <ConcordRoot Condition="'$(ConcordRoot)' == ''">$(MSBuildProjectDirectory)/../../Concord</ConcordRoot>
   <ConcordRefTargetFramework Condition="'$(TargetFramework)' == 'net10.0'">net10.0</ConcordRefTargetFramework>
-  <ConcordRefTargetFramework Condition="'$(ConcordRefTargetFramework)' == ''">netstandard2.0</ConcordRefTargetFramework>
-  <ConcordRefDll Condition="'$(ConcordRefDll)' == ''">$(ConcordRoot)/src/Concord.Ref/bin/$(Configuration)/$(ConcordRefTargetFramework)/Concord.dll</ConcordRefDll>
+  <ConcordRefTargetFramework Condition="'$(ConcordRefTargetFramework)' == ''">net472</ConcordRefTargetFramework>
+  <ConcordRefDll Condition="'$(ConcordRefDll)' == ''">$(ConcordRoot)/src/core/Concord.Ref/bin/$(Configuration)/$(ConcordRefTargetFramework)/Concord.dll</ConcordRefDll>
   <ConcordAnalyzerDll Condition="'$(ConcordAnalyzerDll)' == ''">$(ConcordRoot)/Assemblies/Concord.Analyzers.dll</ConcordAnalyzerDll>
   <ConcordGeneratorDll Condition="'$(ConcordGeneratorDll)' == ''">$(ConcordRoot)/Assemblies/Concord.Generators.dll</ConcordGeneratorDll>
 </PropertyGroup>
@@ -82,24 +82,24 @@ You can reference a sibling Core checkout while developing against changes that 
   <Analyzer Include="$(ConcordAnalyzerDll)" />
   <Analyzer Include="$(ConcordGeneratorDll)" />
 
-  <ProjectReference Include="$(ConcordRoot)/src/Concord.Ref/Concord.Ref.csproj"
+  <ProjectReference Include="$(ConcordRoot)/src/core/Concord.Ref/Concord.Ref.csproj"
                     ReferenceOutputAssembly="false"
                     PrivateAssets="all" />
-  <ProjectReference Include="$(ConcordRoot)/src/Concord.Analyzers/Concord.Analyzers.csproj"
+  <ProjectReference Include="$(ConcordRoot)/src/core/Concord.Analyzers/Concord.Analyzers.csproj"
                     ReferenceOutputAssembly="false"
                     PrivateAssets="all" />
-  <ProjectReference Include="$(ConcordRoot)/src/Concord.Generators/Concord.Generators.csproj"
+  <ProjectReference Include="$(ConcordRoot)/src/core/Concord.Generators/Concord.Generators.csproj"
                     ReferenceOutputAssembly="false"
                     PrivateAssets="all" />
 </ItemGroup>
 ```
 
-Remove the analyzer or generator lines if you do not use that tool. Build the selected Core projects once before opening or reloading the mod project in Rider:
+Remove the analyzer or generator lines if you do not use that tool. Build the selected projects once before opening or reloading the mod project in Rider:
 
 ```bash
-dotnet build ../../Concord/Core/src/Concord.Ref/Concord.Ref.csproj
-dotnet build ../../Concord/Core/src/Concord.Analyzers/Concord.Analyzers.csproj
-dotnet build ../../Concord/Core/src/Concord.Generators/Concord.Generators.csproj
+dotnet build ../../Concord/src/core/Concord.Ref/Concord.Ref.csproj
+dotnet build ../../Concord/src/core/Concord.Analyzers/Concord.Analyzers.csproj
+dotnet build ../../Concord/src/core/Concord.Generators/Concord.Generators.csproj
 ```
 
 If Rider still marks `using Concord;` or `[Patch]` as unresolved, reload the project so Rider reads the new output paths.
@@ -116,7 +116,7 @@ If Rider still marks `using Concord;` or `[Patch]` as unresolved, reload the pro
 </ItemGroup>
 ```
 
-The package provides `net10.0`, `netstandard2.0`, and `net472` assemblies. It has no NuGet dependencies because the build folds the four runtime libraries and their MonoMod dependencies into each `Concord.dll`.
+The package provides `net10.0` and `net472` assemblies. It has no NuGet dependencies because the build folds the five runtime libraries and Mono.Cecil into each `Concord.dll`.
 
 The package ID is `Concord.Runtime` because the plain `Concord` ID on NuGet belongs to an unrelated package.
 
@@ -161,15 +161,16 @@ Function-pointer locals are rare in game and mod code, so most patches never rea
 
 ## Core contributors
 
-The Concord repository builds the runtime from four internal projects:
+The Concord repository builds the runtime from five internal projects:
 
 | Project | Responsibility |
 | --- | --- |
 | `Concord.Emit` | Copies IL, lowers injections, and composes method wrappers |
-| `Concord.Detour` | Installs wrappers and tracks live injections for each target |
+| `Concord.Backend` | Defines the backend contract and orders injections for each target |
+| `Concord.Enums` | Adds members to existing enum types |
 | `Concord.AttachedData` | Stores attached data without changing the target type |
 | `Concord.Orchestration` | Provides `Patcher`, patch discovery, the fluent API, and apply or undo behavior |
 
-The `Concord` project merges those libraries into `Concord.dll` and packs `Concord.Runtime`. The analyzer, generator, and reference packages each have their own project under `src/`. `Concord.Harmony` also lives under `src/` and packs on its own, because a host side-loads it rather than getting it from `Concord.dll`.
+The `Concord` project merges those libraries into `Concord.dll` and packs `Concord.Runtime`. The analyzer, generator, and reference packages each have their own project under `src/core/`. The backends live under `src/backends/`, and each one packs on its own.
 
 Tests and benchmarks do not ship in any Concord package. See [Contributing](contributing.md#choose-the-right-project) for the full project map and build instructions.
