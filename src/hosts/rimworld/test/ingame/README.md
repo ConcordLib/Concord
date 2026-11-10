@@ -38,8 +38,9 @@ after Harmony and before the probes; it composes with every mode but `--harmony-
   bridge never activates without Harmony present (no `copier-hook-installed`, no `host-owned`,
   zero Harmony execution) and Concord's own patching still works unassisted.
 - **`--late-harmony`** (`HarmonyLateMod`) — ConcordHalfMod active alongside a probe that holds
-  its Harmony patch until five seconds after the main menu is up, on a timer thread that queues
-  the patch back onto `LongEventHandler` so it lands on the main thread. Every other mode
+  its Harmony patch until five seconds after the main menu is up. The probe applies the patch on
+  its timer thread. It calls `LongEventHandler.ExecuteWhenFinished`, and with no long event in
+  progress that method runs the action right away on the calling thread. Every other mode
   patches during load, so this is the only one where Harmony arrives on a target Concord has
   already been detouring and running on. Proves the rebuild notifier catches it: the probe's own
   invoke logs `[COEX] late-invoke result=42 head-count=2`, which is Concord's head firing a
