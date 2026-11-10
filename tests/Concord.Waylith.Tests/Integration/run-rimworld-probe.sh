@@ -139,7 +139,7 @@ ADAPTER_SHA="$(sha_of "$ADAPTER_CONCORD")"
 echo "== sha runtime=${RUNTIME_SHA:0:12} adapter-compiled-against=${ADAPTER_SHA:0:12}"
 [ -n "$RUNTIME_SHA" ] || setup_fail "no build sha in $STAGED_RUNTIME, so nothing can be paired"
 [ "$RUNTIME_SHA" = "$ADAPTER_SHA" ] \
-  || setup_fail "the adapter compiles against Concord $ADAPTER_SHA but the game will load $RUNTIME_SHA. Rebuild both from one Core checkout."
+  || setup_fail "the adapter compiles against Concord $ADAPTER_SHA but the game will load $RUNTIME_SHA. Rebuild both from one checkout."
 
 echo "== game $(cat "$GAME_DIR/Version.txt" 2>/dev/null || echo unknown)"
 

@@ -3,7 +3,7 @@
 [![Steam Workshop](https://img.shields.io/badge/Steam_Workshop-Concord-1b2838?logo=steam&logoColor=white)](https://steamcommunity.com/sharedfiles/filedetails/?id=3758333473)
 [![Discord](https://img.shields.io/badge/Discord-Cryptiks_Mods-5865F2?logo=discord&logoColor=white)](https://discord.gg/tbcKN8e4mZ)
 
-The RimWorld adapter for [Concord](https://github.com/ConcordLib/Core). It ships the Concord runtime as a RimWorld mod, so any mod can write `[Patch]`/`[Inject]` templates and add saved per-instance state with `[Attached]` fields.
+The RimWorld adapter for [Concord](https://github.com/ConcordLib/Concord). It ships the Concord runtime as a RimWorld mod, so any mod can write `[Patch]`/`[Inject]` templates and add saved per-instance state with `[Attached]` fields.
 
 Load it before every mod that depends on it. It sets `loadBefore Ludeon.RimWorld`.
 

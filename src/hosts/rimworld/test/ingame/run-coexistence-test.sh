@@ -159,7 +159,7 @@ case "$MODE" in
     require "\[COEX\] breaker-invoke result=42" "method must still return the correct value"
     if grep -aq "backend: body replacement" "$LOG"; then
       require "injection-evicted" "concord owns this body, so it had to evict the breaker's illegal transpiler"
-      require "github.com/ConcordLib/Core/issues" "the eviction report did not ask for a bug report"
+      require "github.com/ConcordLib/Concord/issues" "the eviction report did not ask for a bug report"
       require "\[COEX\] breaker-invoke result=42 head-count=2" "concord dropped its own head instead of only the breaker's patch"
     else
       forbid  "CONC175" "concord reported the incoming stream as illegal; the mono backends compose it"

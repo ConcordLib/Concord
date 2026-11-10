@@ -13,7 +13,7 @@ public sealed class EvictionReportTests {
         Assert.Contains("owner.names.the.mod", report);
         Assert.Contains(nameof(StreamTargets.Target), report);
         Assert.Contains("a ret inside a fault handler", report);
-        Assert.Contains("https://github.com/ConcordLib/Core/issues", report);
+        Assert.Contains("https://github.com/ConcordLib/Concord/issues", report);
     }
 
     [Fact]

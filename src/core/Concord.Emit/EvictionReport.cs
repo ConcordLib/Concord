@@ -43,6 +43,6 @@ public static class EvictionReport {
         return marker + " " + described + " owner '" + rejection.Owner + "': " + rejection.Message +
                " Concord dropped only that one patch and kept the rest of this method working. If '" +
                rejection.Owner + "' is a mod you use, report this line at " +
-               "https://github.com/ConcordLib/Core/issues so we can tell a broken patch apart from a Concord bug.";
+               "https://github.com/ConcordLib/Concord/issues so we can tell a broken patch apart from a Concord bug.";
     }
 }
