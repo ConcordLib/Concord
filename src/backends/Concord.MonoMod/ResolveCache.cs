@@ -27,7 +27,7 @@ public static class ResolveCache {
         Type helper = typeof(ReflectionHelper);
         if (helper.GetField("ResolveReflectionCache", Hidden)?.GetValue(null) is not IDictionary members ||
             helper.GetField("AssembliesCache", Hidden)?.GetValue(null) is not IDictionary assemblySets ||
-            helper.GetField("AssemblyCache", Hidden)?.GetValue(null) is not IDictionary assemblies) {
+            helper.GetField(ExactScopes.AssemblyCacheField, Hidden)?.GetValue(null) is not IDictionary assemblies) {
             return -1;
         }
 
@@ -46,7 +46,7 @@ public static class ResolveCache {
     /// </summary>
     /// <returns>The number of assemblies bound, or -1 when MonoMod's caches could not be found.</returns>
     public static int BindScopes() {
-        if (typeof(ReflectionHelper).GetField("AssemblyCache", Hidden)?.GetValue(null) is not IDictionary assemblies) {
+        if (typeof(ReflectionHelper).GetField(ExactScopes.AssemblyCacheField, Hidden)?.GetValue(null) is not IDictionary assemblies) {
             return -1;
         }
 

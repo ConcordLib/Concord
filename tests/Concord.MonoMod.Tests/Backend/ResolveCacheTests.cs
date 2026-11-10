@@ -4,6 +4,7 @@ using System.Reflection.Emit;
 using System.Text;
 using Concord.Backend;
 using Concord.Emit;
+using MonoMod.Utils;
 using Xunit;
 
 namespace Concord.MonoMod.Tests;
@@ -41,16 +42,9 @@ public sealed class ResolveCacheTests {
 
     [Fact]
     public void AScopeKeyPointingAtAnotherCopy_IsReboundByTheNextCompose() {
-        byte[] image = Twins.Image();
-        MethodInfo target = Twins.LoadOne(image);
-        Assembly first = target.DeclaringType!.Assembly;
-        Assembly second = first;
-        for (int attempt = 0; attempt < 5 && second.GetHashCode() == first.GetHashCode(); attempt++) {
-            target = Twins.LoadOne(image);
-            second = target.DeclaringType!.Assembly;
-        }
-
-        Assert.NotEqual(first.GetHashCode(), second.GetHashCode());
+        Twins twins = Twins.LoadDistinct();
+        Assembly first = twins.First.DeclaringType!.Assembly;
+        Assembly second = twins.Second.DeclaringType!.Assembly;
 
         MethodInfo bump = typeof(ResolveCacheHead).GetMethod(nameof(ResolveCacheHead.Bump))!;
         IBackendHandle? composed = null;
@@ -59,7 +53,7 @@ public sealed class ResolveCacheTests {
         Assert.Same(first, BoundScope(second));
 
         try {
-            composed = Compose(target, bump);
+            composed = Compose(twins.Second, bump);
 
             Assert.Same(second, BoundScope(second));
         } finally {
@@ -140,26 +134,22 @@ public sealed class ResolveCacheTests {
     internal static void PlantScope(Assembly key, Assembly value) {
         System.Collections.IDictionary cache = AssemblyCache();
         lock (cache) {
-            cache[ScopeKeyOf(key)] = new WeakReference(value);
+            cache[key.GetRuntimeHashedFullName()] = new WeakReference(value);
         }
     }
 
     internal static Assembly? BoundScope(Assembly key) {
         System.Collections.IDictionary cache = AssemblyCache();
         lock (cache) {
-            return (cache[ScopeKeyOf(key)] as WeakReference)?.Target as Assembly;
+            return (cache[key.GetRuntimeHashedFullName()] as WeakReference)?.Target as Assembly;
         }
     }
 
-    private static string ScopeKeyOf(Assembly assembly) {
-        return assembly.FullName + "@#" + assembly.GetHashCode();
-    }
-
     private static System.Collections.IDictionary AssemblyCache() {
-        Type helper = typeof(ResolveCache).Assembly.GetType("MonoMod.Utils.ReflectionHelper")
-                      ?? throw new InvalidOperationException("MonoMod.Utils.ReflectionHelper is not in Concord.MonoMod");
-        FieldInfo field = helper.GetField("AssemblyCache", BindingFlags.NonPublic | BindingFlags.Static)
-                          ?? throw new InvalidOperationException("MonoMod.Utils.ReflectionHelper carries no AssemblyCache");
+        Type helper = typeof(ResolveCache).Assembly.GetType(ExactScopes.HelperType)
+                      ?? throw new InvalidOperationException(ExactScopes.HelperType + " is not in Concord.MonoMod");
+        FieldInfo field = helper.GetField(ExactScopes.AssemblyCacheField, BindingFlags.NonPublic | BindingFlags.Static)
+                          ?? throw new InvalidOperationException(ExactScopes.HelperType + " carries no " + ExactScopes.AssemblyCacheField);
 
         return field.GetValue(null) as System.Collections.IDictionary
                ?? throw new InvalidOperationException("MonoMod's AssemblyCache is not a dictionary");
@@ -181,6 +171,18 @@ public sealed class ResolveCacheTests {
             MethodInfo two = LoadOne(image);
             Assert.NotSame(one.DeclaringType, two.DeclaringType);
 
+            return new Twins(one, two);
+        }
+
+        internal static Twins LoadDistinct() {
+            byte[] image = Image();
+            MethodInfo one = LoadOne(image);
+            MethodInfo two = LoadOne(image);
+            for (int attempt = 0; attempt < 5 && two.DeclaringType!.Assembly.GetHashCode() == one.DeclaringType!.Assembly.GetHashCode(); attempt++) {
+                two = LoadOne(image);
+            }
+
+            Assert.NotEqual(one.DeclaringType!.Assembly.GetHashCode(), two.DeclaringType!.Assembly.GetHashCode());
             return new Twins(one, two);
         }
 

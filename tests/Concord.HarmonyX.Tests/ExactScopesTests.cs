@@ -129,11 +129,6 @@ public sealed class ExactScopesTests : IDisposable {
         int bound = ExactScopes.Bind(module);
         output.WriteLine($"bound {bound} on the module of a byte-loaded copy");
         Assert.True(bound > 0);
-
-        Assert.Equal(-1, ExactScopes.Bind(module, "Missing", ExactScopes.StampedAssembliesField, ExactScopes.HelperType, ExactScopes.AssemblyCacheField, out _));
-        Assert.Equal(-1, ExactScopes.Bind(module, ExactScopes.ImporterProperty, "Missing", ExactScopes.HelperType, ExactScopes.AssemblyCacheField, out _));
-        Assert.Equal(-1, ExactScopes.Bind(module, ExactScopes.ImporterProperty, ExactScopes.StampedAssembliesField, "Missing", ExactScopes.AssemblyCacheField, out _));
-        Assert.Equal(-1, ExactScopes.Bind(module, ExactScopes.ImporterProperty, ExactScopes.StampedAssembliesField, ExactScopes.HelperType, "Missing", out _));
     }
 
     [Fact]

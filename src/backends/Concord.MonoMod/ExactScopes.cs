@@ -43,7 +43,7 @@ internal static class ExactScopes {
     private static HashSet<Assembly> colliding = new HashSet<Assembly>();
 
     internal static int Seed(ModuleDefinition module) {
-        if (StampedOf(module, ImporterProperty, StampedAssembliesField) is not { } stamped) {
+        if (StampedOf(module) is not { } stamped) {
             return -1;
         }
 
@@ -77,13 +77,9 @@ internal static class ExactScopes {
     }
 
     internal static int Bind(ModuleDefinition module, out int shared) {
-        return Bind(module, ImporterProperty, StampedAssembliesField, HelperType, AssemblyCacheField, out shared);
-    }
-
-    internal static int Bind(ModuleDefinition module, string importerProperty, string stampedField, string helperType, string cacheField, out int shared) {
         shared = 0;
-        if (StampedOf(module, importerProperty, stampedField) is not { } stamped ||
-            typeof(MMReflectionImporter).Assembly.GetType(helperType)?.GetField(cacheField, Hidden)?.GetValue(null) is not IDictionary cache) {
+        if (StampedOf(module) is not { } stamped ||
+            typeof(MMReflectionImporter).Assembly.GetType(HelperType)?.GetField(AssemblyCacheField, Hidden)?.GetValue(null) is not IDictionary cache) {
             return -1;
         }
 
@@ -106,8 +102,8 @@ internal static class ExactScopes {
                 continue;
             }
 
-            if (Ids.TryGetValue(owner.Value, out object? id) || SharesStamp(owner.Value, live)) {
-                Restamp(owner.Key, (int?)id ?? IdOf(owner.Value, live));
+            if (Ids.TryGetValue(owner.Value, out _) || SharesStamp(owner.Value, live)) {
+                Restamp(owner.Key, IdOf(owner.Value, live));
             }
 
             string key = owner.Key.GetRuntimeHashedFullName();
@@ -126,9 +122,9 @@ internal static class ExactScopes {
         return bound;
     }
 
-    private static IDictionary? StampedOf(ModuleDefinition module, string importerProperty, string stampedField) {
-        return typeof(ModuleDefinition).GetProperty(importerProperty, Hidden)?.GetValue(module) is { } importer
-            ? importer.GetType().GetField(stampedField, Hidden)?.GetValue(importer) as IDictionary
+    private static IDictionary? StampedOf(ModuleDefinition module) {
+        return typeof(ModuleDefinition).GetProperty(ImporterProperty, Hidden)?.GetValue(module) is { } importer
+            ? importer.GetType().GetField(StampedAssembliesField, Hidden)?.GetValue(importer) as IDictionary
             : null;
     }
 
@@ -150,12 +146,13 @@ internal static class ExactScopes {
 
     private static bool SharesStamp(Assembly assembly, Assembly[] live) {
         int hash = assembly.GetHashCode();
+        bool anyIds = Volatile.Read(ref nextId) != int.MinValue;
         foreach (Assembly other in live) {
             if (ReferenceEquals(other, assembly)) {
                 continue;
             }
 
-            bool sameStamp = other.GetHashCode() == hash || (Ids.TryGetValue(other, out object? id) && (int)id == hash);
+            bool sameStamp = other.GetHashCode() == hash || (anyIds && Ids.TryGetValue(other, out object? id) && (int)id == hash);
             if (sameStamp && other.FullName == assembly.FullName) {
                 return true;
             }
@@ -332,9 +329,7 @@ internal static class ExactScopes {
             }
 
             foreach (ExceptionHandler handler in method.Body.ExceptionHandlers) {
-                if (handler.CatchType is not null) {
-                    Copies(handler.CatchType);
-                }
+                Copies(handler.CatchType);
             }
 
             foreach (Instruction instruction in method.Body.Instructions) {

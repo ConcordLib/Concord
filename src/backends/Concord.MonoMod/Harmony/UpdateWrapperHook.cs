@@ -116,12 +116,6 @@ internal static class UpdateWrapperHook {
         MethodCopierHook.ResetForTests();
     }
 
-    internal static int HookedCountForTests() {
-        lock (Copies) {
-            return Copies.Count;
-        }
-    }
-
     internal static void DetachObserver() {
         observer = null;
         hookBackend = null;

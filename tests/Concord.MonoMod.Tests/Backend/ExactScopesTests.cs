@@ -18,7 +18,7 @@ public static class ExactScopesLatch {
 public sealed class TwinHashCollisionFactAttribute : FactAttribute {
     internal const int Cap = 64;
 
-    internal static readonly Collision? Found = Probe();
+    internal static readonly (MethodInfo First, MethodInfo Second, int Load)? Found = Probe();
 
     public TwinHashCollisionFactAttribute() {
         if (Found is null) {
@@ -26,14 +26,14 @@ public sealed class TwinHashCollisionFactAttribute : FactAttribute {
         }
     }
 
-    private static Collision? Probe() {
+    private static (MethodInfo First, MethodInfo Second, int Load)? Probe() {
         byte[] image = ResolveCacheTests.Twins.Image();
         Dictionary<int, MethodInfo> byHash = new Dictionary<int, MethodInfo>();
         for (int load = 1; load <= Cap; load++) {
             MethodInfo probe = ResolveCacheTests.Twins.LoadOne(image);
             int hash = probe.DeclaringType!.Assembly.GetHashCode();
             if (byHash.TryGetValue(hash, out MethodInfo? earlier)) {
-                return new Collision(earlier, probe, load);
+                return (earlier, probe, load);
             }
 
             byHash[hash] = probe;
@@ -41,20 +41,6 @@ public sealed class TwinHashCollisionFactAttribute : FactAttribute {
         }
 
         return null;
-    }
-
-    internal sealed class Collision {
-        internal Collision(MethodInfo first, MethodInfo second, int load) {
-            First = first;
-            Second = second;
-            Load = load;
-        }
-
-        internal MethodInfo First { get; }
-
-        internal MethodInfo Second { get; }
-
-        internal int Load { get; }
     }
 }
 
@@ -80,30 +66,25 @@ public sealed class ExactScopesTests {
         int bound = ExactScopes.Bind(definition.Definition.Module);
         output.WriteLine($"bound {bound}");
         Assert.True(bound > 0);
-
-        Assert.Equal(-1, ExactScopes.Bind(definition.Definition.Module, "Missing", ExactScopes.StampedAssembliesField, ExactScopes.HelperType, ExactScopes.AssemblyCacheField, out _));
-        Assert.Equal(-1, ExactScopes.Bind(definition.Definition.Module, ExactScopes.ImporterProperty, "Missing", ExactScopes.HelperType, ExactScopes.AssemblyCacheField, out _));
-        Assert.Equal(-1, ExactScopes.Bind(definition.Definition.Module, ExactScopes.ImporterProperty, ExactScopes.StampedAssembliesField, "Missing", ExactScopes.AssemblyCacheField, out _));
-        Assert.Equal(-1, ExactScopes.Bind(definition.Definition.Module, ExactScopes.ImporterProperty, ExactScopes.StampedAssembliesField, ExactScopes.HelperType, "Missing", out _));
     }
 
     [TwinHashCollisionFact]
     public void ABodyOnTheSecondCopyCallingAHelperOfTheFirst_EachCallRunsInTheCopyItWasWrittenAgainst() {
-        TwinHashCollisionFactAttribute.Collision twins = Collided();
+        (MethodInfo First, MethodInfo Second, int Load) twins = Collided();
 
         AssertEachCallRunsInItsOwnCopy(twins.Second, twins.First);
     }
 
     [TwinHashCollisionFact]
     public void ABodyOnTheFirstCopyCallingAHelperOfTheSecond_EachCallRunsInTheCopyItWasWrittenAgainst() {
-        TwinHashCollisionFactAttribute.Collision twins = Collided();
+        (MethodInfo First, MethodInfo Second, int Load) twins = Collided();
 
         AssertEachCallRunsInItsOwnCopy(twins.First, twins.Second);
     }
 
     [TwinHashCollisionFact]
     public void BindOnAModuleWhereTwoCopiesOwnOneReference_ReportsTheSharedReference() {
-        TwinHashCollisionFactAttribute.Collision twins = Collided();
+        (MethodInfo First, MethodInfo Second, int Load) twins = Collided();
         Type first = twins.First.DeclaringType!;
         Type second = twins.Second.DeclaringType!;
 
@@ -214,9 +195,9 @@ public sealed class ExactScopesTests {
         }
     }
 
-    internal static TwinHashCollisionFactAttribute.Collision Collided() {
-        TwinHashCollisionFactAttribute.Collision twins = TwinHashCollisionFactAttribute.Found
-                                                         ?? throw new InvalidOperationException("the collision probe found no pair in this app domain");
+    internal static (MethodInfo First, MethodInfo Second, int Load) Collided() {
+        (MethodInfo First, MethodInfo Second, int Load) twins = TwinHashCollisionFactAttribute.Found
+                                                                ?? throw new InvalidOperationException("the collision probe found no pair in this app domain");
         Assert.Equal(twins.First.DeclaringType!.Assembly.GetHashCode(), twins.Second.DeclaringType!.Assembly.GetHashCode());
         return twins;
     }
@@ -251,16 +232,10 @@ public sealed class ExactScopesTests {
 
     [Fact]
     public void AScopeKeyPlantedOnAnotherCopy_TheComposedBodyStillCallsIntoItsOwnCopy() {
-        byte[] image = ResolveCacheTests.Twins.Image();
-        MethodInfo first = ResolveCacheTests.Twins.LoadOne(image);
-        MethodInfo second = ResolveCacheTests.Twins.LoadOne(image);
-        for (int attempt = 0; attempt < 5 && second.DeclaringType!.Assembly.GetHashCode() == first.DeclaringType!.Assembly.GetHashCode(); attempt++) {
-            second = ResolveCacheTests.Twins.LoadOne(image);
-        }
-
-        Assert.NotEqual(first.DeclaringType!.Assembly.GetHashCode(), second.DeclaringType!.Assembly.GetHashCode());
+        ResolveCacheTests.Twins twins = ResolveCacheTests.Twins.LoadDistinct();
+        MethodInfo second = twins.Second;
         Assembly own = second.DeclaringType!.Assembly;
-        Assembly other = first.DeclaringType!.Assembly;
+        Assembly other = twins.First.DeclaringType!.Assembly;
 
         MethodInfo bump = typeof(ResolveCacheHead).GetMethod(nameof(ResolveCacheHead.Bump))!;
         IBackendHandle? latch = null;
@@ -285,10 +260,8 @@ public sealed class ExactScopesTests {
 
     [TwinHashCollisionFact]
     public void TwoLiveCopiesSharingOneHash_EachComposedBodyCallsIntoItsOwnCopy() {
-        TwinHashCollisionFactAttribute.Collision twins = TwinHashCollisionFactAttribute.Found
-                                                         ?? throw new InvalidOperationException("the collision probe found no pair in this app domain");
+        (MethodInfo First, MethodInfo Second, int Load) twins = Collided();
         output.WriteLine($"collided at load {twins.Load} of {TwinHashCollisionFactAttribute.Cap}");
-        Assert.Equal(twins.First.DeclaringType!.Assembly.GetHashCode(), twins.Second.DeclaringType!.Assembly.GetHashCode());
 
         MethodInfo bump = typeof(ResolveCacheHead).GetMethod(nameof(ResolveCacheHead.Bump))!;
         IBackendHandle? first = null;

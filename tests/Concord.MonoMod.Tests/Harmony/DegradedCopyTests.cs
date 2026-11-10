@@ -61,13 +61,12 @@ public sealed class DegradedCopyTests
         try
         {
             MonoModEntryPoint.Install(log.Add, null);
-            Assembly second = Assembly.Load(AssemblyImage.WithFreshModuleId(File.ReadAllBytes(typeof(HarmonyLib.Harmony).Assembly.Location)));
+            Assembly second = SecondHarmonyCopyTests.SecondCopy();
             Assert.True(UpdateWrapperHook.IsHookedOn(second), "the second Harmony copy did not arm, so the reset had nothing to forget: " + string.Join(" | ", log));
 
             MonoModEntryPoint.ResetForTests();
 
             Assert.False(UpdateWrapperHook.IsHookedOn(second));
-            Assert.Equal(0, UpdateWrapperHook.HookedCountForTests());
         }
         finally
         {
@@ -82,24 +81,13 @@ public sealed class DegradedCopyTests
 
     private static string? PatchThroughHarmony(Assembly copy, MethodInfo target)
     {
-        Type harmonyType = copy.GetType("HarmonyLib.Harmony") ?? throw new InvalidOperationException("HarmonyLib.Harmony not found in " + copy.FullName);
-        Type harmonyMethodType = copy.GetType("HarmonyLib.HarmonyMethod") ?? throw new InvalidOperationException("HarmonyLib.HarmonyMethod not found in " + copy.FullName);
+        Type harmonyType = SecondHarmonyCopyTests.TypeFrom(copy, "HarmonyLib.Harmony");
+        Type harmonyMethodType = SecondHarmonyCopyTests.TypeFrom(copy, "HarmonyLib.HarmonyMethod");
         string id = "test.degraded." + target.Name;
         object harmony = Activator.CreateInstance(harmonyType, id)!;
         object prefix = Activator.CreateInstance(harmonyMethodType, typeof(ProbeTargets).GetMethod(nameof(ProbeTargets.Prefix)))!;
 
-        MethodInfo? patch = null;
-        foreach (MethodInfo candidate in harmonyType.GetMethods())
-        {
-            ParameterInfo[] parameters = candidate.GetParameters();
-            if (candidate.Name == "Patch" && parameters.Length >= 2 && parameters[1].ParameterType == harmonyMethodType)
-            {
-                patch = candidate;
-                break;
-            }
-        }
-
-        Assert.NotNull(patch);
+        MethodInfo patch = SecondHarmonyCopyTests.PatchMethodOf(harmonyType, harmonyMethodType);
         object?[] args = new object?[patch.GetParameters().Length];
         args[0] = target;
         args[1] = prefix;

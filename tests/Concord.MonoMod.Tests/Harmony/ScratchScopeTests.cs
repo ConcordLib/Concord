@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Reflection;
 using System.Reflection.Emit;
 using Concord.Backend;
@@ -21,19 +20,11 @@ public sealed class ScratchScopeTests
     [Fact]
     public void ATranspilerScratch_ResolvesLocalsOfASecondCopy_IntoThatCopy_PastAPlantedScope()
     {
-        byte[] image = ResolveCacheTests.Twins.Image();
-        MethodInfo first = ResolveCacheTests.Twins.LoadOne(image);
-        MethodInfo second = ResolveCacheTests.Twins.LoadOne(image);
-        for (int attempt = 0; attempt < 5 && second.DeclaringType!.Assembly.GetHashCode() == first.DeclaringType!.Assembly.GetHashCode(); attempt++)
-        {
-            second = ResolveCacheTests.Twins.LoadOne(image);
-        }
+        ResolveCacheTests.Twins twins = ResolveCacheTests.Twins.LoadDistinct();
+        Assembly own = twins.Second.DeclaringType!.Assembly;
+        Assembly other = twins.First.DeclaringType!.Assembly;
 
-        Assembly own = second.DeclaringType!.Assembly;
-        Assembly other = first.DeclaringType!.Assembly;
-        Assert.NotEqual(other.GetHashCode(), own.GetHashCode());
-
-        Type holder = second.DeclaringType;
+        Type holder = twins.Second.DeclaringType;
         Type twin = Array.Find(own.GetTypes(), type => type.Name.StartsWith("TwinType", StringComparison.Ordinal))
                     ?? throw new InvalidOperationException("the twin image carries no TwinType");
 
@@ -54,7 +45,7 @@ public sealed class ScratchScopeTests
     [TwinHashCollisionFact]
     public void ATranspilerScratch_ResolvesLocalsOfTwoCopiesSharingOneHash_EachIntoItsOwnCopy()
     {
-        TwinHashCollisionFactAttribute.Collision twins = ExactScopesTests.Collided();
+        (MethodInfo First, MethodInfo Second, int Load) twins = ExactScopesTests.Collided();
         Type first = twins.First.DeclaringType!;
         Type second = twins.Second.DeclaringType!;
 
@@ -72,10 +63,8 @@ public sealed class ScratchScopeTests
     [Fact]
     public void AForeignTranspilerOnASecondHarmonyCopy_BesideAConcordInjection_SeesCallsIntoThatCopy()
     {
-        byte[] bytes = File.ReadAllBytes(typeof(HarmonyLib.Harmony).Assembly.Location);
-        Assembly copy = Assembly.Load(AssemblyImage.WithFreshModuleId(bytes));
+        Assembly copy = SecondHarmonyCopyTests.SecondCopy();
         Assembly primary = typeof(HarmonyLib.Harmony).Assembly;
-        Assert.NotSame(primary, copy);
         Assert.Equal(primary.FullName, copy.FullName);
 
         Type tools = copy.GetType("HarmonyLib.AccessTools") ?? throw new InvalidOperationException("HarmonyLib.AccessTools not found in the copy");

@@ -71,30 +71,25 @@ for dll in tests/*/bin/"$CONFIG"/net472/*.Tests.dll src/hosts/*/Source/*/bin/"$C
     name=${dll##*/}
     [[ -n "$filter" ]] && [[ "$name" != *"$filter"* ]] && continue
 
-    swapped=0
+    swap=""
+    version_suffix=""
     if [[ -n "${HARMONY_VERSION:-}" ]] && [[ "$name" == "Concord.MonoMod.Tests.dll" ]]; then
-        cp "$dir/0Harmony.dll" "$dir/0Harmony.dll.rc4"
-        cp "$harmony_swap" "$dir/0Harmony.dll"
-        swapped=1
+        swap=$harmony_swap
+        version_suffix=" (Lib.Harmony $HARMONY_VERSION)"
+    elif [[ -n "${HARMONYX_VERSION:-}" ]] && [[ "$name" == "Concord.HarmonyX.Tests.dll" ]]; then
+        swap=$harmonyx_swap
+        version_suffix=" (HarmonyX $HARMONYX_VERSION)"
     fi
 
-    swappedx=0
-    if [[ -n "${HARMONYX_VERSION:-}" ]] && [[ "$name" == "Concord.HarmonyX.Tests.dll" ]]; then
-        cp "$dir/0Harmony.dll" "$dir/0Harmony.dll.hx2100"
-        cp "$harmonyx_swap" "$dir/0Harmony.dll"
-        swappedx=1
+    if [[ -n "$swap" ]]; then
+        cp "$dir/0Harmony.dll" "$dir/0Harmony.dll.built"
+        cp "$swap" "$dir/0Harmony.dll"
     fi
 
     output=$(cd "$dir" && mono "$RUNNER" "$name" -parallel none 2>&1)
 
-    if [[ "$swapped" -eq 1 ]]; then
-        cp "$dir/0Harmony.dll.rc4" "$dir/0Harmony.dll"
-        rm -f "$dir/0Harmony.dll.rc4"
-    fi
-
-    if [[ "$swappedx" -eq 1 ]]; then
-        cp "$dir/0Harmony.dll.hx2100" "$dir/0Harmony.dll"
-        rm -f "$dir/0Harmony.dll.hx2100"
+    if [[ -n "$swap" ]]; then
+        mv -f "$dir/0Harmony.dll.built" "$dir/0Harmony.dll"
     fi
 
     ran=$((ran + 1))
@@ -112,10 +107,6 @@ for dll in tests/*/bin/"$CONFIG"/net472/*.Tests.dll src/hosts/*/Source/*/bin/"$C
     total=$((total + t))
     failed=$((failed + f + e))
     skipped=$((skipped + s))
-
-    version_suffix=""
-    [[ "$swapped" -eq 1 ]] && version_suffix=" (Lib.Harmony $HARMONY_VERSION)"
-    [[ "$swappedx" -eq 1 ]] && version_suffix=" (HarmonyX $HARMONYX_VERSION)"
 
     printf '%-6s %-62s %s%s\n' "$([[ "$((f + e))" -eq 0 ]] && echo ok || echo FAIL)" "$dll" "$line" "$version_suffix"
 done

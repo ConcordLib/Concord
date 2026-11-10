@@ -110,13 +110,7 @@ internal sealed class HarmonyXTarget {
                 return false;
             }
 
-            try {
-                entry.Rearm();
-            } catch {
-                entry.Abandon();
-                throw;
-            }
-
+            entry.Rearm();
             return !entry.composeFailed;
         }
     }
@@ -163,11 +157,13 @@ internal sealed class HarmonyXTarget {
             }
 
             try {
-                Rearm();
+                Arm();
             } catch {
                 live.RemoveAll(entry => owned.Contains(entry.Seq));
                 if (armed) {
                     Restore();
+                } else {
+                    Abandon();
                 }
 
                 throw;
@@ -188,13 +184,7 @@ internal sealed class HarmonyXTarget {
             }
 
             if (live.Count > 0) {
-                try {
-                    Rearm();
-                } catch {
-                    Abandon();
-                    throw;
-                }
-
+                Rearm();
                 return;
             }
 
@@ -203,6 +193,15 @@ internal sealed class HarmonyXTarget {
     }
 
     private void Rearm() {
+        try {
+            Arm();
+        } catch {
+            Abandon();
+            throw;
+        }
+    }
+
+    private void Arm() {
         ordered = InjectionOrderer.OrderForComposition(live);
         owners = BuildOwners(ordered);
 
@@ -218,14 +217,8 @@ internal sealed class HarmonyXTarget {
             config.Before = new[] { "*" };
             config.ManualApply = true;
             hook = new ILHook(target, Manipulate, ref config);
-            try {
-                scopes.Apply();
-                hook.Apply();
-            } catch {
-                Abandon();
-                throw;
-            }
-
+            scopes.Apply();
+            hook.Apply();
             return;
         }
 
@@ -237,7 +230,7 @@ internal sealed class HarmonyXTarget {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S2221:Exception should not be caught", Justification = "The rearm that failed first is the exception the caller receives, so a second refusal from the chain is reported and the earlier injections are dropped.")]
     private void Restore() {
         try {
-            Rearm();
+            Arm();
         } catch (Exception failure) {
             Report(failure);
             Abandon();
@@ -288,8 +281,7 @@ internal sealed class HarmonyXTarget {
             ILContextConverter.Compose(target, snapshot, il, HarmonyXBackend.Write);
         } catch (Exception failure) {
             composeFailed = true;
-            HarmonyXBackend.Write(
-                FailedMarker + " '" + HarmonyXBackend.Describe(target) + "': " + ExceptionReason.Of(failure));
+            Report(failure);
         }
     }
 

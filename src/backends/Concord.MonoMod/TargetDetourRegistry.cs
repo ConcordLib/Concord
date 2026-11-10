@@ -232,11 +232,11 @@ internal sealed class TargetDetourRegistry {
         }
     }
 
-    private static void ForgetResolvesIntoReloadedAssemblies() {
+    private static void ForgetResolvesIntoReloadedAssemblies(Assembly[] assemblies) {
         int reflectionOnly = 0;
         HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
         HashSet<string> twice = new HashSet<string>(StringComparer.Ordinal);
-        foreach (Assembly loaded in AppDomain.CurrentDomain.GetAssemblies()) {
+        foreach (Assembly loaded in assemblies) {
             if (loaded.ReflectionOnly) {
                 reflectionOnly++;
             }
@@ -255,8 +255,7 @@ internal sealed class TargetDetourRegistry {
         ResolveCache.ForgetReflectionOnly();
     }
 
-    private static void BindScopesOfNewAssemblies() {
-        int count = AppDomain.CurrentDomain.GetAssemblies().Length;
+    private static void BindScopesOfNewAssemblies(int count) {
         if (count == assembliesAtLastBind) {
             return;
         }
@@ -424,8 +423,9 @@ internal sealed class TargetDetourRegistry {
 
         ComposeResult? composed = null;
         if (ordered.Count > 0) {
-            ForgetResolvesIntoReloadedAssemblies();
-            BindScopesOfNewAssemblies();
+            Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
+            ForgetResolvesIntoReloadedAssemblies(assemblies);
+            BindScopesOfNewAssemblies(assemblies.Length);
 
             if (debug) {
                 PatchDebugLog.Append(target, WrapperComposer.ComposeDump(target, ordered));
