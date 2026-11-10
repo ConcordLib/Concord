@@ -1,0 +1,12 @@
+{
+  "name": "concord-docs-template",
+  "private": true,
+  "scripts": {
+    "build:css": "node build.mjs"
+  },
+  "devDependencies": {
+    "tailwindcss": "^4.2.2",
+    "@tailwindcss/node": "^4.2.2",
+    "daisyui": "^5.5.19"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "concord-docs",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-06-01",
+  "r2_buckets": [
+    {
+      "binding": "DOCS",
+      "bucket_name": "concord-docs"
+    }
+  ],
+  "vars": {
+    "LATEST_VERSION": "latest"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

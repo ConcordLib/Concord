@@ -1,0 +1,32 @@
+- name: Start Here
+  href: introduction.md
+- name: Getting Started
+  href: getting-started.md
+- name: Your First Patch
+  href: first-patch.md
+- name: Common Tasks
+  href: common-tasks.md
+- name: Migrating from Harmony & Prepatcher
+  href: migration.md
+- name: Harmony Compatibility
+  href: harmony-compatibility.md
+- name: How Patches Work
+  href: how-patches-work.md
+- name: Raw IL with Transpilers
+  href: transpilers.md
+- name: Target a Local Variable
+  href: local-variables.md
+- name: The Composed Body Contract
+  href: composed-body.md
+- name: Attached Data
+  href: attached-data.md
+- name: Extended Enums
+  href: extended-enums.md
+- name: Packages
+  href: packages.md
+- name: Troubleshooting
+  href: troubleshooting.md
+- name: Roadmap
+  href: roadmap.md
+- name: Contributing
+  href: contributing.md

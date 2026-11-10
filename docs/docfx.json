@@ -1,0 +1,67 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": "src",
+          "files": [
+            "**/*.csproj"
+          ]
+        }
+      ],
+      "dest": "api"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "**/*.{md,yml}"
+        ],
+          "exclude": [
+            ".site/**",
+            "BenchmarkDotNet.Artifacts/**",
+            "src/**",
+            ".core/**",
+            "templates/**",
+            "apidoc/**",
+            "CONTEXT.md",
+            "PRODUCT.md",
+            "DESIGN.md",
+            "README.md",
+            "worker/**",
+            "Palette.md",
+            "Palette.png"
+        ]
+      }
+    ],
+    "overwrite": [
+      {
+        "files": [
+          "apidoc/**/*.md"
+        ]
+      }
+    ],
+    "resource": [
+      {
+        "files": [
+          "images/**"
+        ]
+      }
+    ],
+    "output": ".site",
+    "template": [
+      "default",
+      "modern",
+      "templates/concord"
+    ],
+    "globalMetadata": {
+      "_appName": "Concord",
+      "_appTitle": "Concord",
+      "_enableSearch": true,
+      "pdf": false,
+      "_appFaviconPath": "assets/favicon.ico"
+    }
+  }
+}
