@@ -40,6 +40,41 @@ public static class ResolveCache {
         return removed;
     }
 
+    /// <summary>
+    ///     Binds each live assembly to the scope key MonoMod stamps on references imported from it, so
+    ///     such a reference resolves back into that assembly and not into another one reporting the same hash.
+    /// </summary>
+    /// <returns>The number of assemblies bound, or -1 when MonoMod's caches could not be found.</returns>
+    public static int BindScopes() {
+        if (typeof(ReflectionHelper).GetField("AssemblyCache", Hidden)?.GetValue(null) is not IDictionary assemblies) {
+            return -1;
+        }
+
+        Dictionary<string, Assembly?> byScope = new Dictionary<string, Assembly?>(StringComparer.Ordinal);
+        foreach (Assembly loaded in AppDomain.CurrentDomain.GetAssemblies()) {
+            if (loaded.ReflectionOnly) {
+                continue;
+            }
+
+            string scope = loaded.GetRuntimeHashedFullName();
+            byScope[scope] = byScope.ContainsKey(scope) ? null : loaded;
+        }
+
+        int bound = 0;
+        lock (assemblies) {
+            foreach (KeyValuePair<string, Assembly?> entry in byScope) {
+                if (entry.Value is null) {
+                    continue;
+                }
+
+                assemblies[entry.Key] = new WeakReference(entry.Value);
+                bound++;
+            }
+        }
+
+        return bound;
+    }
+
     private static HashSet<string> LoadedTwice() {
         HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
         HashSet<string> twice = new HashSet<string>(StringComparer.Ordinal);

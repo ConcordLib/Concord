@@ -11,8 +11,23 @@ namespace Concord.MonoMod.Tests;
 public static class ResolveCacheHead {
     public static int Calls;
 
+    public static Assembly? Reached;
+
+    [ThreadStatic]
+    public static Assembly? Element;
+
+    [ThreadStatic]
+    private static List<Assembly>? trail;
+
+    public static List<Assembly> Trail => trail ??= new List<Assembly>();
+
     public static void Bump() {
         Calls++;
+    }
+
+    public static void Reach(Assembly copy) {
+        Reached = copy;
+        Trail.Add(copy);
     }
 }
 
@@ -25,6 +40,39 @@ public sealed class ResolveCacheTests {
     }
 
     [Fact]
+    public void AScopeKeyPointingAtAnotherCopy_IsReboundByTheNextCompose() {
+        byte[] image = Twins.Image();
+        MethodInfo target = Twins.LoadOne(image);
+        Assembly first = target.DeclaringType!.Assembly;
+        Assembly second = first;
+        for (int attempt = 0; attempt < 5 && second.GetHashCode() == first.GetHashCode(); attempt++) {
+            target = Twins.LoadOne(image);
+            second = target.DeclaringType!.Assembly;
+        }
+
+        Assert.NotEqual(first.GetHashCode(), second.GetHashCode());
+
+        MethodInfo bump = typeof(ResolveCacheHead).GetMethod(nameof(ResolveCacheHead.Bump))!;
+        IBackendHandle? composed = null;
+
+        PlantScope(second, first);
+        Assert.Same(first, BoundScope(second));
+
+        try {
+            composed = Compose(target, bump);
+
+            Assert.Same(second, BoundScope(second));
+        } finally {
+            composed?.Dispose();
+        }
+    }
+
+    [Fact]
+    public void BindScopes_FindsMonoModCaches() {
+        Assert.True(ResolveCache.BindScopes() > 0);
+    }
+
+    [Fact]
     public void TwoLiveCopiesOfOneName_TheSecondComposeResolvesItsOwnCopy() {
         Twins twins = Twins.Load();
         MethodInfo bump = typeof(ResolveCacheHead).GetMethod(nameof(ResolveCacheHead.Bump))!;
@@ -34,8 +82,6 @@ public sealed class ResolveCacheTests {
         try {
             first = Compose(twins.First, bump);
             Assert.Equal(Constant, twins.First.Invoke(null, null));
-
-            ResolveCache.ForgetReflectionOnly();
 
             ResolveCacheHead.Calls = 0;
             second = Compose(twins.Second, bump);
@@ -87,11 +133,39 @@ public sealed class ResolveCacheTests {
         }
     }
 
-    private static IBackendHandle Compose(MethodInfo target, MethodInfo head) {
+    internal static IBackendHandle Compose(MethodInfo target, MethodInfo head) {
         return new MonoModBackend().ApplyComposed(target, [new Injection(head, new InjectAt.Head(), "resolve-cache", 0)]);
     }
 
-    private sealed class Twins {
+    internal static void PlantScope(Assembly key, Assembly value) {
+        System.Collections.IDictionary cache = AssemblyCache();
+        lock (cache) {
+            cache[ScopeKeyOf(key)] = new WeakReference(value);
+        }
+    }
+
+    internal static Assembly? BoundScope(Assembly key) {
+        System.Collections.IDictionary cache = AssemblyCache();
+        lock (cache) {
+            return (cache[ScopeKeyOf(key)] as WeakReference)?.Target as Assembly;
+        }
+    }
+
+    private static string ScopeKeyOf(Assembly assembly) {
+        return assembly.FullName + "@#" + assembly.GetHashCode();
+    }
+
+    private static System.Collections.IDictionary AssemblyCache() {
+        Type helper = typeof(ResolveCache).Assembly.GetType("MonoMod.Utils.ReflectionHelper")
+                      ?? throw new InvalidOperationException("MonoMod.Utils.ReflectionHelper is not in Concord.MonoMod");
+        FieldInfo field = helper.GetField("AssemblyCache", BindingFlags.NonPublic | BindingFlags.Static)
+                          ?? throw new InvalidOperationException("MonoMod.Utils.ReflectionHelper carries no AssemblyCache");
+
+        return field.GetValue(null) as System.Collections.IDictionary
+               ?? throw new InvalidOperationException("MonoMod's AssemblyCache is not a dictionary");
+    }
+
+    internal sealed class Twins {
         private Twins(MethodInfo first, MethodInfo second) {
             First = first;
             Second = second;
@@ -155,19 +229,42 @@ public sealed class ResolveCacheTests {
                 ModuleBuilder module = assembly.DefineDynamicModule(file, file);
 
                 TypeBuilder twin = module.DefineType("TwinType" + suffix, TypeAttributes.Public | TypeAttributes.Class);
+                ConstructorBuilder made = twin.DefineDefaultConstructor(MethodAttributes.Public);
                 twin.CreateType();
 
                 TypeBuilder holder = module.DefineType(
                     "TwinHolder", TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed);
+                MethodBuilder mark = holder.DefineMethod(
+                    "Mark", MethodAttributes.Public | MethodAttributes.Static, typeof(void), Type.EmptyTypes);
+                ILGenerator marking = mark.GetILGenerator();
+                marking.Emit(OpCodes.Ldtoken, holder);
+                marking.Emit(OpCodes.Call, typeof(Type).GetMethod(nameof(Type.GetTypeFromHandle))!);
+                marking.Emit(OpCodes.Callvirt, typeof(Type).GetProperty(nameof(Type.Assembly))!.GetGetMethod()!);
+                marking.Emit(OpCodes.Call, typeof(ResolveCacheHead).GetMethod(nameof(ResolveCacheHead.Reach))!);
+                marking.Emit(OpCodes.Ret);
+
                 MethodBuilder probe = holder.DefineMethod(
                     "Probe", MethodAttributes.Public | MethodAttributes.Static, typeof(int), Type.EmptyTypes);
 
                 Type list = typeof(List<>).MakeGenericType(twin);
+                Type enumerator = typeof(List<int>.Enumerator).GetGenericTypeDefinition().MakeGenericType(twin);
                 ILGenerator il = probe.GetILGenerator();
-                il.DeclareLocal(typeof(List<int>.Enumerator).GetGenericTypeDefinition().MakeGenericType(twin));
+                il.DeclareLocal(enumerator);
+                il.Emit(OpCodes.Call, mark);
                 il.Emit(OpCodes.Newobj, TypeBuilder.GetConstructor(list, typeof(List<>).GetConstructor(Type.EmptyTypes)!));
+                il.Emit(OpCodes.Dup);
+                il.Emit(OpCodes.Newobj, made);
+                il.Emit(OpCodes.Callvirt, TypeBuilder.GetMethod(list, typeof(List<>).GetMethod("Add")!));
                 il.Emit(OpCodes.Callvirt, TypeBuilder.GetMethod(list, typeof(List<>).GetMethod("GetEnumerator")!));
                 il.Emit(OpCodes.Stloc_0);
+                il.Emit(OpCodes.Ldloca_S, (byte)0);
+                il.Emit(OpCodes.Call, TypeBuilder.GetMethod(enumerator, typeof(List<>.Enumerator).GetMethod("MoveNext")!));
+                il.Emit(OpCodes.Pop);
+                il.Emit(OpCodes.Ldloca_S, (byte)0);
+                il.Emit(OpCodes.Call, TypeBuilder.GetMethod(enumerator, typeof(List<>.Enumerator).GetProperty("Current")!.GetGetMethod()!));
+                il.Emit(OpCodes.Callvirt, typeof(object).GetMethod(nameof(object.GetType))!);
+                il.Emit(OpCodes.Callvirt, typeof(Type).GetProperty(nameof(Type.Assembly))!.GetGetMethod()!);
+                il.Emit(OpCodes.Stsfld, typeof(ResolveCacheHead).GetField(nameof(ResolveCacheHead.Element))!);
                 il.Emit(OpCodes.Ldc_I4, Constant);
                 il.Emit(OpCodes.Ret);
                 holder.CreateType();

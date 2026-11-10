@@ -53,7 +53,7 @@ jobs:
           echo "$files"
 
           core=false
-          if echo "$files" | grep -Eq '^(src/core/|src/backends/|build/|tests/|Concord\.slnx$|Concord\.ci\.slnx$|Directory\.Build\.props$|StyleCop\.props$|global\.json$|scripts/|release\.config\.mjs$|package\.json$)'; then
+          if grep -Eq '^(src/core/|src/backends/|build/|tests/|Concord\.slnx$|Concord\.ci\.slnx$|Directory\.Build\.props$|StyleCop\.props$|global\.json$|scripts/|release\.config\.mjs$|package\.json$)' <<<"$files"; then
             core=true
           fi
 
@@ -61,12 +61,12 @@ jobs:
           bepinex=$core
           elin=$core
           if [ "$core" = "false" ]; then
-            echo "$files" | grep -q '^src/hosts/rimworld/' && rimworld=true
-            echo "$files" | grep -q '^src/hosts/bepinex/' && bepinex=true
-            echo "$files" | grep -q '^src/hosts/elin/' && elin=true
-            echo "$files" | grep -q '^src/games/rimworld/' && rimworld=true
-            echo "$files" | grep -q '^src/games/elin/' && elin=true
-            echo "$files" | grep -q '^src/games/elin/' && bepinex=true
+            grep -q '^src/hosts/rimworld/' <<<"$files" && rimworld=true
+            grep -q '^src/hosts/bepinex/' <<<"$files" && bepinex=true
+            grep -q '^src/hosts/elin/' <<<"$files" && elin=true
+            grep -q '^src/games/rimworld/' <<<"$files" && rimworld=true
+            grep -q '^src/games/elin/' <<<"$files" && elin=true
+            grep -q '^src/games/elin/' <<<"$files" && bepinex=true
           fi
 
           {
@@ -345,6 +345,9 @@ jobs:
             CONFIG=Release HARMONY_VERSION="$version" ./tests/run-net472.sh
             echo "::endgroup::"
           done
+
+      - name: Test against HarmonyX 2.10.2
+        run: CONFIG=Release HARMONYX_VERSION=2.10.2 ./tests/run-net472.sh HarmonyX
 
   package-contract:
     name: Package contract

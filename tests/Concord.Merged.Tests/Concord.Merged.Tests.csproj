@@ -15,7 +15,6 @@
     <Compile Include="../../src/core/Shared/Polyfills.cs" Link="Polyfills.cs"/>
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
     <PackageReference Include="xunit.runner.console" Version="2.9.3" PrivateAssets="all"/>
   </ItemGroup>
   <ItemGroup>

@@ -84,9 +84,10 @@ internal sealed class ScratchMethod : IDisposable {
         DynamicILInfo scope = method.GetDynamicILInfo();
         EncodedBody encoded = BodyEncoder.Encode(body, new DynamicScopeTokens(scope), new ComputedStack());
         scope.SetLocalSignature(DynamicScopeLocals(body));
-        scope.SetCode(encoded.Il.ToArray(), encoded.MaxStack);
-        if (!encoded.ExceptionSection.IsEmpty) {
-            scope.SetExceptions(encoded.ExceptionSection.ToArray());
+        scope.SetCode(encoded.Il, encoded.MaxStack);
+        byte[] exceptions = encoded.ExceptionSection;
+        if (exceptions.Length != 0) {
+            scope.SetExceptions(exceptions);
         }
 
         return method;

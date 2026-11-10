@@ -22,6 +22,7 @@ internal sealed class TargetDetourRegistry {
 
     private static int reflectionOnlyAtLastCompose;
     private static int namesLoadedTwiceAtLastCompose;
+    private static int assembliesAtLastBind;
 
     private readonly MethodBase target;
     private readonly object gate = new object();
@@ -254,6 +255,16 @@ internal sealed class TargetDetourRegistry {
         ResolveCache.ForgetReflectionOnly();
     }
 
+    private static void BindScopesOfNewAssemblies() {
+        int count = AppDomain.CurrentDomain.GetAssemblies().Length;
+        if (count == assembliesAtLastBind) {
+            return;
+        }
+
+        ResolveCache.BindScopes();
+        assembliesAtLastBind = count;
+    }
+
     private static TargetDetourRegistry? Find(MethodBase target) {
         lock (RegistriesGate) {
             return Registries.TryGetValue(target, out TargetDetourRegistry? registry) ? registry : null;
@@ -414,6 +425,7 @@ internal sealed class TargetDetourRegistry {
         ComposeResult? composed = null;
         if (ordered.Count > 0) {
             ForgetResolvesIntoReloadedAssemblies();
+            BindScopesOfNewAssemblies();
 
             if (debug) {
                 PatchDebugLog.Append(target, WrapperComposer.ComposeDump(target, ordered));

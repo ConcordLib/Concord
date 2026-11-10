@@ -18,10 +18,6 @@
     <WarningsNotAsErrors>NU5128</WarningsNotAsErrors>
   </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
-  </ItemGroup>
-
   <!-- Elin ships the net35 build of all four of these, byte for byte, and binds the loose copies in
        BepInEx/core at runtime, so the compile reference points at that exact lib folder. They come
        in through PackageDownload rather than PackageReference because a PackageReference also
@@ -72,6 +68,7 @@
     <Compile Include="../Concord.MonoMod/MonoModEmit.cs" Link="MonoModEmit.cs"/>
     <Compile Include="../Concord.MonoMod/MonoModScratchGenerator.cs" Link="MonoModScratchGenerator.cs"/>
     <Compile Include="../Concord.MonoMod/MonoModScratchBody.cs" Link="MonoModScratchBody.cs"/>
+    <Compile Include="../Concord.MonoMod/ExactScopes.cs" Link="ExactScopes.cs"/>
     <Compile Include="../../core/Shared/Polyfills.cs" Link="Polyfills.cs"/>
     <Compile Include="../../core/Shared/ExceptionReason.cs" Link="ExceptionReason.cs"/>
     <Compile Include="../../core/Shared/PatchDebugLog.cs" Link="PatchDebugLog.cs"/>

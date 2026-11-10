@@ -18,6 +18,10 @@ Set HARMONY_VERSION to a Lib.Harmony package version (e.g. 2.4.3) to swap that
 release's 0Harmony.dll into Concord.MonoMod.Tests' bin directory before it runs,
 and restore the 3.0.0-rc.4 build output copy afterwards.
 
+Set HARMONYX_VERSION to a HarmonyX package version (e.g. 2.10.2) to swap that
+release's 0Harmony.dll into Concord.HarmonyX.Tests' bin directory before it runs,
+and restore the 2.10.0 build output copy afterwards.
+
   filter   only run assemblies whose file name contains this substring
 
 Examples:
@@ -25,6 +29,7 @@ Examples:
   ./tests/run-net472.sh Detour     # only assemblies matching "Detour"
   CONFIG=Release ./tests/run-net472.sh Emit
   HARMONY_VERSION=2.4.3 CONFIG=Release ./tests/run-net472.sh MonoMod
+  HARMONYX_VERSION=2.10.2 CONFIG=Release ./tests/run-net472.sh HarmonyX
 EOF
 }
 
@@ -45,6 +50,11 @@ RUNNER=$(find ~/.nuget/packages/xunit.runner.console -path '*net4*' -name 'xunit
 if [[ -n "${HARMONY_VERSION:-}" ]]; then
     harmony_swap="$HOME/.nuget/packages/lib.harmony/$HARMONY_VERSION/lib/net472/0Harmony.dll"
     [[ -e "$harmony_swap" ]] || { echo "Lib.Harmony $HARMONY_VERSION carries no lib/net472/0Harmony.dll under $harmony_swap" >&2; exit 1; }
+fi
+
+if [[ -n "${HARMONYX_VERSION:-}" ]]; then
+    harmonyx_swap="$HOME/.nuget/packages/harmonyx/$HARMONYX_VERSION/lib/net35/0Harmony.dll"
+    [[ -e "$harmonyx_swap" ]] || { echo "HarmonyX $HARMONYX_VERSION carries no lib/net35/0Harmony.dll under $harmonyx_swap" >&2; exit 1; }
 fi
 
 filter="${1:-}"
@@ -68,11 +78,23 @@ for dll in tests/*/bin/"$CONFIG"/net472/*.Tests.dll src/hosts/*/Source/*/bin/"$C
         swapped=1
     fi
 
+    swappedx=0
+    if [[ -n "${HARMONYX_VERSION:-}" ]] && [[ "$name" == "Concord.HarmonyX.Tests.dll" ]]; then
+        cp "$dir/0Harmony.dll" "$dir/0Harmony.dll.hx2100"
+        cp "$harmonyx_swap" "$dir/0Harmony.dll"
+        swappedx=1
+    fi
+
     output=$(cd "$dir" && mono "$RUNNER" "$name" -parallel none 2>&1)
 
     if [[ "$swapped" -eq 1 ]]; then
         cp "$dir/0Harmony.dll.rc4" "$dir/0Harmony.dll"
         rm -f "$dir/0Harmony.dll.rc4"
+    fi
+
+    if [[ "$swappedx" -eq 1 ]]; then
+        cp "$dir/0Harmony.dll.hx2100" "$dir/0Harmony.dll"
+        rm -f "$dir/0Harmony.dll.hx2100"
     fi
 
     ran=$((ran + 1))
@@ -93,6 +115,7 @@ for dll in tests/*/bin/"$CONFIG"/net472/*.Tests.dll src/hosts/*/Source/*/bin/"$C
 
     version_suffix=""
     [[ "$swapped" -eq 1 ]] && version_suffix=" (Lib.Harmony $HARMONY_VERSION)"
+    [[ "$swappedx" -eq 1 ]] && version_suffix=" (HarmonyX $HARMONYX_VERSION)"
 
     printf '%-6s %-62s %s%s\n' "$([[ "$((f + e))" -eq 0 ]] && echo ok || echo FAIL)" "$dll" "$line" "$version_suffix"
 done

@@ -10,10 +10,6 @@
     <NoWarn>$(NoWarn);SA1600;SA1601;SA1602;SA1611;SA1615;SA1618</NoWarn>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
-  </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Concord.Ref" Version="0.0.0-contract"/>
     <PackageReference Include="Concord.Runtime" Version="0.0.0-contract" ExcludeAssets="all" GeneratePathProperty="true"/>

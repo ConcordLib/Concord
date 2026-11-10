@@ -14,6 +14,7 @@ public sealed class TranspilerScratch : IDisposable {
     /// <summary>Initializes a new instance of the <see cref="TranspilerScratch" /> class.</summary>
     public TranspilerScratch() {
         definition = new DynamicMethodDefinition("ConcordTranspilerScratch", typeof(void), Type.EmptyTypes);
+        ExactScopes.Seed(definition.Definition.Module);
         generator = definition.GetILGenerator();
     }
 
@@ -23,6 +24,7 @@ public sealed class TranspilerScratch : IDisposable {
     /// <summary>The type of every local declared on <see cref="Generator" />, by slot, null where the type does not resolve.</summary>
     public IReadOnlyList<Type?> DeclaredLocalTypes {
         get {
+            ExactScopes.Bind(definition.Definition.Module);
             List<Type?> types = [];
             foreach (Mono.Cecil.Cil.VariableDefinition variable in definition.Definition.Body.Variables) {
                 types.Add(ResolveOrNull(variable));

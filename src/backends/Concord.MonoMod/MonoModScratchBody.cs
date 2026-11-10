@@ -48,6 +48,7 @@ internal sealed class MonoModScratchBody : IScratchBody {
         this.origin = origin;
         method = definition.Definition;
         module = method.Module;
+        ExactScopes.Seed(module);
         body = method.Body;
         il = body.GetILProcessor();
     }
@@ -156,6 +157,7 @@ internal sealed class MonoModScratchBody : IScratchBody {
     public MethodInfo Finish() {
         ResolveBranches();
         AttachClauses();
+        ExactScopes.Bind(definition.Definition.Module);
 
         return sawCalli || sharedTryRange
             ? DMDGenerator<DMDCecilGenerator>.Generate(definition, null)

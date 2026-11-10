@@ -120,7 +120,7 @@ if [ -n "$PREPATCHER" ]; then
   PASS_COUNT=$(grep -ac "\[Concord.RimWorld\] Concord v" "$LOG")
   [ "$PASS_COUNT" = 2 ] || fail "expected concord to log once per pass (saw $PASS_COUNT, want 2)"
   SECOND_PASS_LINE=$(grep -an "\[Concord.RimWorld\] Concord v" "$LOG" | sed -n 2p | cut -d: -f1)
-  tail -n "+$SECOND_PASS_LINE" "$LOG" | grep -aq "\[Concord.MonoMod\] backend:" \
+  tail -n "+$SECOND_PASS_LINE" "$LOG" | grep -a "\[Concord.MonoMod\] backend:" >/dev/null \
     || fail "no backend line after the second pass's Concord v line"
 fi
 

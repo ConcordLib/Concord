@@ -96,9 +96,9 @@ public sealed class EmittedBodyTests {
         EncodedBody encoded = BodyEncoder.Encode(body, new NoMemberTokens(), new FixedMaxStack(2));
 
         Assert.NotEmpty(encoded.LocalSignature);
-        Assert.False(encoded.ExceptionSection.IsEmpty);
+        Assert.NotEmpty(encoded.ExceptionSection);
         HostBody raw = new HostBody(
-            encoded.Il.ToArray(),
+            encoded.Il,
             encoded.LocalSignature,
             0,
             encoded.MaxStack,
@@ -129,6 +129,33 @@ public sealed class EmittedBodyTests {
         Assert.Equal(guarded.TryEnd, clause.TryEnd);
         Assert.Equal(guarded.HandlerStart, clause.HandlerStart);
         Assert.Equal(guarded.HandlerEnd, clause.HandlerEnd);
+    }
+
+    [Fact]
+    public void AnEncodedBodyWithAFinallyRegionHandsBackItsIlAndExceptionSectionByteForByte() {
+        Label exit = new Label(1);
+        CodeInstruction[] stream = [
+            Step(OpCodes.Nop),
+            Step(OpCodes.Leave, exit),
+            Step(OpCodes.Nop),
+            Step(OpCodes.Endfinally),
+            Step(OpCodes.Ret, null, exit),
+        ];
+        ComposedBody body = new ComposedBody(
+            Wrap(stream),
+            [],
+            [new ComposedClause(ClauseKind.Finally, 0, 2, 2, 4, null, -1)],
+            false);
+
+        EncodedBody encoded = BodyEncoder.Encode(body, new NoMemberTokens(), new FixedMaxStack(1));
+
+        byte[] bytes = encoded.Bytes;
+        int codeSize = BitConverter.ToInt32(bytes, 4);
+        int section = (12 + codeSize + 3) & ~3;
+        Assert.Equal(encoded.CodeSize, codeSize);
+        Assert.Equal(bytes.Skip(12).Take(codeSize).ToArray(), encoded.Il);
+        Assert.Equal(bytes.Skip(section).ToArray(), encoded.ExceptionSection);
+        Assert.NotEmpty(encoded.ExceptionSection);
     }
 
     private static CodeInstruction Step(OpCode opcode, object? operand = null, params Label[] labels) {

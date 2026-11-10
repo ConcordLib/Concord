@@ -54,7 +54,7 @@ public static class MonoModEntryPoint {
         }
     }
 
-    /// <summary>Forgets the installed selection. For tests, never for a running game.</summary>
+    /// <summary>Forgets the installed selection and disarms every Harmony copy the bridge hooked. For tests, never for a running game.</summary>
     public static void ResetForTests() {
         lock (Gate) {
             if (watcher is not null) {
@@ -64,6 +64,7 @@ public static class MonoModEntryPoint {
 
             UpdateWrapperHook.StopWatchingForCopies();
             UpdateWrapperHook.DetachObserver();
+            UpdateWrapperHook.ResetForTests();
             Current = null;
         }
     }

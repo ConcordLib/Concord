@@ -116,6 +116,12 @@ internal static class UpdateWrapperHook {
         MethodCopierHook.ResetForTests();
     }
 
+    internal static int HookedCountForTests() {
+        lock (Copies) {
+            return Copies.Count;
+        }
+    }
+
     internal static void DetachObserver() {
         observer = null;
         hookBackend = null;
@@ -257,6 +263,10 @@ internal static class UpdateWrapperHook {
         using (LockOf(copy, log)) {
             return ArmCopy(copy, rawBackend, log);
         }
+    }
+
+    internal static bool SharedStateReadableForTests(Assembly copy, Action<string> log) {
+        return ResolveGetPatchInfo(copy) is { } getPatchInfo && TryInitialiseSharedState(copy, getPatchInfo, log);
     }
 
     private static bool ArmCopy(Assembly copy, MonoModBackend rawBackend, Action<string> log) {

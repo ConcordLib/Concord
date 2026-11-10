@@ -5,14 +5,13 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit" Version="2.9.3"/>
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
     <PackageReference Include="xunit.runner.console" Version="2.9.3" PrivateAssets="all"/>
   </ItemGroup>
 
   <!-- The same net35 builds elin keeps loose in BepInEx/core, copied into bin so the suite runs
        against the identities the backend was compiled for. -->
   <ItemGroup>
-    <PackageDownload Include="HarmonyX" Version="[2.10.0]"/>
+    <PackageDownload Include="HarmonyX" Version="[2.10.0];[2.10.2]"/>
     <PackageDownload Include="MonoMod.RuntimeDetour" Version="[22.5.1.1]"/>
     <PackageDownload Include="MonoMod.Utils" Version="[22.5.1.1]"/>
     <PackageDownload Include="Mono.Cecil" Version="[0.10.4]"/>

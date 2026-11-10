@@ -85,7 +85,7 @@ scenario_run() {
   gamecrate run concord \
     --instance "$instance" \
     --image "$image" \
-    --mode headless \
+    --mode "${GAMECRATE_MODE:-headless}" \
     --no-build \
     --plain \
     --marker "$marker" \

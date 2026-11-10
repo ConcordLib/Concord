@@ -90,7 +90,7 @@ public sealed class HarmonyReleaseMatrixTests
         }
     }
 
-    private static string ReleasePath(string package)
+    internal static string ReleasePath(string package)
     {
         string lib = Path.Combine(PackageRoot(), "lib.harmony", package, "lib");
         foreach (string framework in Frameworks)
