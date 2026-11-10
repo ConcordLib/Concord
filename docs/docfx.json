@@ -4,9 +4,10 @@
     {
       "src": [
         {
-          "src": "src",
+          "src": "../src",
           "files": [
-            "**/*.csproj"
+            "core/**/*.csproj",
+            "backends/**/*.csproj"
           ]
         }
       ],
@@ -22,8 +23,6 @@
           "exclude": [
             ".site/**",
             "BenchmarkDotNet.Artifacts/**",
-            "src/**",
-            ".core/**",
             "templates/**",
             "apidoc/**",
             "CONTEXT.md",

@@ -5,13 +5,15 @@ on:
     branches:
       - main
       - 'v[0-9]+.[0-9]+'
+    paths:
+      - 'docs/**'
+      - 'src/core/**'
+      - 'src/backends/**'
+      - '.github/workflows/docs.yml'
   workflow_dispatch:
     inputs:
       version:
         description: 'Version to deploy (unstable, or vX.Y). Leave empty to derive from branch.'
-        required: false
-      core_ref:
-        description: 'Core ref to build API docs from (branch/tag/SHA). Leave empty to auto-select.'
         required: false
 
 concurrency:
@@ -20,10 +22,6 @@ concurrency:
 
 permissions:
   contents: read
-
-env:
-  CORE_REPO: ConcordLib/Core
-  CORE_DEFAULT_REF: main
 
 jobs:
   lint-prose:
@@ -36,13 +34,15 @@ jobs:
         uses: errata-ai/vale-action@85f9f7f2c5f449ac0ae5b66662961bae3f77ca6a # reviewdog
         with:
           version: 3.15.1
-          files: docs
+          files: docs/docs
+          vale_flags: --config=docs/.vale.ini
           fail_on_error: true
           reporter: github-check
 
   # TODO(worker has no tests): drop the coverage exclusion and report real coverage
   sonar:
     name: SonarCloud
+    if: vars.DOCS_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout docs
@@ -55,18 +55,22 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
+          projectBaseDir: docs
           args: >
             -Dsonar.projectKey=ConcordLib_Docs
             -Dsonar.organization=concordlib
             -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.sources=worker,styles,templates
-            -Dsonar.exclusions=**/node_modules/**,api/**,apidoc/**,.site/**,src/**,.core/**
+            -Dsonar.exclusions=**/node_modules/**,api/**,apidoc/**,.site/**
             -Dsonar.coverage.exclusions=**
             -Dsonar.qualitygate.wait=true
 
   build-and-deploy:
     needs: lint-prose
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
     steps:
       - name: Checkout docs
         uses: actions/checkout@v4
@@ -125,48 +129,6 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Deploying as: $VERSION"
 
-      - name: Determine Core ref
-        id: core
-        env:
-          INPUT_CORE_REF: ${{ github.event.inputs.core_ref }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          if [ -n "$INPUT_CORE_REF" ]; then
-            REF="$INPUT_CORE_REF"
-          elif [ "$VERSION" = "unstable" ]; then
-            REF="${CORE_DEFAULT_REF}"
-          else
-            REF="$VERSION"
-          fi
-          echo "ref=$REF" >> "$GITHUB_OUTPUT"
-          echo "Requested Core ref: $REF"
-
-      - name: Checkout Core source
-        id: core_checkout
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.CORE_REPO }}
-          ref: ${{ steps.core.outputs.ref }}
-          token: ${{ secrets.CORE_CHECKOUT_TOKEN }}
-          path: .core
-          fetch-depth: 0
-
-      - name: Stage Core source for docfx metadata
-        env:
-          CORE_REF: ${{ steps.core.outputs.ref }}
-        run: |
-          if [ ! -d .core/src ]; then
-            echo "::error::.core/src not found after checking out $CORE_REPO. API metadata would be empty and the deploy would delete the published API reference."
-            exit 1
-          fi
-
-          rm -rf src
-          cp -a .core/src src
-          for f in Directory.Build.props Directory.Build.targets Directory.Packages.props StyleCop.props stylecop.json global.json .editorconfig; do
-            [ -f ".core/$f" ] && cp -a ".core/$f" "$f"
-          done
-          echo "Staged Core src/ from ref: $CORE_REF"
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -178,19 +140,22 @@ jobs:
       - name: Resolve API metadata cache key
         id: metadata_cache_key
         env:
-          DOCFX_CONFIG_HASH: ${{ hashFiles('docfx.json') }}
+          SOURCE_HASH: ${{ hashFiles('src/core/**', 'src/backends/**', 'docs/docfx.json') }}
         run: |
-          CORE_SHA=$(git -C .core rev-parse HEAD)
           DOCFX_VERSION=$(docfx --version)
-          echo "key=docfx-api-${RUNNER_OS}-${CORE_SHA}-${DOCFX_VERSION}-${DOCFX_CONFIG_HASH}" >> "$GITHUB_OUTPUT"
+          echo "key=docfx-api-${RUNNER_OS}-${SOURCE_HASH}-${DOCFX_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Restore API metadata cache
         id: api_metadata_cache
         uses: actions/cache/restore@v4
         continue-on-error: true
         with:
-          path: api
+          path: docs/api
           key: ${{ steps.metadata_cache_key.outputs.key }}
+
+      - name: Build the merged runtime
+        if: steps.api_metadata_cache.outputs.cache-hit != 'true'
+        run: dotnet build ../src/core/Concord/Concord.csproj -c Release
 
       - name: Build API metadata
         id: api_metadata
@@ -202,7 +167,7 @@ jobs:
         uses: actions/cache/save@v4
         continue-on-error: true
         with:
-          path: api
+          path: docs/api
           key: ${{ steps.metadata_cache_key.outputs.key }}
 
       - name: Build docs
@@ -223,13 +188,14 @@ jobs:
           echo "Highest version branch: ${LATEST:-<none>}"
 
       - name: Install rclone
+        if: vars.DOCS_DEPLOY_ENABLED == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes rclone
 
       - name: Install Worker dependencies
-        if: steps.worker_changes.outputs.changed == 'true'
-        working-directory: worker
+        if: vars.DOCS_DEPLOY_ENABLED == 'true' && steps.worker_changes.outputs.changed == 'true'
+        working-directory: docs/worker
         run: npm ci --ignore-scripts
 
       - name: Refuse to publish a broken build
@@ -264,6 +230,7 @@ jobs:
           echo "Build passes the floor: $API_PAGES API pages, $DOC_PAGES doc pages."
 
       - name: Upload docs to R2
+        if: vars.DOCS_DEPLOY_ENABLED == 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
           LATEST: ${{ steps.latest.outputs.latest }}
@@ -292,6 +259,7 @@ jobs:
           fi
 
       - name: Update version manifest
+        if: vars.DOCS_DEPLOY_ENABLED == 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
           LATEST: ${{ steps.latest.outputs.latest }}
@@ -309,8 +277,8 @@ jobs:
             --s3-no-check-bucket
 
       - name: Deploy Worker
-        if: steps.worker_changes.outputs.changed == 'true'
-        working-directory: worker
+        if: vars.DOCS_DEPLOY_ENABLED == 'true' && steps.worker_changes.outputs.changed == 'true'
+        working-directory: docs/worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -10,7 +10,7 @@ Use the same version for every Concord package in a project. The examples on thi
 | --- | --- | --- |
 | A mod for a runtime that already loads Concord | `Concord.Ref` | `Concord.Analyzers` and `Concord.Generators` |
 | A runtime adapter or host | `Concord.Runtime` | `Concord.Harmony`, when the game ships Harmony |
-| Concord itself | The projects in the Core repository | Analyzer and generator projects as needed |
+| Concord itself | The projects in the Concord repository | Analyzer and generator projects as needed |
 
 Mods compile against `Concord.Ref`. The target runtime loads the implementation from `Concord.dll`, so a mod should not reference or ship `Concord.Runtime`.
 
@@ -161,7 +161,7 @@ Function-pointer locals are rare in game and mod code, so most patches never rea
 
 ## Core contributors
 
-The Core repository builds the runtime from four internal projects:
+The Concord repository builds the runtime from four internal projects:
 
 | Project | Responsibility |
 | --- | --- |

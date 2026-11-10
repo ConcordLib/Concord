@@ -1,18 +1,18 @@
 # Contributing
 
-Concord has two repositories. [Core](https://github.com/ConcordLib/Core) contains the runtime, packages, analyzers, generators, and tests. [Docs](https://github.com/ConcordLib/Docs) contains this site and its theme.
+Concord lives in one repository, [ConcordLib/Concord](https://github.com/ConcordLib/Concord). It contains the runtime, packages, analyzers, generators, and tests. This site and its theme live under `docs/`.
 
-Use the Core repository for code changes. Use the Docs repository for guides, API notes, and site work. A change to public behavior often needs updates in both.
+Change code under `src/` and `tests/`. Change guides, API notes, and the site under `docs/`. A change to public behavior often needs updates in both.
 
 ## Core development
 
-### Set up the Core repository
+### Set up the repository
 
-Core requires the .NET 10 SDK. Its `global.json` accepts the latest installed .NET 10 feature band.
+The build requires the .NET 10 SDK. The `global.json` file accepts the latest installed .NET 10 feature band.
 
 ```bash
-git clone https://github.com/ConcordLib/Core.git
-cd Core
+git clone https://github.com/ConcordLib/Concord.git
+cd Concord
 dotnet restore Concord.ci.slnx
 dotnet build Concord.ci.slnx -c Release --no-restore
 dotnet test Concord.ci.slnx -c Release --no-restore -f net10.0
@@ -97,9 +97,10 @@ Benchmarks live under `bench/Concord.Benchmarks`. Run them when you change code 
 
 ### Documentation changes
 
-The Docs repository builds with DocFX:
+The site builds with DocFX from the `docs/` directory:
 
 ```bash
+cd docs
 docfx build docfx.json
 ```
 
@@ -108,7 +109,7 @@ DocFX writes the generated site to `.site/`. It may print existing link warnings
 Theme changes need the Tailwind build first:
 
 ```bash
-cd templates/concord
+cd docs/templates/concord
 npm ci
 npm run build:css
 ```
@@ -125,7 +126,7 @@ for vocabulary and structure. On top of that it applies the mechanical rules of 
 - Give one instruction per sentence.
 - Use no em dashes or en dashes.
 
-Vale checks all of this. Run it before you open a pull request:
+Vale checks all of this. Run it from the `docs/` directory before you open a pull request:
 
 ```bash
 vale sync
@@ -134,18 +135,18 @@ vale docs/*.md
 
 The first command downloads the Google package. You only need it once.
 
-`.vale.ini` turns off four rules that misfire on this content, such as the one that reads
+`docs/.vale.ini` turns off four rules that misfire on this content, such as the one that reads
 `Concord.Ref` as two sentences. Each entry says why. Turn off a rule only when you can show it
 produces a false positive.
 
-Put domain terms in `styles/config/vocabularies/Concord/accept.txt`. ASD-STE100 allows technical
+Put domain terms in `docs/styles/config/vocabularies/Concord/accept.txt`. ASD-STE100 allows technical
 names outside its approved word list, and that file records the ones this site uses.
 
 The `lint-prose` job gates the deploy, so prose that fails Vale does not reach the site.
 
 ## Pull requests
 
-Open Core pull requests against `main` and use the [Core pull request template](https://github.com/ConcordLib/Core/blob/main/.github/PULL_REQUEST_TEMPLATE.md). Explain why the change is needed, list the tests you ran, and name any public API breaks.
+Open pull requests against `main` and use the [pull request template](https://github.com/ConcordLib/Concord/blob/main/.github/PULL_REQUEST_TEMPLATE.md). Explain why the change is needed, list the tests you ran, and name any public API breaks.
 
 Before opening the pull request:
 
