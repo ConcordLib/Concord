@@ -7,6 +7,11 @@ on:
         description: Which shippable to release — core, rimworld, bepinex or elin.
         required: true
         type: string
+      elin-image:
+        description: Full ref of the Elin game image, read by the bepinex and elin releases.
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -338,6 +343,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+      packages: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -353,19 +359,42 @@ jobs:
         with:
           node-version: 22
 
-      - name: Fetch Elin refs
+      - name: Require an Elin image
         env:
-          ELIN_REFS_URL: ${{ secrets.ELIN_REFS_URL }}
+          ELIN_IMAGE: ${{ inputs.elin-image }}
         run: |
-          set -euo pipefail
-          if [ -z "$ELIN_REFS_URL" ]; then
-            echo "::error::ELIN_REFS_URL is unset. Set it to a tarball whose root holds Elin_Data/Managed/*.dll and BepInEx/core/*.dll." >&2
+          if [ -z "$ELIN_IMAGE" ]; then
+            echo "::error::the elin-image input is empty. The caller must pass the Elin game image ref." >&2
             exit 1
           fi
+
+      - name: Fetch Elin refs
+        env:
+          ELIN_IMAGE: ${{ inputs.elin-image }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          crane_dir="$RUNNER_TEMP/crane"
+          mkdir -p "$crane_dir"
+          curl -fsSL -o "$crane_dir/crane.tar.gz" https://github.com/google/go-containerregistry/releases/download/v0.22.1/go-containerregistry_Linux_x86_64.tar.gz
+          echo "0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0  $crane_dir/crane.tar.gz" | sha256sum -c -
+          tar -xzf "$crane_dir/crane.tar.gz" -C "$crane_dir" crane
+          echo "$GITHUB_TOKEN" | "$crane_dir/crane" auth login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           dir="$RUNNER_TEMP/elin-refs"
           mkdir -p "$dir"
-          curl -fsSL "$ELIN_REFS_URL" | tar -xz -C "$dir"
-          echo "ELIN_DIR=$dir" >> "$GITHUB_ENV"
+          "$crane_dir/crane" export "$ELIN_IMAGE" - | tar -x -C "$dir"
+          for sub in Elin_Data/Managed BepInEx/core; do
+            if [ ! -d "$dir/game/$sub" ]; then
+              echo "::error::$ELIN_IMAGE has no game/$sub folder." >&2
+              exit 1
+            fi
+            count=$(find "$dir/game/$sub" -maxdepth 1 -name '*.dll' | wc -l)
+            if [ "$count" -eq 0 ]; then
+              echo "::error::$ELIN_IMAGE holds no dlls in game/$sub." >&2
+              exit 1
+            fi
+          done
+          echo "ELIN_DIR=$dir/game" >> "$GITHUB_ENV"
 
       - name: Install mono
         run: sudo apt-get update && sudo apt-get install -y mono-devel
@@ -397,6 +426,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+      packages: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -412,26 +442,49 @@ jobs:
         with:
           node-version: 22
 
-      - name: Fetch Elin refs
+      - name: Require an Elin image
         env:
-          ELIN_REFS_URL: ${{ secrets.ELIN_REFS_URL }}
+          ELIN_IMAGE: ${{ inputs.elin-image }}
         run: |
-          set -euo pipefail
-          if [ -z "$ELIN_REFS_URL" ]; then
-            echo "::error::ELIN_REFS_URL is unset. Set it to a tarball whose root holds Elin_Data/Managed/*.dll, BepInEx/core/*.dll, and Package/_ModdingKit/package.xml." >&2
+          if [ -z "$ELIN_IMAGE" ]; then
+            echo "::error::the elin-image input is empty. The caller must pass the Elin game image ref." >&2
             exit 1
           fi
+
+      - name: Fetch Elin refs
+        env:
+          ELIN_IMAGE: ${{ inputs.elin-image }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          crane_dir="$RUNNER_TEMP/crane"
+          mkdir -p "$crane_dir"
+          curl -fsSL -o "$crane_dir/crane.tar.gz" https://github.com/google/go-containerregistry/releases/download/v0.22.1/go-containerregistry_Linux_x86_64.tar.gz
+          echo "0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0  $crane_dir/crane.tar.gz" | sha256sum -c -
+          tar -xzf "$crane_dir/crane.tar.gz" -C "$crane_dir" crane
+          echo "$GITHUB_TOKEN" | "$crane_dir/crane" auth login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           dir="$RUNNER_TEMP/elin-refs"
           mkdir -p "$dir"
-          curl -fsSL "$ELIN_REFS_URL" | tar -xz -C "$dir"
-          echo "ELIN_DIR=$dir" >> "$GITHUB_ENV"
+          "$crane_dir/crane" export "$ELIN_IMAGE" - | tar -x -C "$dir"
+          for sub in Elin_Data/Managed BepInEx/core; do
+            if [ ! -d "$dir/game/$sub" ]; then
+              echo "::error::$ELIN_IMAGE has no game/$sub folder." >&2
+              exit 1
+            fi
+            count=$(find "$dir/game/$sub" -maxdepth 1 -name '*.dll' | wc -l)
+            if [ "$count" -eq 0 ]; then
+              echo "::error::$ELIN_IMAGE holds no dlls in game/$sub." >&2
+              exit 1
+            fi
+          done
+          echo "ELIN_DIR=$dir/game" >> "$GITHUB_ENV"
 
       - name: Stamp the game version
         run: |
           set -euo pipefail
           kit_file="$ELIN_DIR/Package/_ModdingKit/package.xml"
           if [ ! -f "$kit_file" ]; then
-            echo "::error::$kit_file is missing. ELIN_REFS_URL must also hold Package/_ModdingKit/package.xml." >&2
+            echo "::error::$kit_file is missing. The Elin game image must also hold game/Package/_ModdingKit/package.xml." >&2
             exit 1
           fi
           game_version=$(grep -oP '<version>\K[^<]+' "$kit_file")

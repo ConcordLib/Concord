@@ -53,7 +53,7 @@ jobs:
           echo "$files"
 
           core=false
-          if grep -Eq '^(src/core/|src/backends/|build/|tests/|Concord\.slnx$|Concord\.ci\.slnx$|Directory\.Build\.props$|StyleCop\.props$|global\.json$|scripts/|release\.config\.mjs$|package\.json$)' <<<"$files"; then
+          if grep -Eq '^(src/core/|src/backends/|build/|tests/|Concord\.slnx$|Concord\.ci\.slnx$|Directory\.Build\.props$|StyleCop\.props$|global\.json$|scripts/|\.github/workflows/|release\.config\.mjs$|package\.json$)' <<<"$files"; then
             core=true
           fi
 
@@ -93,6 +93,26 @@ jobs:
         1.5=version-1.5
         1.6=public
         1.7=unstable
+    secrets:
+      STEAM_USERNAME: ${{ vars.STEAM_USERNAME }}
+      STEAM_CONFIG_VDF_B64: ${{ secrets.STEAM_CONFIG_VDF_B64 }}
+      DEPOTDOWNLOADER_ACCOUNT_B64: ${{ secrets.DEPOTDOWNLOADER_ACCOUNT_B64 }}
+
+  elin-image:
+    name: Elin game image
+    needs: changes
+    if: needs.changes.outputs.bepinex == 'true' || needs.changes.outputs.elin == 'true'
+    uses: RimWorks/mod-ci/.github/workflows/game-image.yml@v6
+    permissions:
+      contents: read
+      packages: write
+    with:
+      artifact-prefix: core-elin-image-ref
+      game: elin
+      variant: windows-ref
+      image: ghcr.io/concordlib/elin-game
+      branches: |
+        elin=public
     secrets:
       STEAM_USERNAME: ${{ vars.STEAM_USERNAME }}
       STEAM_CONFIG_VDF_B64: ${{ secrets.STEAM_CONFIG_VDF_B64 }}
@@ -386,7 +406,7 @@ jobs:
 
   host-bepinex:
     name: Host · bepinex
-    needs: [changes, test, mono]
+    needs: [changes, elin-image, test, mono]
     if: needs.changes.outputs.bepinex == 'true'
     uses: ./.github/workflows/hosts.yml
     permissions:
@@ -394,11 +414,12 @@ jobs:
       packages: read
     with:
       host: bepinex
+      elin-image: ${{ fromJSON(needs.elin-image.outputs.image-refs)['elin'] }}
     secrets: inherit
 
   host-elin:
     name: Host · elin
-    needs: [changes, test, mono]
+    needs: [changes, elin-image, test, mono]
     if: needs.changes.outputs.elin == 'true'
     uses: ./.github/workflows/hosts.yml
     permissions:
@@ -406,6 +427,7 @@ jobs:
       packages: read
     with:
       host: elin
+      elin-image: ${{ fromJSON(needs.elin-image.outputs.image-refs)['elin'] }}
     secrets: inherit
 
   release-core:
@@ -440,7 +462,7 @@ jobs:
 
   release-bepinex:
     name: Release · bepinex
-    needs: [changes, images, refs, fork-facts, sonar, test, mono, package-contract, host-bepinex]
+    needs: [changes, images, refs, fork-facts, sonar, test, mono, package-contract, elin-image, host-bepinex]
     if: github.event_name == 'push' && vars.RELEASES_ENABLED == 'true' && needs.changes.outputs.bepinex == 'true'
     uses: ./.github/workflows/release.yml
     permissions:
@@ -451,11 +473,12 @@ jobs:
       packages: read
     with:
       shippable: bepinex
+      elin-image: ${{ fromJSON(needs.elin-image.outputs.image-refs)['elin'] }}
     secrets: inherit
 
   release-elin:
     name: Release · elin
-    needs: [changes, images, refs, fork-facts, sonar, test, mono, package-contract, host-elin]
+    needs: [changes, images, refs, fork-facts, sonar, test, mono, package-contract, elin-image, host-elin]
     if: github.event_name == 'push' && vars.RELEASES_ENABLED == 'true' && needs.changes.outputs.elin == 'true'
     uses: ./.github/workflows/release.yml
     permissions:
@@ -466,4 +489,5 @@ jobs:
       packages: read
     with:
       shippable: elin
+      elin-image: ${{ fromJSON(needs.elin-image.outputs.image-refs)['elin'] }}
     secrets: inherit
