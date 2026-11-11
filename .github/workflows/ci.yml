@@ -102,7 +102,7 @@ jobs:
     name: Elin game image
     needs: changes
     if: needs.changes.outputs.bepinex == 'true' || needs.changes.outputs.elin == 'true'
-    uses: RimWorks/mod-ci/.github/workflows/game-image.yml@v6
+    uses: RimWorks/mod-ci/.github/workflows/game-image.yml@v5
     permissions:
       contents: read
       packages: write
