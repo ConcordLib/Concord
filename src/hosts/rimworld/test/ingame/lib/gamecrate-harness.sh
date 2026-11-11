@@ -4,7 +4,7 @@ set -euo pipefail
 
 CONCORD_INGAME_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONCORD_REPO_ROOT="$(cd "$CONCORD_INGAME_DIR/../.." && pwd)"
-CONCORD_SUPPORTED_VERSIONS=(1.1 1.2 1.3 1.4 1.5 1.6 1.7)
+CONCORD_SUPPORTED_VERSIONS=(1.3 1.4 1.5 1.6 1.7)
 CONCORD_DLC_FIRST_VERSION=(royalty:1.1 ideology:1.3 biotech:1.4 anomaly:1.5 odyssey:1.6)
 CONCORD_SCENARIO_LOG=""
 CONCORD_DLC_DROPS=()
@@ -21,8 +21,6 @@ concord_dlc_drops() {
 
 concord_steam_branch() {
   case "$1" in
-    1.1) echo "version-1.1" ;;
-    1.2) echo "version-1.2" ;;
     1.3) echo "version-1.3-latest" ;;
     1.4) echo "version-1.4.3901" ;;
     1.5) echo "version-1.5" ;;

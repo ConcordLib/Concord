@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/gamecrate-harness.sh"
 
 VERSION="${1:-1.7}"
-case "$VERSION" in -h|--help) echo "usage: $0 [1.1|1.2|1.3|1.4|1.5|1.6|1.7]"; exit 2 ;; esac
+case "$VERSION" in -h|--help) echo "usage: $0 [1.3|1.4|1.5|1.6|1.7]"; exit 2 ;; esac
 concord_check_version "$VERSION"
 
 COSMERE_ROOT="${COSMERE_ROOT:-/home/aaron/projects/RimworldCosmere/RimworldCosmere}"

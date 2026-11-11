@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/gamecrate-harness.sh"
 
 usage() {
-  echo "usage: $0 [1.1|1.2|1.3|1.4|1.5|1.6|1.7] [--contested|--uncontested|--harmony-absent|--late-harmony|--second-harmony|--second-harmony-inner] [--prepatcher]"
+  echo "usage: $0 [1.3|1.4|1.5|1.6|1.7] [--contested|--uncontested|--harmony-absent|--late-harmony|--second-harmony|--second-harmony-inner] [--prepatcher]"
   exit 2
 }
 
@@ -27,14 +27,6 @@ case "$MODE" in
 esac
 
 [ -n "$PREPATCHER" ] && [ "$NEEDS_HARMONY" = 0 ] && usage
-
-if [ "$NEEDS_HARMONY" = 1 ] && [ "$VERSION" = "1.1" ]; then
-  echo "UNRUNNABLE(1.1): $MODE needs Harmony loaded, and there is no Harmony to load on 1.1."
-  echo "  The workshop Harmony (2009463077) declares 1.2 through 1.7 and its LoadFolders.xml has no"
-  echo "  v1.1 entry, so on 1.1 it contributes no assembly at all. This scenario would pass with"
-  echo "  nothing to coexist with, which proves nothing. Only --harmony-absent runs on 1.1."
-  exit 2
-fi
 
 if [ -n "$PREPATCHER" ]; then
   case "$VERSION" in

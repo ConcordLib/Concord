@@ -92,7 +92,7 @@ baseline in `--contested` has already been proven):
 ## Running it
 
 ```bash
-./test/ingame/run-injection-surface-test.sh 1.6     # any of 1.1 .. 1.7, 1.6 is the default
+./test/ingame/run-injection-surface-test.sh 1.6     # any of 1.3 .. 1.7, 1.6 is the default
 ```
 
 The run builds Concord for that version, builds the probe mod against the same version's
@@ -104,7 +104,7 @@ The game log stays where gamecrate put it:
 `~/.local/share/gamecrate/rimworld/concord/instances/surf-<version>/logs/runs/<timestamp>/Player.log`.
 Read it with `rwlog`, never `cat`.
 
-Local game images cover 1.1, 1.2, 1.3 and 1.7 today. A missing one fails before launch, naming
+Local game images cover 1.3 and 1.7 today. A missing one fails before launch, naming
 the exact command to build it: `gamecrate steam build --game rimworld --variant linux --beta <branch>`.
 
 The other two runners (`run-attached-field-test.sh`, `run-cosmere-regression.sh`) still drive

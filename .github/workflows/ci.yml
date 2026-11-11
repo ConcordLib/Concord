@@ -86,8 +86,6 @@ jobs:
       artifact-prefix: core-image-ref
       image: ghcr.io/concordlib/rimworld-game
       branches: |
-        1.1=version-1.1
-        1.2=version-1.2
         1.3=version-1.3-latest
         1.4=version-1.4.3901
         1.5=version-1.5
