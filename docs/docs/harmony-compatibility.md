@@ -100,4 +100,4 @@ Seeing `hook-installed` and no `promote-` or `late-contention` lines means every
 
 [Troubleshooting](troubleshooting.md) lists the `CONCxxx` codes that Concord reports when a patch fails.
 
-[Packages](packages.md#concordharmony) covers the `Concord.Harmony` package, which an adapter for another game references to get the same bridge.
+[Packages](packages.md#backends) covers the backend packages. An adapter for another game gets the same bridge from `Concord.MonoMod`.

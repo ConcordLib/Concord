@@ -1,6 +1,6 @@
 # Packages
 
-Concord publishes five NuGet packages. The package you need depends on what you are building.
+Concord publishes seven NuGet packages. The package you need depends on what you are building.
 
 Use the same version for every Concord package in a project. The examples on this page use `0.14.0`.
 
@@ -9,7 +9,7 @@ Use the same version for every Concord package in a project. The examples on thi
 | Project | Required | Optional |
 | --- | --- | --- |
 | A mod for a runtime that already loads Concord | `Concord.Ref` | `Concord.Analyzers` and `Concord.Generators` |
-| A runtime adapter or host | `Concord.Runtime` | `Concord.Harmony`, when the game ships Harmony |
+| A runtime adapter or host | `Concord.Runtime` | A backend: `Concord.MonoMod`, `Concord.HarmonyX` or `Concord.Waylith` |
 | Concord itself | The projects in the Concord repository | Analyzer and generator projects as needed |
 
 Mods compile against `Concord.Ref`. The target runtime loads the implementation from `Concord.dll`, so a mod should not reference or ship `Concord.Runtime`.
@@ -120,24 +120,15 @@ The package provides `net10.0` and `net472` assemblies. It has no NuGet dependen
 
 The package ID is `Concord.Runtime` because the plain `Concord` ID on NuGet belongs to an unrelated package.
 
-### Concord.Harmony
+### Backends
 
-`Concord.Harmony` lets Concord patches share a method with Harmony patches. Add it to an adapter for
-a game that ships Harmony. A mod does not reference it.
+A backend package changes how Concord writes a patched method body on one kind of host. An adapter references the backend that matches its host. A mod does not reference a backend.
 
-```xml
-<ItemGroup>
-  <PackageReference Include="Concord.Harmony" Version="0.14.0" />
-</ItemGroup>
-```
-
-The package holds one small assembly for `net10.0`, `netstandard2.0`, and `net472`. Concord does not
-merge it into `Concord.dll`, because it needs a `0Harmony` reference and the Concord Assembly keeps
-third-party types out of its public metadata.
-
-The package declares no NuGet dependencies. The host supplies both at run time: the target runtime
-loads `Concord.dll`, and the game loads `0Harmony`. Your adapter loads this assembly only after it
-finds a supported Harmony version. Concord's tests cover the Harmony 2.4 line.
+| Package | Target | Use it when |
+| --- | --- | --- |
+| `Concord.MonoMod` | `net472` | The host runs .NET Framework or Mono. It emits each body through MonoMod's `DynamicMethodDefinition`, and it includes the Harmony bridge. |
+| `Concord.HarmonyX` | `net472` | The host loads HarmonyX, such as BepInEx. It joins MonoMod's hook chain with one `ILHook` per target. |
+| `Concord.Waylith` | `net10.0` | The host runs the WaylithCLR fork of CoreCLR. It stages each body through the runtime's method body transformer pipeline. |
 
 [Harmony compatibility](harmony-compatibility.md) describes what the bridge does once it loads.
 

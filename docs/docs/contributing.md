@@ -18,7 +18,7 @@ dotnet build Concord.ci.slnx -c Release --no-restore
 dotnet test Concord.ci.slnx -c Release --no-restore -f net10.0
 ```
 
-The build treats warnings as errors. Run the affected test project while you work, then run the CI solution before you open a pull request.
+The build treats warnings as errors. Run the affected test project while you work, then run the CI solution before you push.
 
 CI tests the runtime libraries on .NET Framework 4.7.2. Windows runs those tests through .NET Framework, while Linux uses Mono. Changes to Emit, Detour, AttachedData, or Orchestration must keep that target working.
 
@@ -130,7 +130,7 @@ for vocabulary and structure. On top of that it applies the mechanical rules of 
 - Give one instruction per sentence.
 - Use no em dashes or en dashes.
 
-Vale checks all of this. Run it from the `docs/` directory before you open a pull request:
+Vale checks all of this. Run it from the `docs/` directory before you push:
 
 ```bash
 vale sync
@@ -148,11 +148,11 @@ names outside its approved word list, and that file records the ones this site u
 
 The `lint-prose` job gates the deploy, so prose that fails Vale does not reach the site.
 
-## Pull requests
+## Issues
 
-Open pull requests against `main` and use the [pull request template](https://github.com/ConcordLib/Concord/blob/main/.github/PULL_REQUEST_TEMPLATE.md). Explain why the change is needed, list the tests you ran, and name any public API breaks.
+The repository does not take pull requests. To report a bug or ask for a feature, open an issue with the [bug report](https://github.com/ConcordLib/Concord/issues/new?template=bug_report.md) or [feature request](https://github.com/ConcordLib/Concord/issues/new?template=feature_request.md) template.
 
-Before opening the pull request:
+## Before you push
 
 - Build without warnings.
 - Run the affected tests and the full CI solution.
