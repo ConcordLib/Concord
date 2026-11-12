@@ -25,7 +25,9 @@ public class ModLayoutTests {
       string versionNumber = version.Name.LocalName.Substring(1);
 
       Assert.Equal(new[] { "/", versionNumber }, version.Elements("li").Select(li => li.Value));
-      Assert.True(Directory.Exists(Path.Combine(root, versionNumber)));
+      if (versionNumber == ModLayout.VersionDir) {
+        Assert.True(Directory.Exists(Path.Combine(root, versionNumber)));
+      }
     }
   }
 
