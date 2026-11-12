@@ -431,7 +431,7 @@ jobs:
   release-core:
     name: Release · core
     needs: [changes, images, refs, fork-facts, sonar, test, mono, package-contract]
-    if: github.event_name == 'push' && vars.RELEASES_ENABLED == 'true' && needs.changes.outputs.core == 'true'
+    if: vars.RELEASES_ENABLED == 'true' && needs.changes.outputs.core == 'true'
     uses: ./.github/workflows/release.yml
     permissions:
       contents: write
@@ -446,7 +446,7 @@ jobs:
   release-rimworld:
     name: Release · rimworld
     needs: [changes, images, refs, fork-facts, sonar, test, mono, package-contract, host-rimworld]
-    if: github.event_name == 'push' && vars.RELEASES_ENABLED == 'true' && needs.changes.outputs.rimworld == 'true'
+    if: vars.RELEASES_ENABLED == 'true' && needs.changes.outputs.rimworld == 'true'
     uses: ./.github/workflows/release.yml
     permissions:
       contents: write
@@ -461,7 +461,7 @@ jobs:
   release-bepinex:
     name: Release · bepinex
     needs: [changes, images, refs, fork-facts, sonar, test, mono, package-contract, elin-image, host-bepinex]
-    if: github.event_name == 'push' && vars.RELEASES_ENABLED == 'true' && needs.changes.outputs.bepinex == 'true'
+    if: vars.RELEASES_ENABLED == 'true' && needs.changes.outputs.bepinex == 'true'
     uses: ./.github/workflows/release.yml
     permissions:
       contents: write
@@ -477,7 +477,7 @@ jobs:
   release-elin:
     name: Release · elin
     needs: [changes, images, refs, fork-facts, sonar, test, mono, package-contract, elin-image, host-elin]
-    if: github.event_name == 'push' && vars.RELEASES_ENABLED == 'true' && needs.changes.outputs.elin == 'true'
+    if: vars.RELEASES_ENABLED == 'true' && needs.changes.outputs.elin == 'true'
     uses: ./.github/workflows/release.yml
     permissions:
       contents: write
