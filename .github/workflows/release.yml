@@ -157,7 +157,7 @@ jobs:
         if: steps.tag.outputs.released != ''
         continue-on-error: true
         env:
-          WEBHOOK: ${{ secrets.NEO_MODS_DISCORD_WEBHOOK_URL }}
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
