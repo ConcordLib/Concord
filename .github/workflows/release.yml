@@ -20,7 +20,7 @@ jobs:
   core:
     name: Release · core
     if: inputs.shippable == 'core' && vars.RELEASES_ENABLED == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       RUNTIME_DISPATCH_REPOS: ${{ secrets.RUNTIME_DISPATCH_REPOS }}
     permissions:
@@ -210,7 +210,7 @@ jobs:
   rimworld:
     name: Release · rimworld
     if: inputs.shippable == 'rimworld' && vars.RELEASES_ENABLED == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: src/hosts/rimworld
@@ -335,7 +335,7 @@ jobs:
   bepinex:
     name: Release · bepinex
     if: inputs.shippable == 'bepinex' && vars.RELEASES_ENABLED == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: src/hosts/bepinex
@@ -418,7 +418,7 @@ jobs:
   elin:
     name: Release · elin
     if: inputs.shippable == 'elin' && vars.RELEASES_ENABLED == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: src/hosts/elin
