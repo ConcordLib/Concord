@@ -11,3 +11,6 @@ games:
     profiles:
       v17:
         gameVersion: "1.7"
+defaults:
+  settings:
+    cpus: 4
