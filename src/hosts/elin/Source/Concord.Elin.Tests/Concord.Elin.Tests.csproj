@@ -36,6 +36,15 @@
     <Reference Include="Newtonsoft.Json">
       <HintPath>$(ElinManaged)/Newtonsoft.Json.dll</HintPath>
     </Reference>
+    <Reference Include="BepInEx.Core">
+      <HintPath>$(BepInExCore)/BepInEx.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="BepInEx.Unity">
+      <HintPath>$(BepInExCore)/BepInEx.Unity.dll</HintPath>
+    </Reference>
+    <Reference Include="SemanticVersioning">
+      <HintPath>$(BepInExCore)/SemanticVersioning.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

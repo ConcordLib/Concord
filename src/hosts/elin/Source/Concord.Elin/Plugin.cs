@@ -6,7 +6,7 @@ using BepInEx.Logging;
 
 namespace Concord.Elin;
 
-[BepInPlugin("concordlib.concord.elin", "Concord for Elin", "0.0.0")]
+[BepInPlugin("concordlib.concord.elin", "Concord for Elin", BuildVersion.Value)]
 public sealed class Plugin : BaseUnityPlugin {
     private static ManualLogSource log;
 
