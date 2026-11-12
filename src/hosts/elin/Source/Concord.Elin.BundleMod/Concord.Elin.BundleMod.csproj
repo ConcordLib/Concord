@@ -20,6 +20,10 @@
     <None Include="package.xml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../../../../core/Concord/Concord.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
   <Target Name="BundleRuntime" AfterTargets="Build">
     <Copy SourceFiles="$(ConcordCoreDir)/Assemblies/net472/Concord.dll" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
   </Target>

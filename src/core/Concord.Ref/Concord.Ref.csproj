@@ -8,6 +8,7 @@
   <PropertyGroup>
     <!-- Mirrors Concord.Runtime's net10.0;net472 so the nupkg carries a ref/net472 asset
          for the net472 mod hosts (Concord.BepInEx, Concord.Elin) that reference this package. -->
+    <TargetFramework></TargetFramework>
     <TargetFrameworks>net10.0;net472</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
