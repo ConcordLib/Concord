@@ -275,7 +275,7 @@ jobs:
           dotnet build Concord.ci.slnx -c Release --no-incremental -p:ForkRuntimeDir="$FORK_REFS"
           dotnet test Concord.ci.slnx -c Release --no-build -f net10.0 \
             -p:ForkRuntimeDir="$FORK_REFS" \
-            --collect:"XPlat Code Coverage;Format=opencover" \
+            --collect:"XPlat Code Coverage;Format=opencover;Exclude=[Concord]*" \
             --results-directory coverage
           dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
 
