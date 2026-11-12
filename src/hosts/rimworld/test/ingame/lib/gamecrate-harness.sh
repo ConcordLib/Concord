@@ -76,7 +76,7 @@ scenario_run() {
   local instance="$scenario-$version"
   local plan logs_dir before newest status=0
   cd "$CONCORD_REPO_ROOT"
-  plan=$(gamecrate run concord --print-plan --json --instance "$instance" --image "$image" --no-build "${only[@]}" "${CONCORD_DLC_DROPS[@]}")
+  plan=$(gamecrate run concord --print-plan --json --instance "$instance" --image "$image" --no-build --use "concordlib.concord=$CONCORD_REPO_ROOT" "${only[@]}" "${CONCORD_DLC_DROPS[@]}")
   logs_dir=$(jq -r .logsDirHost <<<"$plan")
   before=$(find "$logs_dir/runs" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | tail -1)
 

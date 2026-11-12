@@ -4,6 +4,8 @@ games:
   rimworld:
     image:
       ref: ghcr.io/concordlib/rimworld-game:placeholder
+      updates:
+        check: false
     gameFiles:
       source: image
     profiles:
