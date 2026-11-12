@@ -68,6 +68,9 @@ jobs:
   build-and-deploy:
     needs: lint-prose
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     defaults:
       run:
         working-directory: docs
@@ -157,9 +160,32 @@ jobs:
         if: steps.api_metadata_cache.outputs.cache-hit != 'true'
         run: dotnet build ../src/core/Concord/Concord.csproj -c Release
 
+      - name: Setup Node
+        if: steps.api_metadata_cache.outputs.cache-hit != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Extract fork refs
+        id: fork_refs
+        if: steps.api_metadata_cache.outputs.cache-hit != 'true'
+        env:
+          XDG_CONFIG_HOME: ${{ github.workspace }}/.github
+          GAME_IMAGE: ghcr.io/concordlib/rimworld-game:1.7
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          npm install -g @gamecrate/cli @gamecrate/rimworld
+          echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker pull "$GAME_IMAGE"
+          dir=$(gamecrate refs v17 --game rimworld --image "$GAME_IMAGE")
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+
       - name: Build API metadata
         id: api_metadata
         if: steps.api_metadata_cache.outputs.cache-hit != 'true'
+        env:
+          FORK_RUNTIME_DIR: ${{ steps.fork_refs.outputs.dir }}
         run: docfx metadata docfx.json
 
       - name: Save API metadata cache
