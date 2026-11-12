@@ -109,6 +109,9 @@ for dll in tests/*/bin/"$CONFIG"/net472/*.Tests.dll src/hosts/*/Source/*/bin/"$C
     skipped=$((skipped + s))
 
     printf '%-6s %-62s %s%s\n' "$([[ "$((f + e))" -eq 0 ]] && echo ok || echo FAIL)" "$dll" "$line" "$version_suffix"
+    if [[ "$((f + e))" -ne 0 ]]; then
+        printf '%s\n' "$output" | sed -n '/\[FAIL\]/,/Stack Trace:/p'
+    fi
 done
 
 if [[ "$ran" -eq 0 ]]; then
