@@ -22,6 +22,8 @@ public static class WeatherUtility {
     public static bool IsValid(WeatherKind kind) => Enum.IsDefined(typeof(WeatherKind), kind);
 
     public static int WrongShape(int unrelated) => unrelated;
+
+    public static WeatherKind[] AllIn(int season) => season == 0 ? [WeatherKind.Clear] : [WeatherKind.Rain];
 }
 
 public abstract class ConsumerWeather : ExtendedEnum<WeatherKind> {
@@ -66,6 +68,31 @@ public sealed class ConsumerTests {
             () => EnumConsumers.For(typeof(WeatherKind)).Values(typeof(WeatherUtility), nameof(WeatherUtility.WrongShape)));
 
         Assert.Contains("CONC137", ex.ToString(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Values", nameof(WeatherUtility.AllIn), "take no parameters")]
+    [InlineData("Parse", nameof(WeatherUtility.WrongShape), "be 'WeatherKind (string)'")]
+    [InlineData("Display", nameof(WeatherUtility.WrongShape), "be 'string (WeatherKind)'")]
+    [InlineData("IsDefined", nameof(WeatherUtility.WrongShape), "be 'bool (WeatherKind)'")]
+    [InlineData("Values", "Missing", "declares no method named 'Missing'")]
+    public void AConsumerOfTheWrongShapeIsRefusedBeforeAnythingIsPatched(string shape, string method, string reason) {
+        ApplyMembers();
+        RecordingDetourBackend recorder = new RecordingDetourBackend();
+        PatchBackend.Current = recorder;
+        ConsumerBuilder builder = EnumConsumers.For(typeof(WeatherKind));
+        Action register = shape switch {
+            "Values" => () => builder.Values(typeof(WeatherUtility), method),
+            "Parse" => () => builder.Parse(typeof(WeatherUtility), method),
+            "Display" => () => builder.Display(typeof(WeatherUtility), method),
+            _ => () => builder.IsDefined(typeof(WeatherUtility), method),
+        };
+
+        ConcordEnumException ex = Assert.Throws<ConcordEnumException>(register);
+
+        Assert.Contains("CONC137", ex.ToString(), StringComparison.Ordinal);
+        Assert.Contains(reason, ex.Message, StringComparison.Ordinal);
+        Assert.Empty(recorder.ComposedDetours);
     }
 
     private static MethodBase Utility(string name) {

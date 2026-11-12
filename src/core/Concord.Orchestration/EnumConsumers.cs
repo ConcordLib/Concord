@@ -186,10 +186,10 @@ internal static class EnumConsumerInjections {
         ch.ReturnValue = combined;
     }
 
-    public static void ParseHead<TEnum>(ControlHandle<TEnum> ch, string name)
+    public static void ParseHead<TEnum>(ControlHandle<TEnum> ch, string __0)
         where TEnum : struct, Enum {
         foreach ((long value, string memberName) in ExtendedEnumRegistry.MembersOf(typeof(TEnum))) {
-            if (!string.Equals(memberName, name, StringComparison.Ordinal)) {
+            if (!string.Equals(memberName, __0, StringComparison.Ordinal)) {
                 continue;
             }
 
@@ -199,9 +199,9 @@ internal static class EnumConsumerInjections {
         }
     }
 
-    public static void DisplayHead<TEnum>(ControlHandle<string> ch, TEnum kind)
+    public static void DisplayHead<TEnum>(ControlHandle<string> ch, TEnum __0)
         where TEnum : struct, Enum {
-        long raw = Convert.ToInt64(kind, CultureInfo.InvariantCulture);
+        long raw = Convert.ToInt64(__0, CultureInfo.InvariantCulture);
 
         foreach ((long value, string memberName) in ExtendedEnumRegistry.MembersOf(typeof(TEnum))) {
             if (value != raw) {
@@ -214,9 +214,9 @@ internal static class EnumConsumerInjections {
         }
     }
 
-    public static void IsDefinedHead<TEnum>(ControlHandle<bool> ch, TEnum kind)
+    public static void IsDefinedHead<TEnum>(ControlHandle<bool> ch, TEnum __0)
         where TEnum : struct, Enum {
-        long raw = Convert.ToInt64(kind, CultureInfo.InvariantCulture);
+        long raw = Convert.ToInt64(__0, CultureInfo.InvariantCulture);
 
         foreach ((long value, string _) in ExtendedEnumRegistry.MembersOf(typeof(TEnum))) {
             if (value != raw) {
