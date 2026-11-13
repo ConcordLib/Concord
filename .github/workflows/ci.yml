@@ -195,6 +195,14 @@ jobs:
           set -o pipefail
           tests/Concord.Waylith.ForkTests/run-fork-tests.sh -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs" -- --report-trx --report-trx-filename fork-facts.trx --results-directory "$RUNNER_TEMP" 2>&1 | tee "$RUNNER_TEMP/fork-facts.log"
 
+      - name: Run fork facts on a host that checks il access
+        if: ${{ !cancelled() }}
+        env:
+          FORK_RUNTIME_DIR: ${{ runner.temp }}/fork-refs
+        run: |
+          set -o pipefail
+          tests/Concord.Waylith.ForkTests/run-fork-tests.sh -p:ForkRuntimeDir="$RUNNER_TEMP/fork-refs" -p:ForkCheckedHost=true -- --report-trx --report-trx-filename fork-facts-checked.trx --results-directory "$RUNNER_TEMP" 2>&1 | tee "$RUNNER_TEMP/fork-facts-checked.log"
+
       - name: Upload fork facts log
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -203,6 +211,8 @@ jobs:
           path: |
             ${{ runner.temp }}/fork-facts.log
             ${{ runner.temp }}/fork-facts.trx
+            ${{ runner.temp }}/fork-facts-checked.log
+            ${{ runner.temp }}/fork-facts-checked.trx
 
   sonar:
     name: SonarCloud
@@ -255,6 +265,12 @@ jobs:
           FORK_REFS: ${{ runner.temp }}/fork-refs
           FORK_FACTS_COVERAGE: ${{ github.workspace }}/coverage/fork/coverage.opencover.xml
         run: tests/Concord.Waylith.ForkTests/run-fork-tests.sh -p:ForkRuntimeDir="$FORK_REFS"
+
+      - name: Run fork facts with coverage on a host that checks il access
+        env:
+          FORK_REFS: ${{ runner.temp }}/fork-refs
+          FORK_FACTS_COVERAGE: ${{ github.workspace }}/coverage/fork-checked/coverage.opencover.xml
+        run: tests/Concord.Waylith.ForkTests/run-fork-tests.sh -p:ForkRuntimeDir="$FORK_REFS" -p:ForkCheckedHost=true
 
       - name: Analyse
         env:

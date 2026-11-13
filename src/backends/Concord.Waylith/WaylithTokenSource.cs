@@ -49,7 +49,7 @@ public sealed class WaylithTokenSource : ITokenSource {
     /// <param name="field">The field to name in the body.</param>
     /// <returns>The metadata token for <paramref name="field" /> in the target module.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="field" /> is <c>null</c>.</exception>
-    /// <exception cref="TokenAccessException">The field or its declaring type is out of reach from the target module, so the IL would throw <c>FieldAccessException</c> when it ran.</exception>
+    /// <exception cref="TokenAccessException">The field or its declaring type is out of reach from the target module and <see cref="RuntimeCapability.IgnoresAccessChecks" /> is <c>false</c>.</exception>
     /// <exception cref="PlatformNotSupportedException">The default minter is in use and this runtime is not the fork.</exception>
     public int TokenFor(FieldInfo field) {
         ArgumentNullException.ThrowIfNull(field);

@@ -18,6 +18,16 @@
     <NoWarn>$(NoWarn);xUnit3003</NoWarn>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(ForkCheckedHost)' == 'true'">
+    <OutputPath>bin/checked/$(Configuration)/</OutputPath>
+    <IntermediateOutputPath>obj/checked/$(Configuration)/</IntermediateOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(ForkCheckedHost)' != 'true'">
+    <Compile Remove="CheckedHost/**"/>
+    <Compile Include="CheckedHost/CompiledAccessControl.cs"/>
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="System.Reflection.Metadata"/>
     <Using Include="System.Reflection.Metadata.Ecma335"/>
@@ -34,6 +44,9 @@
     <RuntimeHostConfigurationOption Include="WaylithClr.FieldInjection" Value="true" Trim="false"/>
     <RuntimeHostConfigurationOption Include="WaylithClr.FieldInjectionGCDescReserve" Value="4" Trim="false"/>
     <RuntimeHostConfigurationOption Include="WaylithClr.JitPatchableAssemblies" Value="$(AssemblyName)" Trim="false"/>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(ForkCheckedHost)' != 'true'">
     <RuntimeHostConfigurationOption Include="WaylithClr.SkipAccessChecks" Value="true" Trim="false"/>
   </ItemGroup>
 

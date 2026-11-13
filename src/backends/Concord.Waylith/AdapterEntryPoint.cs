@@ -212,6 +212,7 @@ public static class AdapterEntryPoint {
                 "target's original body would return whatever body Concord last staged over it.");
         }
 
+        write(RuntimeCapability.SettleAccessChecks(RuntimeCapability.HasPipeline ? AccessCheckProbe.Run : null));
         WaylithClrBackend.Log = write;
         PatchBackend.Current = backend is null ? StagedBackend() : backend();
         return chosen;

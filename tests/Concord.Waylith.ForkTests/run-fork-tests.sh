@@ -5,6 +5,8 @@ usage() {
     echo "usage: run-fork-tests.sh [-p:Name=Value ...] [-- exe-arg ...]" >&2
     echo "  args before -- go to dotnet build; args after -- go to the test exe" >&2
     echo "  (e.g. -- --report-trx --report-trx-filename fork-facts.trx)" >&2
+    echo "  -p:ForkCheckedHost=true builds a host that checks il access, into bin/checked" >&2
+    echo "  (run it with -- --filter-class '*.CheckedHostAccessTests' --filter-class '*.EnumStageTests')" >&2
     echo "  FORK_FACTS_COVERAGE=<file> runs the exe under coverlet and writes an opencover report there" >&2
 }
 
@@ -15,8 +17,6 @@ esac
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project="$script_dir/Concord.Waylith.ForkTests.csproj"
 configuration="${CONFIGURATION:-Release}"
-tfm="net10.0"
-rid="linux-x64"
 
 build_args=()
 exe_args=()
@@ -43,7 +43,8 @@ if [ "$build_status" -ne 0 ]; then
     exit "$build_status"
 fi
 
-exe="$script_dir/bin/$configuration/$tfm/$rid/Concord.Waylith.ForkTests"
+target_dir="$(dotnet msbuild "$project" -nologo -getProperty:TargetDir -p:Configuration="$configuration" "${build_args[@]}")"
+exe="${target_dir%/}/Concord.Waylith.ForkTests"
 if [ ! -x "$exe" ]; then
     echo "run-fork-tests: build succeeded but no exe at $exe" >&2
     exit 1

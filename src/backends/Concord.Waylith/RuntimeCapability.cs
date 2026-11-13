@@ -59,7 +59,10 @@ public static class RuntimeCapability {
     /// <summary>The assembly-qualified name of the transformer pipeline a staged body is published through.</summary>
     public const string TransformerTypeName = "WaylithClr.MethodBodyTransformer, System.Private.CoreLib";
 
-    /// <summary>The runtime config key that turns IL access checks off. RimWorld 1.7 ships it enabled.</summary>
+    /// <summary>
+    ///     The runtime config key that says IL access checks are off. RimWorld 1.7 ships it enabled. A host that
+    ///     leaves it out may still run a staged body that reaches a hidden member, so the probe decides there.
+    /// </summary>
     public const string AccessCheckKey = "WaylithClr.SkipAccessChecks";
 
     /// <summary>The environment variable form of <see cref="AccessCheckKey" />.</summary>
@@ -78,6 +81,10 @@ public static class RuntimeCapability {
         Environment.GetEnvironmentVariable(AccessCheckSwitch));
 
     private static readonly bool MintsOnce = ProbeMethodSpecs();
+
+    private static volatile bool probedClean;
+
+    private static string? accessCheckLine;
 
     /// <summary>The one-shot verdict for this process.</summary>
     public static BodyReplacement Support => Once.Support;
@@ -101,10 +108,10 @@ public static class RuntimeCapability {
     public static bool HasPipeline => Stages(Support);
 
     /// <summary>
-    ///     <see langword="true" /> when this runtime has IL access checks switched off, so a body replaced in
-    ///     place may name a private or internal member of another assembly and the call still runs.
+    ///     <see langword="true" /> when a staged body may name a private or internal member of another assembly and
+    ///     still run: the switch says skip, or the install probe staged such a body and it ran clean.
     /// </summary>
-    public static bool IgnoresAccessChecks => SkipsOnce;
+    public static bool IgnoresAccessChecks => SkipsOnce || probedClean;
 
     /// <summary>
     ///     <see langword="true" /> when a generic method operand can be named in a replaced body. Where it is
@@ -146,6 +153,34 @@ public static class RuntimeCapability {
         }
 
         return environment == "1" || string.Equals(environment, "true", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Joins the switch and the probe. The pure form behind <see cref="IgnoresAccessChecks" />, so a caller can
+    ///     pass a stand-in switch answer and a stand-in probe.
+    /// </summary>
+    /// <param name="switchSkips">What <see cref="SkipsAccessChecks" /> answered. When it says skip, the probe is not run.</param>
+    /// <param name="probe">Stages a body and runs it, returning what failed or <see langword="null" /> when it ran clean. <see langword="null" /> when no probe can run here.</param>
+    /// <returns>Whether checks are off, and a log-ready phrase naming where that answer came from.</returns>
+    public static (bool Ignores, string Source) JudgeAccessChecks(bool switchSkips, Func<Exception?>? probe) {
+        if (switchSkips) {
+            return (true, $"the {AccessCheckKey} or {AccessCheckSwitch} switch, so the probe did not run");
+        }
+
+        if (probe is null) {
+            return (false, "no probe, since this runtime has no transformer pipeline to stage one through");
+        }
+
+        Exception? failure;
+        try {
+            failure = probe();
+        } catch (Exception thrown) when (thrown is not OutOfMemoryException) {
+            failure = thrown;
+        }
+
+        return failure is null
+            ? (true, "the probe, which staged a body naming hidden members of another assembly and ran it clean")
+            : (false, $"the probe, which threw {failure.GetType().Name}: {failure.Message.TrimEnd('.')}");
     }
 
     /// <summary>Explains this process's verdict, including the probe failure detail when there is one.</summary>
@@ -281,6 +316,18 @@ public static class RuntimeCapability {
         } catch (Exception thrown) when (thrown is not OutOfMemoryException) {
             return false;
         }
+    }
+
+    internal static string SettleAccessChecks(Func<Exception?>? probe) {
+        if (accessCheckLine is string settled) {
+            return settled;
+        }
+
+        (bool ignores, string source) = JudgeAccessChecks(SkipsOnce, probe);
+        probedClean = ignores;
+        accessCheckLine = Selection.Prefix + "access checks on a staged body: " + (ignores ? "off" : "on") +
+            ", from " + source + ".";
+        return accessCheckLine;
     }
 
     private static string Mints(bool mintsMethodSpecs) {

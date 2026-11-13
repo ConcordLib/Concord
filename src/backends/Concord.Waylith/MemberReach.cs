@@ -5,8 +5,8 @@ using System.Runtime.CompilerServices;
 namespace Concord.Waylith;
 
 /// <summary>
-///     Asks whether IL living in one module is allowed to touch a member, before a token for it is minted. The CLR
-///     only checks accessibility when the replaced body first runs, which is far too late to report usefully.
+///     Asks whether IL living in one module could touch a member under the compiler's access rules, before a token
+///     for it is minted. It is the gate wherever <see cref="RuntimeCapability.IgnoresAccessChecks" /> is false.
 /// </summary>
 public static class MemberReach {
     private const int MaxNesting = 32;
