@@ -25,6 +25,8 @@ public sealed class StagePublisher : ITargetBodyOwner {
 
     private Func<RuntimeMethodHandle, Exception?> rebuild = static _ => NotWired();
 
+    private Action<MethodBase> afterRebuild = static _ => { };
+
     /// <summary>Initializes a new instance.</summary>
     /// <param name="handleOf">Resolves a target to the definition handle the pipeline keys a stage by.</param>
     /// <param name="log">Where the one line about a refused or failed target goes.</param>
@@ -56,6 +58,14 @@ public sealed class StagePublisher : ITargetBodyOwner {
     public void UseRebuild(Func<RuntimeMethodHandle, Exception?> pipelineRebuild) {
         ArgumentNullException.ThrowIfNull(pipelineRebuild);
         rebuild = pipelineRebuild;
+    }
+
+    /// <summary>Sets what runs after every rebuild this publisher asks for, whether it passed or failed.</summary>
+    /// <param name="notify">Receives the target whose body the pipeline was just asked to rebuild.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="notify" /> is <c>null</c>.</exception>
+    public void UseAfterRebuild(Action<MethodBase> notify) {
+        ArgumentNullException.ThrowIfNull(notify);
+        afterRebuild = notify;
     }
 
     /// <inheritdoc />
@@ -138,6 +148,8 @@ public sealed class StagePublisher : ITargetBodyOwner {
         } catch (Exception thrown) when (thrown is not OutOfMemoryException) {
             failure = thrown;
         }
+
+        afterRebuild(target);
 
         if (failure is null) {
             if (Staged(handle) is { Failure: not null } healed) {

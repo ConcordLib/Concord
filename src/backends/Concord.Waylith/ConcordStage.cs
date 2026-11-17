@@ -27,6 +27,8 @@ internal sealed class ConcordStage : MethodBodyTransformer {
             static message => WaylithClrBackend.Log(message));
         ConcordStage stage = new ConcordStage(owner);
         owner.UseRebuild(stage.Rebuild);
+        owner.UseAfterRebuild(
+            static target => HostRegenerate.Run(target, static message => WaylithClrBackend.Log(message)));
         AdapterEntryPoint.DefinitionHandle = ForkApi.DefinitionHandle;
         stage.Register();
         return owner;

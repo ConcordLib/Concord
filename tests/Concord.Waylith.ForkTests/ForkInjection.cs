@@ -19,6 +19,8 @@ public static class ForkInjection {
         ? null
         : Injection?.GetMethod("RegisterStaleMethodHandler", AnyStatic, [DelegateType]);
 
+    private static readonly PropertyInfo? Regenerate = Injection?.GetProperty("HarmonyRegenerate", AnyStatic);
+
     private static readonly Type? ContinuationType = ForkFieldInjection.BatchType is null
         ? null
         : typeof(Action<>).MakeGenericType(ForkFieldInjection.BatchType);
@@ -39,6 +41,17 @@ public static class ForkInjection {
 
     public static bool Unavailable =>
         Injection is null || !IsSupported || Register is null || QueueEntry is null || ApplyAtBoundary is null;
+
+    public static bool HookMissing => Regenerate is null || DelegateType is null;
+
+    public static Delegate? RegenerateHook {
+        get => Regenerate?.GetValue(null) as Delegate;
+        set => Regenerate?.SetValue(null, value);
+    }
+
+    public static void UseRegenerateHook(Func<MethodBase, bool> hook) {
+        RegenerateHook = Delegate.CreateDelegate(DelegateType!, hook.Target, hook.Method);
+    }
 
     public static void RegisterStaleMethodHandler(Func<MethodBase, bool> handler) {
         ForkFieldInjection.Unwrapped(() => {
