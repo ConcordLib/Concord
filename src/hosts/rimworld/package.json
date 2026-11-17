@@ -12,7 +12,7 @@
     "release": "semantic-release"
   },
   "devDependencies": {
-    "@rimworks/mod-ci": "github:RimWorks/mod-ci#792acaa8df9fe5823e66d34fbd85ff5a9365d7fa",
+    "@rimworks/mod-ci": "github:RimWorks/mod-ci#0006abda4511624559643cd48d4e7211486c03c9",
     "@semantic-release/commit-analyzer": "^13.0.0",
     "@semantic-release/exec": "^7.1.0",
     "@semantic-release/github": "^12.0.10",
