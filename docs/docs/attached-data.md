@@ -66,7 +66,7 @@ abstract class ActorExtensions : GameActor
 }
 ```
 
-Each `GameActor` gets its own value. The [Common Tasks](common-tasks.md#use-attached-data-from-a-patch) page has another patch example.
+Each `GameActor` gets its own value. The [Common Tasks](common-tasks.md#add-per-instance-state-to-a-target) page has another patch example.
 
 ## Storage behavior
 
@@ -98,7 +98,7 @@ Each `Get`, `Set`, or `TryGet` performs a table lookup. Store the result in a lo
 | Store new state from code that is not a patch | `AttachedField<TTarget, TValue>` |
 | Read or write a real field already declared on the target type | `[InjectField]` |
 
-If the project references `Concord.Generators`, `[Shadow("fieldName")]` can generate the typed `[InjectField]` declaration on a partial patch class, as shown in [Generate private member declarations](common-tasks.md#generate-private-member-declarations).
+`[Shadow("fieldName")]` can generate the typed `[InjectField]` declaration on a partial patch class, as shown in [Generate private member declarations](common-tasks.md#generate-private-member-declarations).
 
 ### Attached fields on patch declarations
 

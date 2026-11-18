@@ -41,12 +41,30 @@
     <PackageId>Concord.Ref</PackageId>
     <Description>Compile-time reference assembly for Concord. Reference this to author mods; the target runtime supplies the Concord Assembly.</Description>
     <BuildOutputTargetFolder>ref</BuildOutputTargetFolder>
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-    <!-- A ref-only package intentionally ships no dependency group and a doc file alongside
-         the assembly; the SDK flags both as NU5128/NU5131, which are false positives here.
-         Downgrade them to (non-fatal) warnings rather than suppress, so they stay visible. -->
-    <WarningsNotAsErrors>NU5128;NU5131</WarningsNotAsErrors>
+    <!-- A ref-only package ships a doc file alongside the assembly; the SDK flags it as
+         NU5131, a false positive here. Downgrade it to a (non-fatal) warning rather than
+         suppress, so it stays visible. -->
+    <WarningsNotAsErrors>NU5131</WarningsNotAsErrors>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Concord.Generators\Concord.Generators.csproj" Private="false" PrivateAssets="none"/>
+    <None Include="build\Concord.Ref.props" Pack="true" PackagePath="build;buildTransitive"/>
+  </ItemGroup>
+
+  <Target Name="KeepGeneratorsOutOfCompile" AfterTargets="ResolveProjectReferences">
+    <ItemGroup>
+      <_ResolvedProjectReferencePaths Remove="@(_ResolvedProjectReferencePaths)" Condition="'%(Filename)' == 'Concord.Generators'"/>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PinGeneratorsVersion" AfterTargets="_GetProjectReferenceVersions">
+    <ItemGroup>
+      <_ExactProjectReferenceVersions Include="@(_ProjectReferencesWithVersions)" ProjectVersion="[%(_ProjectReferencesWithVersions.ProjectVersion)]"/>
+      <_ProjectReferencesWithVersions Remove="@(_ProjectReferencesWithVersions)"/>
+      <_ProjectReferencesWithVersions Include="@(_ExactProjectReferenceVersions)"/>
+    </ItemGroup>
+  </Target>
 
   <!-- Ship the README as the package's NuGet readme (rendered on the package page). -->
   <PropertyGroup>

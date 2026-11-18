@@ -2,8 +2,8 @@
 
 **Compile-time reference assembly for [Concord](https://concordlib.dev).**
 
-`Concord.Ref` is a metadata-only package: it exposes Concord's public API so a mod
-can be *authored and compiled* against it, but it ships **no runtime implementation**.
+`Concord.Ref` is a metadata-only package. It exposes Concord's public API so a mod
+can be *authored and compiled* against it. It ships **no runtime implementation**.
 The target runtime supplies the Concord Assembly (`Concord.dll`) at runtime.
 
 ## When to use this
@@ -16,19 +16,33 @@ compilation, without taking a hard runtime dependency on the patching engine.
 Don't reference `Concord.Ref` if you are the **runtime adapter** integrating Concord into a target runtime;
 use the Concord Assembly directly.
 
-## How it works
+## What the package contains
 
-The package contains only a `ref/net10.0/Concord.dll` reference assembly. Every method
-body is a metadata stub (`throw null`), and the assembly is stamped with
-`ReferenceAssemblyAttribute`, so the runtime refuses to load it. NuGet resolves the
-`ref/` folder for compilation and contributes nothing at runtime, so the mod never
-ships a duplicate `Concord.dll`; the loaded Concord Assembly satisfies binding.
+| Part | What it does |
+| --- | --- |
+| `ref/net10.0/Concord.dll`, `ref/net472/Concord.dll` | The reference assemblies the mod compiles against |
+| A dependency on `Concord.Generators` of the same version | Writes the patch manifest and the `[Shadow]` members into the mod |
+| `build/Concord.Ref.props` | Keeps the Concord attributes in the mod's assembly for a .NET Framework target |
 
-Because the reference assembly carries the same assembly identity (`Concord`) as the
-Concord Assembly, a mod compiled against the ref binds to the target runtime's `Concord.dll`
-with no redirection.
+Every method body in the reference assembly is a metadata stub (`throw null`). The
+assembly has `ReferenceAssemblyAttribute`, so the runtime refuses to load it.
+NuGet resolves the `ref/` folder for compilation and contributes nothing at runtime. The
+mod never ships a duplicate `Concord.dll`, and the loaded Concord Assembly satisfies binding.
 
-## Add To A Project
+The reference assembly has the same assembly identity (`Concord`) as the Concord Assembly.
+A mod compiled against it binds to the target runtime's `Concord.dll` with no redirection.
+
+## The patch manifest
+
+The generator writes a class named `Concord.Generated.PatchManifest` into the mod. The
+compiler leaves the Concord attributes out of the mod's assembly, and the manifest describes
+them instead. A host that checks attribute types before mod code runs can then load the
+assembly. `Patcher.Apply` reads the attributes from the manifest. The mod's source needs
+nothing for the manifest, and the mod needs no extra package reference, project property, or build step.
+
+A .NET Framework target keeps the attributes in its assembly and gets the manifest too.
+
+## Add to a project
 
 ```xml
 <ItemGroup>
@@ -42,7 +56,7 @@ with no redirection.
 
 ## Notes
 
-- Targets `net10.0`, matching the Concord runtime.
+- Targets `net10.0` and `net472`.
 - The reference assembly's public surface is clean of MonoMod types; mods compile against
   Concord's API only.
 - Pair with `Concord.Analyzers` for IDE/build feedback while authoring patches.

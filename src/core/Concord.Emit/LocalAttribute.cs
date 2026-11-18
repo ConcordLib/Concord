@@ -13,6 +13,7 @@ namespace Concord;
 ///         slot may also have carried a different variable outside the selected one's scope.
 ///     </para>
 /// </remarks>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Parameter)]
 public sealed class LocalAttribute : Attribute {
     /// <summary>

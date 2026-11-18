@@ -16,6 +16,10 @@ _Avoid_: Patch when the declaration itself is meant; registration class
 The orchestration component that scans assemblies and types for patch declarations, then forwards discovered injections and attached properties to runtime-adapter appliers and registries.
 _Avoid_: Runtime adapter, patch scanner
 
+**Patch Manifest**:
+The generated `Concord.Generated.PatchManifest` class in a mod's assembly that describes the mod's Concord attributes. For a modern .NET mod, the compiler leaves those attributes out of the assembly's metadata. `Patcher.Apply` reads patch declarations from it before it reads metadata.
+_Avoid_: Patch registry when the manifest is meant
+
 **Injection**:
 A single `[Inject]` method plus its target and position.
 _Avoid_: Hook when the Concord declaration is meant

@@ -88,6 +88,9 @@ public static class Patcher {
     /// </summary>
     /// <param name="assembly">The assembly whose declarations are applied.</param>
     /// <returns>A handle that reverts every applied patch when disposed.</returns>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when the assembly's patch manifest throws, or names a member the assembly does not declare.
+    /// </exception>
     public static IPatchHandle Apply(Assembly assembly) {
         lock (Gate) {
             if (Applied.TryGetValue(assembly, out IPatchHandle? existing)) {
@@ -96,13 +99,14 @@ public static class Patcher {
 
             CollectingPatchApplier applier = new CollectingPatchApplier();
             try {
-                IReadOnlyList<Type> declarations =
-                    PatchDeclarationScanner.TryGetRegistryDeclarations(assembly, out IReadOnlyList<Type> registryDeclarations)
-                        ? registryDeclarations
-                        : assembly.GetTypes();
-
+                IReadOnlyList<Type> declarations = DeclarationsOf(assembly);
                 PatchDeclarationScanner.ScanExtendedEnums(declarations);
                 PatchDeclarationScanner.ScanDeclarations(declarations, applier, Properties);
+                if (!PatchDeclarationScanner.HasDeclaration(declarations)) {
+                    PatchLog.Write(
+                        "[Concord] Patcher.Apply found no [Patch] declaration in assembly '" + assembly.GetName().Name +
+                        "', so it applied no patches from it.");
+                }
             } catch {
                 foreach (IBackendHandle handle in applier.Handles) {
                     try {
@@ -372,6 +376,16 @@ public static class Patcher {
         lock (Gate) {
             Live.Remove(handle);
         }
+    }
+
+    private static IReadOnlyList<Type> DeclarationsOf(Assembly assembly) {
+        if (AttributeStore.TryGetDescribedTypes<PatchAttribute>(assembly, out IReadOnlyList<Type> described)) {
+            return described;
+        }
+
+        return PatchDeclarationScanner.TryGetRegistryDeclarations(assembly, out IReadOnlyList<Type> registryDeclarations)
+            ? registryDeclarations
+            : assembly.GetTypes();
     }
 
     private static InjectAt ToInjectAt(At at) {

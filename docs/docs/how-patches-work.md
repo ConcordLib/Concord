@@ -29,7 +29,7 @@ abstract class PricePatch : ShopItem
 
 When you apply the patch, Concord finds `ShopItem.GetPrice()` and copies its body into a new wrapper. It places `AfterGetPrice` before the method's last `return`, then installs a detour from `GetPrice` to the wrapper.
 
-For declarative patches, `Patcher.Apply` reads the patch registry built by `Concord.Generators`; without the generator, Concord finds the same `[Patch]` classes through reflection.
+For declarative patches, `Patcher.Apply` reads the `[Patch]` classes from the patch manifest that `Concord.Generators` writes into the mod. An assembly without a manifest gets the same classes from `[PatchRegistry]`, or from a reflection scan when it has none.
 
 The wrapper behaves like this:
 

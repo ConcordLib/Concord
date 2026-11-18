@@ -6,6 +6,13 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Concord.Emit"/>
+    <InternalsVisibleTo Include="Concord.Enums"/>
+    <InternalsVisibleTo Include="Concord.Generators.Tests"/>
+    <InternalsVisibleTo Include="Concord.Orchestration"/>
+  </ItemGroup>
+
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
     <PackageReference Include="System.Reflection.Metadata" Version="8.0.0"/>
     <PackageReference Include="System.Collections.Immutable" Version="8.0.0"/>

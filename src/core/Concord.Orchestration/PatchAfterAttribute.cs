@@ -3,6 +3,7 @@ namespace Concord;
 /// <summary>
 ///     Orders this patch declaration after patches owned by the named type or owner.
 /// </summary>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
 public sealed class PatchAfterAttribute : Attribute {
     /// <summary>

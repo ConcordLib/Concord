@@ -53,7 +53,7 @@ probably did not intend.
 | `CONCORD034` | Error | Two extended enum members in one assembly resolve to the same id. The id is the key Concord stores the value under, so each member needs its own. |
 | `CONCORD035` | Warning | A static constructor reads an extended enum member. That constructor can run before `Patcher.Apply` assigns the field, which reads back a zero. |
 
-The `[Shadow]` source generator reports its own `CONC1xx` codes at build time:
+The source generators report their own `CONC1xx` codes at build time:
 
 | Code | Severity | What it means |
 | --- | --- | --- |
@@ -62,6 +62,7 @@ The `[Shadow]` source generator reports its own `CONC1xx` codes at build time:
 | `CONC102` | Error | A class that uses `[Shadow]` is not `partial`, so the generator has nowhere to put the members. |
 | `CONC103` | Warning | The generator cannot resolve the declaration's target type at compile time, so it skips shadow generation. |
 | `CONC105` | Error | The member cannot be shadowed. The message says why. |
+| `CONC187` | Error | The generator cannot write a Concord attribute use into the patch manifest. The message says why. A `field:` target on a field-like event is one such use. |
 
 Concord also ships a diagnostic suppressor. It turns off `CS0649`, `CS0169`, and `CS0414` on an
 `[InjectField]` declaration. Those warnings say the field is never assigned or never used, which is
@@ -149,6 +150,18 @@ Name the other mod's type as a string, `[Patch("Other.Mod.Type")]`. Concord reso
 Do not inherit the other mod's type, and do not name it with `typeof`. Either one makes your declaration fail to load, which stops the whole `Patcher.Apply` call before Concord can skip anything. Concord logs a `typeof` target it could not read, so check the log for `skipped declaration` when a patch never runs.
 
 Better still, use whatever your host offers for loading an assembly only when the other mod is present. RimWorld has `LoadFolders.xml` with `IfModActive`, which keeps the compatibility assembly out of the game entirely.
+
+## No patch from an assembly applies
+
+Concord writes this line to the log when `Patcher.Apply` finds no declaration in an assembly:
+
+```text
+[Concord] Patcher.Apply found no [Patch] declaration in assembly 'MyMod', so it applied no patches from it.
+```
+
+The assembly has neither a patch manifest with a `[Patch]` class nor a `[Patch]` attribute in its metadata. Check that the mod has a `[Patch]` class and references `Concord.Ref`.
+
+The patches also fail when the host's Concord runtime is older than the mod's `Concord.Ref` package. A mod built on this package does not work with an older Concord runtime on a modern .NET host. That runtime does not read the patch manifest, and the mod's assembly has no Concord attributes in its metadata. The mod's patches do not apply there. Ask the host to update Concord. A mod that targets .NET Framework works with an older runtime, because its assembly keeps its Concord attributes and its patch registry.
 
 ## Seeing the composed wrapper
 

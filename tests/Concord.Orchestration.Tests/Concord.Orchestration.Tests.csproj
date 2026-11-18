@@ -18,6 +18,7 @@
     <ProjectReference Include="../../src/core/Concord.Backend/Concord.Backend.csproj"/>
     <ProjectReference Include="../Concord.Orchestration.Tests.RollbackAssembly/Concord.Orchestration.Tests.RollbackAssembly.csproj"/>
     <ProjectReference Include="../Concord.Orchestration.Tests.RegistryAssembly/Concord.Orchestration.Tests.RegistryAssembly.csproj"/>
+    <ProjectReference Include="../Concord.Orchestration.Tests.ManifestAssembly/Concord.Orchestration.Tests.ManifestAssembly.csproj"/>
     <!-- Referenced only so PublicSurfaceTests can read the analyzer's twin of the [Local] position
          help string out of the built assembly. Loaded by name, never compiled against. -->
     <ProjectReference Include="../../src/core/Concord.Analyzers/Concord.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Content" CopyToOutputDirectory="PreserveNewest"/>

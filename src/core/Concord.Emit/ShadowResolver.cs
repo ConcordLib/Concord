@@ -30,7 +30,7 @@ internal static class ShadowResolver {
         attached = new Dictionary<string, AttachedFieldSlot>();
 
         foreach (FieldInfo declarationField in declarationFields) {
-            if (declarationField.IsLiteral || declarationField.GetCustomAttribute<InjectFieldAttribute>() is not null) {
+            if (declarationField.IsLiteral || AttributeStore.Get<InjectFieldAttribute>(declarationField) is not null) {
                 continue;
             }
 
@@ -47,7 +47,7 @@ internal static class ShadowResolver {
                 continue;
             }
 
-            if (declarationField.GetCustomAttribute<AttachedAttribute>() is not null) {
+            if (AttributeStore.Get<AttachedAttribute>(declarationField) is not null) {
                 throw new ConcordEmitException(
                     MissingField,
                     $"Field '{declarationField.Name}' on declaration '{declarationType.Name}' is marked [Attached], but target '{targetType.Name}' already declares that field. Drop the attribute to shadow the real field.");
@@ -66,7 +66,7 @@ internal static class ShadowResolver {
     }
 
     private static AttachedFieldSlot? SlotForMissing(Type declarationType, Type targetType, FieldInfo declarationField) {
-        bool marked = declarationField.GetCustomAttribute<AttachedAttribute>() is not null;
+        bool marked = AttributeStore.Get<AttachedAttribute>(declarationField) is not null;
         if (declarationField.IsStatic) {
             if (marked) {
                 throw new ConcordEmitException(

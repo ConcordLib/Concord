@@ -4,6 +4,7 @@ namespace Concord;
 ///     Overrides the persisted id of an extended enum member. Use it after renaming a field, so the
 ///     member keeps the integer it already has in saved data.
 /// </summary>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class EnumMemberAttribute : Attribute {
     /// <summary>

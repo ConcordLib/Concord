@@ -22,13 +22,12 @@ You write patch declarations in C#. Concord handles the generated wrapper and ru
 
 When you author a mod, reference `Concord.Ref`, not the Concord Assembly (`Concord.dll`). The ref package gives the compiler and Rider/Visual Studio the Concord API surface, while the runtime adapter supplies the Concord Assembly.
 
-Add `Concord.Analyzers` for build checks and `Concord.Generators` for generated patch registries, shadow members, and IDE refactorings. Both are build-time tools, so keep them private to your project:
+`Concord.Ref` brings `Concord.Generators` with it, for the patch manifest, shadow members, and IDE refactorings. Add `Concord.Analyzers` for build checks. It is a build-time tool, so keep it private to your project:
 
 ```xml
 <ItemGroup>
   <PackageReference Include="Concord.Ref" Version="0.14.0" />
   <PackageReference Include="Concord.Analyzers" Version="0.14.0" PrivateAssets="all" />
-  <PackageReference Include="Concord.Generators" Version="0.14.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 
@@ -44,7 +43,7 @@ A **patch** is a runtime change Concord applies to a **target method**, the exis
 
 Two types control what happens to the original method. A **control handle** is an optional `ControlHandle` parameter. Its generic form exposes the target's return value, and a Head injection can also use it to cancel the target. **Control** is what a Head injection can return to choose whether the original runs: `Control.Continue` or `Control.Cancel`.
 
-A **shadow field** is a field on the patch declaration marked with `[InjectField]`. It stands in for a private field on the target type. If the project references `Concord.Generators`, `[Shadow("fieldName")]` on a partial patch class can generate that declaration and its type. The patch can then use `this.fieldName` as normal C# code.
+A **shadow field** is a field on the patch declaration marked with `[InjectField]`. It stands in for a private field on the target type. `[Shadow("fieldName")]` on a partial patch class can generate that declaration and its type. The patch can then use `this.fieldName` as normal C# code.
 
 ## A complete patch
 

@@ -1006,7 +1006,7 @@ abstract class FurnacePatch
 
 ### Generate private member declarations
 
-Projects that reference `Concord.Generators` can use `[Shadow]` instead of writing each injected member declaration. Mark the patch declaration `partial` so the generator can add the members:
+A patch declaration can use `[Shadow]` instead of writing each injected member declaration. Mark the patch declaration `partial` so the generator can add the members:
 
 ```csharp
 [Patch]

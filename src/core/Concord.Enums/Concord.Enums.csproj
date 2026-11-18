@@ -14,6 +14,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Concord.AttachedData/Concord.AttachedData.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Concord.Enums.Tests"/>
     <InternalsVisibleTo Include="Concord.Orchestration"/>
   </ItemGroup>

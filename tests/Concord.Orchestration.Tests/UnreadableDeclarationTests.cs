@@ -26,6 +26,46 @@ public sealed class UnreadableDeclarationTests {
         Assert.Contains("not loaded", logs[0]);
     }
 
+    [Fact]
+    public void Apply_PatchTargetAssemblyMissing_AddsNoSkippedLineOfItsOwn() {
+        Type declaration = BuildDeclarationTargetingAMissingAssembly();
+        List<string> scanLogs = [];
+        List<string> applyLogs = [];
+
+        try {
+            Patcher.UseLog(scanLogs.Add);
+            PatchDeclarationScanner.ScanExtendedEnums([declaration]);
+            PatchDeclarationScanner.ScanDeclarations([declaration], new RecordingApplier(), new FakeAttachedPropertyRegistry());
+
+            Patcher.UseLog(applyLogs.Add);
+            using (Patcher.Apply(declaration.Assembly)) { }
+        } finally {
+            Patcher.UseLog(null);
+        }
+
+        Assert.Equal(Skipped(scanLogs), Skipped(applyLogs));
+    }
+
+    [Fact]
+    public void Apply_OnlyDeclarationIsUnreadable_DoesNotSayItFoundNoDeclaration() {
+        Type declaration = BuildDeclarationTargetingAMissingAssembly();
+        List<string> logs = [];
+
+        try {
+            Patcher.UseLog(logs.Add);
+            using (Patcher.Apply(declaration.Assembly)) { }
+        } finally {
+            Patcher.UseLog(null);
+        }
+
+        Assert.Contains(logs, line => line.Contains("skipped declaration"));
+        Assert.DoesNotContain(logs, line => line.Contains("found no [Patch] declaration"));
+    }
+
+    private static int Skipped(List<string> logs) {
+        return logs.Count(line => line.Contains("skipped declaration"));
+    }
+
     private static Type BuildDeclarationTargetingAMissingAssembly() {
         AssemblyDefinition assembly = AssemblyDefinition.CreateAssembly(
             new AssemblyNameDefinition("GhostedDeclarations", new Version(1, 0, 0, 0)),

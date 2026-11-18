@@ -9,3 +9,4 @@ CONC101 | Concord.Generators | Error | Shadow target member is an ambiguous over
 CONC102 | Concord.Generators | Error | Shadow declaration class must be declared partial.
 CONC103 | Concord.Generators | Warning | Shadow target type could not be resolved at compile time.
 CONC105 | Concord.Generators | Error | Shadow target member kind is not supported.
+CONC187 | Concord.Generators | Error | A Concord attribute use cannot be written into the patch manifest.

@@ -83,7 +83,7 @@ public static class PatchDeclarationScanner {
     ///     Thrown when the registry type does not implement <see cref="IPatchDeclarationProvider" />.
     /// </exception>
     public static bool TryGetRegistryDeclarations(Assembly assembly, out IReadOnlyList<Type> declarations) {
-        PatchRegistryAttribute? attribute = assembly.GetCustomAttribute<PatchRegistryAttribute>();
+        PatchRegistryAttribute? attribute = AttributeStore.Get<PatchRegistryAttribute>(assembly);
         if (attribute is null) {
             declarations = [];
             return false;
@@ -130,14 +130,14 @@ public static class PatchDeclarationScanner {
         }
 
         Type baseType = ResolveBaseType(declaration, explicitTarget);
-        bool debug = declaration.GetCustomAttribute<PatchDebugAttribute>() is not null;
+        bool debug = AttributeStore.Get<PatchDebugAttribute>(declaration) is not null;
         List<string> beforeSource = new List<string>();
-        foreach (PatchBeforeAttribute order in declaration.GetCustomAttributes<PatchBeforeAttribute>()) {
+        foreach (PatchBeforeAttribute order in AttributeStore.GetAll<PatchBeforeAttribute>(declaration)) {
             beforeSource.Add(order.Owner);
         }
 
         List<string> afterSource = new List<string>();
-        foreach (PatchAfterAttribute order in declaration.GetCustomAttributes<PatchAfterAttribute>()) {
+        foreach (PatchAfterAttribute order in AttributeStore.GetAll<PatchAfterAttribute>(declaration)) {
             afterSource.Add(order.Owner);
         }
 
@@ -215,6 +215,24 @@ public static class PatchDeclarationScanner {
         throw new ConcordDeclarationException("Target type '" + name + "' could not be resolved from any loaded assembly.");
     }
 
+    internal static bool HasDeclaration(IEnumerable<Type> types) {
+        foreach (Type type in types) {
+            if (!type.IsClass) {
+                continue;
+            }
+
+            try {
+                if (AttributeStore.Get<PatchAttribute>(type) != null) {
+                    return true;
+                }
+            } catch (Exception ex) when (ex is TypeLoadException or FileNotFoundException or FileLoadException) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     [SuppressMessage("Major Code Smell", "S3011:Reflection should not be used to increase accessibility of classes, methods, or fields", Justification = "Concord reads a declaration's own private members by design; the declaration opted in with [Patch].")]
     private static void ScanExtendedEnumDeclaration(Type declaration) {
         const BindingFlags declared = BindingFlags.Public |
@@ -224,7 +242,7 @@ public static class PatchDeclarationScanner {
                                       BindingFlags.DeclaredOnly;
 
         foreach (MethodInfo method in declaration.GetMethods(declared)) {
-            if (method.GetCustomAttribute<InjectAttribute>() is null && method.GetCustomAttribute<InjectNewAttribute>() is null) {
+            if (AttributeStore.Get<InjectAttribute>(method) is null && AttributeStore.Get<InjectNewAttribute>(method) is null) {
                 continue;
             }
 
@@ -253,8 +271,8 @@ public static class PatchDeclarationScanner {
 
         List<(MethodBase Target, Injection Injection)> resolved = [];
         foreach (MethodInfo method in declaration.GetMethods(declared)) {
-            InjectAttribute? inject = method.GetCustomAttribute<InjectAttribute>();
-            InjectNewAttribute? injectNew = method.GetCustomAttribute<InjectNewAttribute>();
+            InjectAttribute? inject = AttributeStore.Get<InjectAttribute>(method);
+            InjectNewAttribute? injectNew = AttributeStore.Get<InjectNewAttribute>(method);
             if (inject is not null && injectNew is not null) {
                 throw new ConcordDeclarationException(
                     declaration.FullName + " cannot apply both [Inject] and [InjectNew] to method '" + method.Name + "'.");
@@ -273,7 +291,7 @@ public static class PatchDeclarationScanner {
             Type[]? targetParameterTypes = inject?.ParameterTypes ?? injectNew?.ParameterTypes;
             bool targetsConstructor = inject?.TargetsConstructor ?? injectNew!.TargetsConstructor;
             MethodBase resolvedTarget = ResolveInjectionTarget(declaration, baseType, prefix, targetMethod, targetParameterTypes, targetsConstructor);
-            InjectAt at = WithSlice(inject?.ResolvedAt ?? injectNew!.ResolvedAt, method.GetCustomAttribute<SliceAttribute>());
+            InjectAt at = WithSlice(inject?.ResolvedAt ?? injectNew!.ResolvedAt, AttributeStore.Get<SliceAttribute>(method));
             int priority = inject?.ResolvedPriority ?? injectNew!.ResolvedPriority;
             PatchBody body = inject?.Body ?? injectNew!.Body;
             resolved.Add((resolvedTarget, new Injection(method, at, declaration.FullName!, priority) {
@@ -336,7 +354,7 @@ public static class PatchDeclarationScanner {
                 continue;
             }
 
-            if (field.GetCustomAttribute<AttachedAttribute>() is null) {
+            if (AttributeStore.Get<AttachedAttribute>(field) is null) {
                 continue;
             }
 
@@ -448,14 +466,8 @@ public static class PatchDeclarationScanner {
         attribute = null;
 
         try {
-            attribute = declaration.GetCustomAttribute<PatchAttribute>();
-        } catch (TypeLoadException ex) {
-            ReportUnreadableDeclaration(declaration, ex);
-            return false;
-        } catch (FileNotFoundException ex) {
-            ReportUnreadableDeclaration(declaration, ex);
-            return false;
-        } catch (FileLoadException ex) {
+            attribute = AttributeStore.Get<PatchAttribute>(declaration);
+        } catch (Exception ex) when (ex is TypeLoadException or FileNotFoundException or FileLoadException) {
             ReportUnreadableDeclaration(declaration, ex);
             return false;
         }

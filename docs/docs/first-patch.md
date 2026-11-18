@@ -140,6 +140,6 @@ Patcher.Apply(typeof(CampfireWarmthPatch).Assembly);
 
 That applies `CampfireWarmthPatch`, `CampfireBurnPatch`, and `CampfireFuelPatch` together. The call returns an `IPatchHandle`; keep it if the mod needs to remove its patches later. Call `Patcher.Apply` once when the mod starts.
 
-If the project references `Concord.Generators`, the compiler builds a registry of its `[Patch]` classes and `Patcher.Apply` reads it. Without that registry, Concord finds the same classes through reflection; you never start the generator or call its generated code.
+The build writes a patch manifest into your assembly, and `Patcher.Apply` reads the `[Patch]` classes from it. You never start the generator or call its generated code.
 
 To store new per-instance state instead of accessing a target field, see [Attached Data](attached-data.md).

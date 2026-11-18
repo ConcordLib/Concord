@@ -25,10 +25,12 @@
     <Project Path="tests/Concord.Orchestration.Tests/Concord.Orchestration.Tests.csproj"/>
     <Project Path="tests/Concord.Orchestration.Tests.RollbackAssembly/Concord.Orchestration.Tests.RollbackAssembly.csproj"/>
     <Project Path="tests/Concord.Orchestration.Tests.RegistryAssembly/Concord.Orchestration.Tests.RegistryAssembly.csproj"/>
+    <Project Path="tests/Concord.Orchestration.Tests.ManifestAssembly/Concord.Orchestration.Tests.ManifestAssembly.csproj"/>
     <Project Path="tests/Concord.Generators.Tests.Consumer/Concord.Generators.Tests.Consumer.csproj"/>
     <Project Path="tests/Concord.Waylith.Tests/Concord.Waylith.Tests.csproj"/>
     <Project Path="tests/Concord.Merged.Tests/Concord.Merged.Tests.csproj"/>
     <Project Path="tests/Concord.MonoMod.Tests/Concord.MonoMod.Tests.csproj"/>
+    <Project Path="tests/Concord.MonoMod.Tests.ManifestAssembly/Concord.MonoMod.Tests.ManifestAssembly.csproj"/>
     <Project Path="tests/Concord.HarmonyX.Tests/Concord.HarmonyX.Tests.csproj"/>
   </Folder>
   <Folder Name="/bench/">

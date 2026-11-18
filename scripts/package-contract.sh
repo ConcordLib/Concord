@@ -74,4 +74,91 @@ if [[ $? -ne 0 ]]; then
     exit 1
 fi
 
+CONTRACT_BIN=tests/Concord.PackageContract/bin/Release
+CHECKS="$CONTRACT_BIN/net10.0/Concord.PackageContract.dll"
+
+echo "package-contract: checking the net10.0 dll has one manifest, no concord attribute and no generated type with a concord interface"
+dotnet "$CHECKS" metadata "$CONTRACT_BIN/net10.0/Concord.PackageContract.dll" none
+if [[ $? -ne 0 ]]; then
+    echo "package-contract: step 'net10.0 metadata' failed" >&2
+    exit 1
+fi
+
+echo "package-contract: checking the net472 dll has concord attributes, the registry attribute and one manifest"
+dotnet "$CHECKS" metadata "$CONTRACT_BIN/net472/Concord.PackageContract.dll" some
+if [[ $? -ne 0 ]]; then
+    echo "package-contract: step 'net472 metadata' failed" >&2
+    exit 1
+fi
+
+echo "package-contract: running Patcher.Apply on the net10.0 build"
+dotnet "$CHECKS" apply
+if [[ $? -ne 0 ]]; then
+    echo "package-contract: step 'Patcher.Apply' failed" >&2
+    exit 1
+fi
+
+echo "package-contract: restoring and building tests/Concord.PackageContract/Both"
+dotnet build tests/Concord.PackageContract/Both -c Release
+if [[ $? -ne 0 ]]; then
+    echo "package-contract: step 'dotnet build Both' failed" >&2
+    exit 1
+fi
+
+echo "package-contract: checking the Both dll has concord attributes, the registry attribute and one manifest"
+dotnet "$CHECKS" metadata tests/Concord.PackageContract/Both/bin/Release/net472/Concord.PackageContract.Both.dll some
+if [[ $? -ne 0 ]]; then
+    echo "package-contract: step 'Both metadata' failed" >&2
+    exit 1
+fi
+
+RUNTIME_PKG="$NUGET_PACKAGES/concord.runtime/0.0.0-contract"
+
+echo "package-contract: checking Concord.Runtime depends on Concord.Generators only"
+DEPENDENCIES=$(/usr/bin/grep -c '<dependency ' "$RUNTIME_PKG/concord.runtime.nuspec")
+GENERATOR_DEPENDENCIES=$(/usr/bin/grep -c '<dependency id="Concord.Generators" version="\[0.0.0-contract\]"' "$RUNTIME_PKG/concord.runtime.nuspec")
+if [[ "$DEPENDENCIES" -ne 2 || "$GENERATOR_DEPENDENCIES" -ne 2 ]]; then
+    echo "package-contract: step 'Runtime dependencies' failed, found $DEPENDENCIES dependencies and $GENERATOR_DEPENDENCIES on Concord.Generators [0.0.0-contract]" >&2
+    exit 1
+fi
+
+for tfm in net10.0 net472; do
+    echo "package-contract: checking the $tfm Concord.dll in Concord.Runtime has no generator type"
+    dotnet "$CHECKS" merged "$RUNTIME_PKG/lib/$tfm/Concord.dll"
+    if [[ $? -ne 0 ]]; then
+        echo "package-contract: step '$tfm merged' failed" >&2
+        exit 1
+    fi
+done
+
+echo "package-contract: restoring and building tests/Concord.PackageContract/Runtime"
+dotnet build tests/Concord.PackageContract/Runtime -c Release
+if [[ $? -ne 0 ]]; then
+    echo "package-contract: step 'dotnet build Runtime' failed" >&2
+    exit 1
+fi
+
+RUNTIME_BIN=tests/Concord.PackageContract/Runtime/bin/Release
+
+echo "package-contract: checking the Runtime net10.0 dll has one manifest, no concord attribute and no generated type with a concord interface"
+dotnet "$CHECKS" metadata "$RUNTIME_BIN/net10.0/Concord.PackageContract.Runtime.dll" none
+if [[ $? -ne 0 ]]; then
+    echo "package-contract: step 'Runtime net10.0 metadata' failed" >&2
+    exit 1
+fi
+
+echo "package-contract: checking the Runtime net472 dll has concord attributes, the registry attribute and one manifest"
+dotnet "$CHECKS" metadata "$RUNTIME_BIN/net472/Concord.PackageContract.Runtime.dll" some
+if [[ $? -ne 0 ]]; then
+    echo "package-contract: step 'Runtime net472 metadata' failed" >&2
+    exit 1
+fi
+
+echo "package-contract: running Patcher.Apply on the Runtime net10.0 build"
+dotnet "$CHECKS" apply "$RUNTIME_BIN/net10.0/Concord.PackageContract.Runtime.dll"
+if [[ $? -ne 0 ]]; then
+    echo "package-contract: step 'Runtime Patcher.Apply' failed" >&2
+    exit 1
+fi
+
 echo "package-contract: ok"

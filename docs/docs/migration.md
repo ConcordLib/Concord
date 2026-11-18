@@ -60,7 +60,7 @@ harmony.PatchAll();
 IPatchHandle handle = Patcher.Apply(typeof(PricePatch).Assembly);
 ```
 
-When the project references `Concord.Generators`, `Patcher.Apply` reads its generated patch registry and applies every `[Patch]` declaration together. If the assembly has no generated registry, Concord falls back to a reflection scan. The imperative builder applies only the injections added to that builder. Both forms return an `IPatchHandle`.
+`Patcher.Apply` reads the patch manifest that the build writes into the mod, and applies every `[Patch]` declaration together. The imperative builder applies only the injections added to that builder. Both forms return an `IPatchHandle`.
 
 Choose one registration form for each injection. Do not scan a declarative patch with `Patcher.Apply` and register the same method through `Patcher.For`. The shorter imperative examples below point at the preceding declaration method. In imperative-only code, remove `[Inject]`. The `[Patch]` marker is optional, but keeping it lets the analyzers check the target type and its member mappings. Attributes such as `[InjectField]` stay on the helper type.
 

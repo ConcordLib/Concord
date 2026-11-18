@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Concord.AttachedData;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using MethodBody = Mono.Cecil.Cil.MethodBody;
@@ -749,7 +750,7 @@ public static class WrapperComposer {
                 continue;
             }
 
-            if (injection.InjectionMethod.GetCustomAttribute<SliceAttribute>() is null) {
+            if (AttributeStore.Get<SliceAttribute>(injection.InjectionMethod) is null) {
                 continue;
             }
 
@@ -853,7 +854,7 @@ public static class WrapperComposer {
     private static bool DeclaresLocal(MethodBase injectionMethod) {
         ParameterInfo[] parameters = injectionMethod.GetParameters();
         for (int i = 0; i < parameters.Length; i++) {
-            if (parameters[i].GetCustomAttribute<LocalAttribute>() is not null
+            if (AttributeStore.Get<LocalAttribute>(parameters[i]) is not null
                 || LocalHandleLowering.IsLocalHandleType(parameters[i].ParameterType)) {
                 return true;
             }
@@ -865,7 +866,7 @@ public static class WrapperComposer {
     private static bool DeclaresCapture(MethodBase injectionMethod) {
         ParameterInfo[] parameters = injectionMethod.GetParameters();
         for (int i = 0; i < parameters.Length; i++) {
-            if (parameters[i].GetCustomAttribute<CaptureAttribute>() is not null) {
+            if (AttributeStore.Get<CaptureAttribute>(parameters[i]) is not null) {
                 return true;
             }
         }
@@ -2232,7 +2233,7 @@ public static class WrapperComposer {
             new Dictionary<(uint Arg, bool Dereference), VariableDefinition>();
 
         for (int i = 0; i < parameters.Length; i++) {
-            CaptureAttribute? capture = parameters[i].GetCustomAttribute<CaptureAttribute>();
+            CaptureAttribute? capture = AttributeStore.Get<CaptureAttribute>(parameters[i]);
             if (capture is null) {
                 continue;
             }
@@ -2701,7 +2702,7 @@ public static class WrapperComposer {
     private static void ValidateValueInjectionShape(MethodBase injectionMethod, Type valueType, MethodBase target) {
         List<ParameterInfo> parameters = [];
         foreach (ParameterInfo parameter in injectionMethod.GetParameters()) {
-            if (parameter.GetCustomAttribute<LocalAttribute>() is null
+            if (AttributeStore.Get<LocalAttribute>(parameter) is null
                 && !LocalHandleLowering.IsLocalHandleType(parameter.ParameterType)) {
                 parameters.Add(parameter);
             }

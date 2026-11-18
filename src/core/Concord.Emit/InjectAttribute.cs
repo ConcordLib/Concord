@@ -5,6 +5,7 @@ namespace Concord;
 /// <summary>
 ///     Marks an injection method as an injection for a named target method.
 /// </summary>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class InjectAttribute : Attribute {
     private readonly Type? invokeDeclaringType;

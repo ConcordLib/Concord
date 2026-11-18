@@ -1,4 +1,5 @@
 using System.Reflection;
+using Concord.AttachedData;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using MethodBody = Mono.Cecil.Cil.MethodBody;
@@ -318,7 +319,7 @@ internal static class LocalResolver {
     // A LocalHandle parameter carries [Local] for its selectors, but its own type is the handle, not
     // the local's. LocalHandleLowering binds it from T instead.
     private static LocalAttribute? BoundSelector(ParameterInfo parameter) {
-        LocalAttribute? local = parameter.GetCustomAttribute<LocalAttribute>();
+        LocalAttribute? local = AttributeStore.Get<LocalAttribute>(parameter);
         return local is not null && !LocalHandleLowering.IsLocalHandleType(parameter.ParameterType) ? local : null;
     }
 

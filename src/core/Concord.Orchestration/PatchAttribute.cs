@@ -6,6 +6,7 @@ namespace Concord;
 ///     patches and their declared fields become attached properties. A declaration may carry zero
 ///     <see cref="Concord.InjectAttribute" /> methods (an attached-data-only declaration is valid).
 /// </summary>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class PatchAttribute : Attribute {
     /// <summary>

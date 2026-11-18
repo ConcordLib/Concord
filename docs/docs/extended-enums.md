@@ -63,6 +63,8 @@ Concord assigns both fields during `Patcher.Apply`. Read them like any other enu
 
 A static field of any other type is ignored, so the class can still hold a cache or a constant. A declaration that extends an enum cannot also carry `[Inject]` methods. Put injections in their own `[Patch]` class.
 
+A host that checks attribute types before mod code runs refuses a mod with an extended enum declaration. The declaration class has a Concord base class, `ExtendedEnum<TEnum>`, and the patch manifest cannot take its place. [The patch manifest](packages.md#the-patch-manifest) covers the attributes it does replace.
+
 ### Do not read a member from a static constructor
 
 Concord assigns member fields during `Patcher.Apply`. A static constructor on the declaring class can run first and read a zero. `CONCORD035` reports this.

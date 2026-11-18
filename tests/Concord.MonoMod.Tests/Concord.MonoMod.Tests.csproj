@@ -17,6 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/backends/Concord.MonoMod/Concord.MonoMod.csproj"/>
+    <ProjectReference Include="../Concord.MonoMod.Tests.ManifestAssembly/Concord.MonoMod.Tests.ManifestAssembly.csproj"/>
     <!-- Order-only: build the merged runtime first, but do not let MSBuild pick its reference,
          which resolves to the metadata-only Concord.Ref output instead of the ILRepack result. -->
     <ProjectReference Include="../../src/core/Concord/Concord.csproj" ReferenceOutputAssembly="false"/>

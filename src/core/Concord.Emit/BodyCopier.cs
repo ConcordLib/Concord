@@ -1623,7 +1623,7 @@ internal static class BodyCopier {
         int offset = injectionMethod.IsStatic ? 0 : 1;
         ParameterInfo[] parameters = injectionMethod.GetParameters();
         for (int i = 0; i < parameters.Length; i++) {
-            if (parameters[i].GetCustomAttribute<LocalAttribute>() is null
+            if (AttributeStore.Get<LocalAttribute>(parameters[i]) is null
                 && !LocalHandleLowering.IsLocalHandleType(parameters[i].ParameterType)) {
                 return i + offset;
             }
@@ -1657,7 +1657,7 @@ internal static class BodyCopier {
     private static void RejectLocalParameters(MethodBase injectionMethod, string what) {
         ParameterInfo[] parameters = injectionMethod.GetParameters();
         for (int i = 0; i < parameters.Length; i++) {
-            if (parameters[i].GetCustomAttribute<LocalAttribute>() is not null
+            if (AttributeStore.Get<LocalAttribute>(parameters[i]) is not null
                 || LocalHandleLowering.IsLocalHandleType(parameters[i].ParameterType)) {
                 throw new ConcordEmitException(
                     "CONC158",

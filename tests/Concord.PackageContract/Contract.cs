@@ -18,16 +18,19 @@ public abstract class ContractPatch : ContractTarget {
 }
 
 public sealed class StubBackend : IPatchBackend {
+    public List<MethodBase> Composed { get; } = new List<MethodBase>();
+
     public string Name => "stub";
 
-    public int PatchedTargetCount => 0;
+    public int PatchedTargetCount => Composed.Count;
 
     public TargetVerdict Judge(MethodBase target) {
         return TargetVerdict.Accept();
     }
 
     public IBackendHandle ApplyComposed(MethodBase target, IReadOnlyList<Injection> added) {
-        throw new NotSupportedException();
+        Composed.Add(target);
+        return new StubHandle(target);
     }
 
     public IReadOnlyList<string> OwnersOf(MethodBase target) {
@@ -40,6 +43,16 @@ public sealed class StubBackend : IPatchBackend {
 
     public bool Recompose(MethodBase target) {
         return false;
+    }
+
+    private sealed class StubHandle(MethodBase original) : IBackendHandle {
+        public MethodBase Original { get; } = original;
+
+        public bool IsApplied { get; private set; } = true;
+
+        public void Dispose() {
+            IsApplied = false;
+        }
     }
 }
 

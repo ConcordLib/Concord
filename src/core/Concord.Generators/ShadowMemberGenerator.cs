@@ -1,7 +1,5 @@
-using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
@@ -55,10 +53,6 @@ public sealed class ShadowMemberGenerator : IIncrementalGenerator {
 
     private const string DiagnosticCategory = "Concord.Generators";
 
-    private static readonly SymbolDisplayFormat TypeFormat =
-        SymbolDisplayFormat.FullyQualifiedFormat.AddMiscellaneousOptions(
-            SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
-
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context) {
         IncrementalValuesProvider<(INamedTypeSymbol Declaration, ClassDeclarationSyntax Syntax)> declarations =
@@ -81,7 +75,7 @@ public sealed class ShadowMemberGenerator : IIncrementalGenerator {
         Compilation compilation) {
         Location location = syntax.Identifier.GetLocation();
 
-        if (!IsPartial(declaration)) {
+        if (!ShadowMemberModel.IsPartial(declaration)) {
             context.ReportDiagnostic(Diagnostic.Create(NotPartial, location, declaration.Name, string.Empty));
             return;
         }
@@ -93,21 +87,20 @@ public sealed class ShadowMemberGenerator : IIncrementalGenerator {
         }
 
         StringBuilder members = new StringBuilder();
+        List<Diagnostic> diagnostics = [];
         foreach (AttributeData attribute in declaration.GetAttributes()) {
             if (attribute.AttributeClass?.ToDisplayString() != "Concord.ShadowAttribute") {
                 continue;
             }
 
-            if (attribute.ConstructorArguments.Length == 0 ||
-                attribute.ConstructorArguments[0].Value is not string memberName) {
-                continue;
+            ShadowMember? member = ShadowMemberModel.Build(declaration, target, attribute, location, diagnostics);
+            if (member is not null) {
+                members.Append(member.Source);
             }
+        }
 
-            ImmutableArray<TypedConstant> parameterTypes = attribute.ConstructorArguments.Length > 1
-                ? attribute.ConstructorArguments[1].Values
-                : ImmutableArray<TypedConstant>.Empty;
-
-            EmitMember(context, declaration, target, memberName, parameterTypes, location, members);
+        foreach (Diagnostic diagnostic in diagnostics) {
+            context.ReportDiagnostic(diagnostic);
         }
 
         if (members.Length == 0) {
@@ -117,181 +110,6 @@ public sealed class ShadowMemberGenerator : IIncrementalGenerator {
         string source = WrapInContainers(declaration, members.ToString());
         string hint = declaration.ToDisplayString().Replace('<', '_').Replace('>', '_') + ".Shadows.g.cs";
         context.AddSource(hint, SourceText.From(source, Encoding.UTF8));
-    }
-
-    private static bool IsPartial(INamedTypeSymbol declaration) {
-        foreach (SyntaxReference reference in declaration.DeclaringSyntaxReferences) {
-            if (reference.GetSyntax() is ClassDeclarationSyntax { Modifiers: { } modifiers } &&
-                modifiers.Any(SyntaxKind.PartialKeyword)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static ImmutableArray<ISymbol> FindMembers(INamedTypeSymbol target, string name) {
-        for (INamedTypeSymbol? type = target; type is not null; type = type.BaseType) {
-            ImmutableArray<ISymbol> members = type.GetMembers(name);
-            if (members.Length > 0) {
-                return members;
-            }
-        }
-
-        return ImmutableArray<ISymbol>.Empty;
-    }
-
-    private static void EmitMember(
-        SourceProductionContext context,
-        INamedTypeSymbol declaration,
-        INamedTypeSymbol target,
-        string memberName,
-        ImmutableArray<TypedConstant> parameterTypes,
-        Location location,
-        StringBuilder members) {
-        ImmutableArray<ISymbol> candidates = FindMembers(target, memberName);
-        if (candidates.Length == 0) {
-            context.ReportDiagnostic(Diagnostic.Create(MemberNotFound, location, target.Name, memberName));
-            return;
-        }
-
-        if (candidates[0] is IFieldSymbol field) {
-            string staticModifier = field.IsStatic ? "static " : string.Empty;
-            members.AppendLine("    #pragma warning disable CS0649");
-            members.AppendLine("    [global::Concord.InjectField(\"" + field.Name + "\")]");
-            members.AppendLine("    private " + staticModifier + field.Type.ToDisplayString(TypeFormat) + " " + field.Name + ";");
-            members.AppendLine("    #pragma warning restore CS0649");
-            return;
-        }
-
-        EmitNonFieldMember(
-            new EmitRequest(context, declaration, target, memberName, location, members), candidates, parameterTypes);
-    }
-
-    private static void EmitNonFieldMember(
-        EmitRequest request, ImmutableArray<ISymbol> candidates, ImmutableArray<TypedConstant> parameterTypes) {
-        if (!request.Declaration.IsAbstract) {
-            request.Context.ReportDiagnostic(Diagnostic.Create(
-                NotPartial, request.Location, request.Declaration.Name, " and abstract for method/property shadows"));
-            return;
-        }
-
-        if (candidates[0] is IPropertySymbol property) {
-            EmitProperty(request, property);
-            return;
-        }
-
-        EmitMethod(request, candidates, parameterTypes);
-    }
-
-    private static void EmitProperty(EmitRequest request, IPropertySymbol property) {
-        if (property.IsStatic) {
-            request.ReportUnsupported("static properties are not supported");
-            return;
-        }
-
-        if (property.IsIndexer) {
-            request.ReportUnsupported("indexers are not supported");
-            return;
-        }
-
-        string accessors = (property.GetMethod is not null ? "get; " : string.Empty) +
-                           (property.SetMethod is not null ? "set; " : string.Empty);
-        request.Members.AppendLine("    [global::Concord.InjectProperty(\"" + property.Name + "\")]");
-        request.Members.AppendLine(
-            "    protected abstract " + property.Type.ToDisplayString(TypeFormat) + " " + property.Name +
-            " { " + accessors.TrimEnd() + " }");
-    }
-
-    private static void EmitMethod(
-        EmitRequest request, ImmutableArray<ISymbol> candidates, ImmutableArray<TypedConstant> parameterTypes) {
-        List<IMethodSymbol> methods = [];
-        foreach (ISymbol candidate in candidates) {
-            if (candidate is IMethodSymbol { MethodKind: MethodKind.Ordinary } method) {
-                methods.Add(method);
-            }
-        }
-
-        if (methods.Count == 0) {
-            request.ReportUnsupported("only fields, properties, and ordinary methods are supported");
-            return;
-        }
-
-        IMethodSymbol? selected = SelectOverload(methods, parameterTypes);
-        if (selected is null) {
-            request.Context.ReportDiagnostic(Diagnostic.Create(
-                AmbiguousMember, request.Location, request.Target.Name, request.MemberName, methods.Count));
-            return;
-        }
-
-        if (selected.IsStatic || selected.IsGenericMethod) {
-            request.ReportUnsupported("static and generic methods are not supported");
-            return;
-        }
-
-        request.Members.AppendLine("    [global::Concord.InjectMethod(\"" + selected.Name + "\")]");
-        request.Members.AppendLine(BuildMethodSignature(selected));
-    }
-
-    private static string BuildMethodSignature(IMethodSymbol selected) {
-        StringBuilder signature = new StringBuilder();
-        signature.Append("    protected abstract ");
-        signature.Append(selected.ReturnsVoid ? "void" : selected.ReturnType.ToDisplayString(TypeFormat));
-        signature.Append(' ').Append(selected.Name).Append('(');
-        for (int index = 0; index < selected.Parameters.Length; index++) {
-            IParameterSymbol parameter = selected.Parameters[index];
-            if (index > 0) {
-                signature.Append(", ");
-            }
-
-            signature.Append(RefKindPrefix(parameter.RefKind));
-            signature.Append(parameter.Type.ToDisplayString(TypeFormat));
-            signature.Append(' ');
-            signature.Append(string.IsNullOrEmpty(parameter.Name) ? "arg" + index : parameter.Name);
-        }
-
-        signature.Append(");");
-        return signature.ToString();
-    }
-
-    private static string RefKindPrefix(RefKind refKind) {
-        return refKind switch {
-            RefKind.Ref => "ref ",
-            RefKind.Out => "out ",
-            RefKind.In => "in ",
-            _ => string.Empty,
-        };
-    }
-
-    private static IMethodSymbol? SelectOverload(List<IMethodSymbol> methods, ImmutableArray<TypedConstant> parameterTypes) {
-        if (methods.Count == 1 && parameterTypes.IsDefaultOrEmpty) {
-            return methods[0];
-        }
-
-        if (parameterTypes.IsDefaultOrEmpty) {
-            return null;
-        }
-
-        foreach (IMethodSymbol method in methods) {
-            if (method.Parameters.Length != parameterTypes.Length) {
-                continue;
-            }
-
-            bool matches = true;
-            for (int index = 0; index < parameterTypes.Length; index++) {
-                if (parameterTypes[index].Value is not ITypeSymbol requested ||
-                    !SymbolEqualityComparer.Default.Equals(requested, method.Parameters[index].Type)) {
-                    matches = false;
-                    break;
-                }
-            }
-
-            if (matches) {
-                return method;
-            }
-        }
-
-        return null;
     }
 
     private static string WrapInContainers(INamedTypeSymbol declaration, string members) {
@@ -327,29 +145,5 @@ public sealed class ShadowMemberGenerator : IIncrementalGenerator {
         }
 
         return source.ToString();
-    }
-
-    private readonly struct EmitRequest(
-        SourceProductionContext context,
-        INamedTypeSymbol declaration,
-        INamedTypeSymbol target,
-        string memberName,
-        Location location,
-        StringBuilder members) {
-        public SourceProductionContext Context { get; } = context;
-
-        public INamedTypeSymbol Declaration { get; } = declaration;
-
-        public INamedTypeSymbol Target { get; } = target;
-
-        public string MemberName { get; } = memberName;
-
-        public Location Location { get; } = location;
-
-        public StringBuilder Members { get; } = members;
-
-        public void ReportUnsupported(string reason) {
-            Context.ReportDiagnostic(Diagnostic.Create(UnsupportedMember, Location, Target.Name, MemberName, reason));
-        }
     }
 }

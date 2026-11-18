@@ -12,8 +12,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="../Shared/RecordingDetourBackend.cs" Link="RecordingDetourBackend.cs"/>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../../src/core/Concord.Generators/Concord.Generators.csproj"/>
     <ProjectReference Include="../../src/core/Concord.Orchestration/Concord.Orchestration.csproj"/>
     <ProjectReference Include="../../src/core/Concord.Emit/Concord.Emit.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Enums/Concord.Enums.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.AttachedData/Concord.AttachedData.csproj"/>
+    <ProjectReference Include="../../src/core/Concord.Backend/Concord.Backend.csproj"/>
   </ItemGroup>
 </Project>

@@ -1,4 +1,5 @@
 using System.Reflection;
+using Concord.AttachedData;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using MethodBody = Mono.Cecil.Cil.MethodBody;
@@ -171,7 +172,7 @@ internal sealed class LocalHandleLowering {
             }
 
             Type element = parameters[i].ParameterType.GetGenericArguments()[0];
-            LocalAttribute? selector = parameters[i].GetCustomAttribute<LocalAttribute>();
+            LocalAttribute? selector = AttributeStore.Get<LocalAttribute>(parameters[i]);
             uint ordinal = selector?.Ordinal ?? 0;
             int index = selector?.Index ?? -1;
 

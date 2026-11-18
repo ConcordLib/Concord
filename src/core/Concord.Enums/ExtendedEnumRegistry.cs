@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
+using Concord.AttachedData;
 
 namespace Concord;
 
@@ -66,7 +67,7 @@ public static partial class ExtendedEnumRegistry {
         List<ExtendedEnumMember> members = new List<ExtendedEnumMember>();
 
         foreach (FieldInfo field in declaration.GetFields(DeclaredFields)) {
-            EnumMemberAttribute? attribute = field.GetCustomAttribute<EnumMemberAttribute>();
+            EnumMemberAttribute? attribute = AttributeStore.Get<EnumMemberAttribute>(field);
             bool typed = field.FieldType == enumType;
 
             if (!field.IsStatic) {

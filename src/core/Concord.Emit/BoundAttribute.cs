@@ -10,5 +10,6 @@ namespace Concord;
 ///     <see cref="float" />, <see cref="double" />, <see cref="string" />, an enum, a
 ///     <see cref="System.Type" />, or null.
 /// </remarks>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Parameter)]
 public sealed class BoundAttribute : Attribute;

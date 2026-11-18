@@ -24,25 +24,21 @@ Add `Concord.Ref` to your project file:
 
 `Concord.Ref` contains the public API your mod needs at compile time, while the target runtime supplies the working implementation. Your project must also reference each target assembly that defines a type you want to patch. Those references are specific to the game or host, so follow its mod project setup for the correct paths.
 
+`Concord.Ref` brings `Concord.Generators` with it. Its generators write the patch manifest and typed shadow members, and its IDE refactorings create patches. You do not add a reference to `Concord.Generators`. [The patch manifest](packages.md#the-patch-manifest) explains what the build does with your attributes.
+
 ### Optional build tools
 
-`Concord.Analyzers` and `Concord.Generators` are optional, and patches compile and run without either package.
+`Concord.Analyzers` is optional, and patches compile and run without it. It adds editor and build checks for target methods, parameters, and injected members.
 
-| Package | What it adds |
-| --- | --- |
-| `Concord.Analyzers` | Editor and build checks for target methods, parameters, and injected members |
-| `Concord.Generators` | A generated patch registry, typed shadow members, and IDE refactorings |
-
-Add the package reference for each tool you want. Keep `PrivateAssets="all"` so the tool stays in your build and does not become a dependency of your mod:
+Keep `PrivateAssets="all"` so the analyzer stays in your build and does not become a dependency of your mod:
 
 ```xml
 <ItemGroup>
   <PackageReference Include="Concord.Analyzers" Version="0.14.0" PrivateAssets="all" />
-  <PackageReference Include="Concord.Generators" Version="0.14.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 
-If you only want one tool, include only its line; the [Packages](packages.md) page has more detail about both packages.
+The [Packages](packages.md) page has more detail about each package.
 
 ## What patching is
 
@@ -122,7 +118,7 @@ public sealed class MyMod
 }
 ```
 
-The call finds every `[Patch]` declaration in the assembly and applies them together. With `Concord.Generators`, it reads the generated registry; without the generator, it finds the declarations through reflection. Both paths apply the same patches.
+The call finds every `[Patch]` declaration in the assembly and applies them together. It reads the declarations from the patch manifest that the build wrote into your assembly.
 
 Keep the returned `IPatchHandle` if your mod needs to remove its patches later, then call `Dispose()` on the handle to remove them. Applying the same assembly again returns the same handle instead of adding the patches twice.
 

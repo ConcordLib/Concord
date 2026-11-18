@@ -6,19 +6,26 @@
     <TargetFramework></TargetFramework>
     <TargetFrameworks>net10.0;net472</TargetFrameworks>
     <IsPackable>false</IsPackable>
+    <DefineConstants>$(DefineConstants.Replace('CONCORD_ATTRIBUTES_IN_METADATA', ''))</DefineConstants>
+    <DefaultItemExcludes>$(DefaultItemExcludes);Both/**;Runtime/**</DefaultItemExcludes>
     <!-- A throwaway consumer, not a published surface: no doc comments to satisfy SA1600's family. -->
     <NoWarn>$(NoWarn);SA1600;SA1601;SA1602;SA1611;SA1615;SA1618</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <OutputType>Exe</OutputType>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Concord.Ref" Version="0.0.0-contract"/>
     <PackageReference Include="Concord.Runtime" Version="0.0.0-contract" ExcludeAssets="all" GeneratePathProperty="true"/>
     <PackageReference Include="Concord.Analyzers" Version="0.0.0-contract" PrivateAssets="all"/>
-    <PackageReference Include="Concord.Generators" Version="0.0.0-contract" PrivateAssets="all"/>
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <PackageReference Include="Concord.Waylith" Version="0.0.0-contract"/>
+    <None Include="$(PkgConcord_Runtime)/lib/net10.0/Concord.dll" CopyToOutputDirectory="PreserveNewest" Visible="false"/>
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">

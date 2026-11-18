@@ -41,10 +41,10 @@ Everything's at **[concordlib.dev](https://concordlib.dev)**:
 
 ## Packages
 
-- `Concord.Ref` — compile-time reference assembly for authoring mods against the Concord API.
-- `Concord.Analyzers` — build-time Roslyn analyzers that validate patch declarations.
-- `Concord.Generators` — optional source generators + IDE refactorings (patch registry, `[Shadow]` members, scaffolding).
-- `Concord` — the runtime assembly a target ships to load and apply patches.
+- `Concord.Ref`: the compile-time reference assembly a mod references. It brings `Concord.Generators` with it.
+- `Concord.Analyzers`: build-time Roslyn analyzers that check patch declarations.
+- `Concord.Generators`: source generators and IDE refactorings (the patch manifest, `[Shadow]` members, scaffolding).
+- `Concord`: the runtime assembly a target ships to load and apply patches.
 
 ## Where things stand
 

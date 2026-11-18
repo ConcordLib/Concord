@@ -1,20 +1,31 @@
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
 namespace Concord.Generators;
 
 /// <summary>
-///     Emits the assembly patch registry: an <c>internal</c> type listing every <c>[Patch]</c>
-///     declaration, pointed at by an assembly-level <c>[PatchRegistry]</c> attribute, so
-///     <c>Patcher.Apply</c> enumerates declarations without a reflection scan.
+///     Writes the assembly patch registry for a project that defines <c>CONCORD_ATTRIBUTES_IN_METADATA</c>:
+///     a type listing every <c>[Patch]</c> declaration, named by an assembly-level <c>[PatchRegistry]</c>.
 /// </summary>
 [Generator]
 public sealed class PatchRegistryGenerator : IIncrementalGenerator {
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context) {
+        IncrementalValueProvider<bool> enabled = context.ParseOptionsProvider.Select(static (options, _) =>
+            options.PreprocessorSymbolNames.Contains("CONCORD_ATTRIBUTES_IN_METADATA"));
+
+        IncrementalValueProvider<bool> handWritten = context.SyntaxProvider.ForAttributeWithMetadataName(
+                "Concord.PatchRegistryAttribute",
+                static (node, _) => node is CompilationUnitSyntax,
+                static (_, _) => true)
+            .Collect()
+            .Select(static (found, _) => found.Length > 0);
+
         IncrementalValuesProvider<string?> declarations = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Concord.PatchAttribute",
             static (node, _) => node is ClassDeclarationSyntax,
@@ -23,11 +34,24 @@ public sealed class PatchRegistryGenerator : IIncrementalGenerator {
                     return null;
                 }
 
-                return symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                Compilation compilation = ctx.SemanticModel.Compilation;
+                if (compilation.IsSymbolAccessibleWithin(symbol, compilation.Assembly) && !PatchManifestGenerator.InFile(symbol)) {
+                    return "typeof(" + symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + ")";
+                }
+
+                return "typeof(global::Concord.Generated.PatchRegistry).Assembly.GetType(" +
+                       SymbolDisplay.FormatLiteral(PatchManifestGenerator.MetadataName(symbol), true) + ", true)";
             });
 
-        context.RegisterSourceOutput(declarations.Collect(), static (productionContext, names) => {
-            List<string> sorted = names.OfType<string>().ToList();
+        IncrementalValueProvider<((ImmutableArray<string?> Names, bool Enabled) Left, bool HandWritten)> input =
+            declarations.Collect().Combine(enabled).Combine(handWritten);
+
+        context.RegisterSourceOutput(input, static (productionContext, input) => {
+            if (!input.Left.Enabled || input.HandWritten) {
+                return;
+            }
+
+            List<string> sorted = input.Left.Names.OfType<string>().ToList();
 
             if (sorted.Count == 0) {
                 return;
@@ -43,7 +67,7 @@ public sealed class PatchRegistryGenerator : IIncrementalGenerator {
             source.AppendLine("    internal sealed class PatchRegistry : global::Concord.IPatchDeclarationProvider {");
             source.AppendLine("        public global::System.Collections.Generic.IReadOnlyList<global::System.Type> Declarations { get; } = new global::System.Type[] {");
             foreach (string name in sorted) {
-                source.AppendLine("            typeof(" + name + "),");
+                source.AppendLine("            " + name + ",");
             }
 
             source.AppendLine("        };");

@@ -20,7 +20,7 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <DefineConstants>$(DefineConstants);RW_$(GameVersion.Replace('.','_'))</DefineConstants>
+    <DefineConstants>$(DefineConstants);RW_$(GameVersion.Replace('.','_'));CONCORD_ATTRIBUTES_IN_METADATA</DefineConstants>
     <GameSteamBranch>unstable</GameSteamBranch>
   </PropertyGroup>
   <ItemGroup Condition="'$(GameTfm)' == 'net472'">

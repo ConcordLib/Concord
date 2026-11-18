@@ -8,8 +8,8 @@ Use the same version for every Concord package in a project. The examples on thi
 
 | Project | Required | Optional |
 | --- | --- | --- |
-| A mod for a runtime that already loads Concord | `Concord.Ref` | `Concord.Analyzers` and `Concord.Generators` |
-| A runtime adapter or host | `Concord.Runtime` | A backend: `Concord.MonoMod`, `Concord.HarmonyX` or `Concord.Waylith` |
+| A mod for a runtime that already loads Concord | `Concord.Ref` | `Concord.Analyzers` |
+| A runtime adapter or host | `Concord.Runtime`, which brings `Concord.Generators` with it | A backend: `Concord.MonoMod`, `Concord.HarmonyX` or `Concord.Waylith` |
 | Concord itself | The projects in the Concord repository | Analyzer and generator projects as needed |
 
 Mods compile against `Concord.Ref`. The target runtime loads the implementation from `Concord.dll`, so a mod should not reference or ship `Concord.Runtime`.
@@ -32,14 +32,27 @@ The package contains no runtime implementation. Its assembly identity matches th
 
 `Concord.Ref` provides `net10.0` and `net472` assets.
 
+`Concord.Ref` depends on `Concord.Generators` of the same version, so the mod gets the generators with it. Do not add a second reference to `Concord.Generators`.
+
+If your project already references `Concord.Generators`, remove that reference. A reference to an older version than `Concord.Ref` stops the restore with the package downgrade error `NU1605`.
+
+#### The patch manifest
+
+The generator writes a class named `Concord.Generated.PatchManifest` into the mod. The manifest describes every Concord attribute in the mod's source. The compiler leaves those attributes out of the mod's assembly. A host that checks attribute types before mod code runs can then load the assembly. When the mod calls `Patcher.Apply`, Concord reads the attributes from the manifest.
+
+Your mod's source needs nothing for the manifest. You add no project property and no build step, because the package does this work during the build.
+
+A mod that targets .NET Framework keeps its Concord attributes in the assembly as well. It gets the manifest too. The generator also writes a patch registry into it: the class `Concord.Generated.PatchRegistry`, named by an assembly-level `[PatchRegistry]`. An older Concord runtime reads the registry to find the mod's `[Patch]` classes. The registry lets that runtime skip a scan of every type in the assembly.
+
+A base class from another assembly needs the same build. If that assembly has no Concord attributes in its metadata and no manifest, a class that extends it inherits no Concord attributes from it.
+
 ### Optional build tools
 
-Patches compile and run without the analyzer or generator packages. Add either tool when you want the checks or generated code it provides. Keep `PrivateAssets="all"` so it stays in the build and does not become a dependency of the mod.
+Patches compile and run without the analyzer package. Add it when you want the checks it provides. Keep `PrivateAssets="all"` so it stays in the build and does not become a dependency of the mod.
 
 ```xml
 <ItemGroup>
   <PackageReference Include="Concord.Analyzers" Version="0.14.0" PrivateAssets="all" />
-  <PackageReference Include="Concord.Generators" Version="0.14.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 
@@ -51,9 +64,11 @@ It also suppresses field-use warnings for valid `[InjectField]` declarations and
 
 #### Concord.Generators
 
-Roslyn runs source generators while it compiles your project. Once you reference `Concord.Generators`, build the mod as usual; the compiler adds the generated C# to the mod assembly.
+Roslyn runs source generators while it compiles your project. `Concord.Ref` brings `Concord.Generators` with it, so build the mod as usual. The compiler adds the generated C# to the mod assembly.
 
-The patch registry generator writes an assembly-level list of every `[Patch]` class. `Patcher.Apply` reads that registry instead of searching every type through reflection, but falls back to reflection when no registry exists.
+The patch manifest generator writes `Concord.Generated.PatchManifest`, described in [The patch manifest](#the-patch-manifest). It reports error `CONC187` for an attribute use it cannot write into the manifest.
+
+The patch registry generator writes `Concord.Generated.PatchRegistry` for a .NET Framework target. It lists each `[Patch]` class of the mod. It writes no registry when the mod's source has its own `[assembly: PatchRegistry]`. Concord reads the manifest first, so the registry does not change which patches apply.
 
 The shadow-member generator handles `[Shadow]` on partial patch classes. `[Shadow("hitPoints")]` adds a typed member to the generated part of the class, so patch code can use `this.hitPoints` as a normal C# field. When Concord builds the patch, it rewrites that access to the real `hitPoints` field on the current target object. It can also generate declarations for private properties and methods; see [Generate private member declarations](common-tasks.md#generate-private-member-declarations) for an example.
 
@@ -92,9 +107,11 @@ You can reference a sibling Concord checkout while developing against changes th
                     ReferenceOutputAssembly="false"
                     PrivateAssets="all" />
 </ItemGroup>
+
+<Import Project="$(ConcordRoot)/src/core/Concord.Ref/build/Concord.Ref.props" />
 ```
 
-Remove the analyzer or generator lines if you do not use that tool. Build the selected projects once before opening or reloading the mod project in Rider:
+Keep the generator lines, because they write the patch manifest. The `Import` line does what the package does for a .NET Framework target: it keeps the Concord attributes in the assembly. Remove the analyzer lines if you do not use that tool. Build the selected projects once before opening or reloading the mod project in Rider:
 
 ```bash
 dotnet build ../../Concord/src/core/Concord.Ref/Concord.Ref.csproj
@@ -116,7 +133,9 @@ If Rider still marks `using Concord;` or `[Patch]` as unresolved, reload the pro
 </ItemGroup>
 ```
 
-The package provides `net10.0` and `net472` assemblies. It has no NuGet dependencies because the build folds the five runtime libraries and Mono.Cecil into each `Concord.dll`.
+The package provides `net10.0` and `net472` assemblies. The build folds the five runtime libraries and Mono.Cecil into each `Concord.dll`.
+
+`Concord.Runtime` depends on `Concord.Generators` of the same version, so a host with its own `[Patch]` classes gets the patch manifest with no extra step. A host that targets .NET Framework also keeps its Concord attributes in the assembly and gets the patch registry. Do not add a second reference to `Concord.Generators`.
 
 The package ID is `Concord.Runtime` because the plain `Concord` ID on NuGet belongs to an unrelated package.
 

@@ -6,6 +6,7 @@ namespace Concord;
 ///     Bounds an invoke or construction search to the code between two member-access anchors.
 ///     The <c>by</c> ordinal on the injection then counts matches inside that range only.
 /// </summary>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public sealed class SliceAttribute : Attribute {
     /// <summary>

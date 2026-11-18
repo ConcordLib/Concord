@@ -34,7 +34,7 @@ The repository keeps each runtime job in a separate project. Runtime libraries l
 | `Concord.Orchestration` | `Patcher`, the fluent builder, patch discovery, declaration scanning, or apply and undo behavior |
 | `Concord.AttachedData` | Weak-reference storage used by attached fields |
 | `Concord.Analyzers` | Compiler diagnostics for patch declarations |
-| `Concord.Generators` | Patch registries, generated shadow members, or IDE refactorings |
+| `Concord.Generators` | The patch manifest, generated shadow members, or IDE refactorings |
 | `Concord.Ref` | Reference-package construction and public API verification |
 | `Concord` | Merging and packaging the runtime assembly |
 | `Concord.MonoMod` | Emitting composed bodies on .NET Framework and Mono, or the Harmony bridge |
@@ -47,7 +47,7 @@ Tests follow the same layout under `tests/`. For example, changes in `Concord.Em
 
 ### How a patch reaches the runtime
 
-1. `Patcher.Apply` gets patch declarations from the generated registry. It scans the assembly when no registry exists.
+1. `Patcher.Apply` gets patch declarations from the assembly's `Concord.Generated.PatchManifest`. Without a manifest, it reads `[PatchRegistry]`, and then it scans the assembly.
 2. `PatchDeclarationScanner` reads `[Patch]`, `[Inject]`, and related attributes. It creates an `Injection` for each resolved injection method.
 3. `CollectingPatchApplier` sends each target and injection to `IPatchBackend.ApplyComposed`.
 4. The backend keeps the live injections for that target. `InjectionOrderer` resolves priority and before or after rules.

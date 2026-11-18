@@ -9,31 +9,43 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
-    <!-- Packs the ILRepack-merged Assemblies/Concord.dll (Mono.Cecil folded in), so the
-         package carries no dependency group and no raw build output. The 'Concord' id
-         on nuget.org is taken by an unrelated abandoned package. -->
     <IsPackable>true</IsPackable>
     <PackageId>Concord.Runtime</PackageId>
     <Description>The Concord runtime assembly: the single merged Concord.dll a target runtime ships and loads to run patches. Mods compile against Concord.Ref; this package is for runtime integrators.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeBuildOutput>false</IncludeBuildOutput>
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <WarningsNotAsErrors>NU5128</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath=""/>
+    <None Include="build\Concord.Runtime.props" Pack="true" PackagePath="build;buildTransitive"/>
     <None Include="../../../Assemblies/net10.0/Concord.dll" Pack="true" PackagePath="lib/net10.0" Visible="false"/>
     <None Include="../../../Assemblies/net472/Concord.dll" Pack="true" PackagePath="lib/net472" Visible="false"/>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Concord.Backend/Concord.Backend.csproj"/>
-    <ProjectReference Include="../Concord.Emit/Concord.Emit.csproj"/>
-    <ProjectReference Include="../Concord.AttachedData/Concord.AttachedData.csproj"/>
-    <ProjectReference Include="../Concord.Orchestration/Concord.Orchestration.csproj"/>
-    <ProjectReference Include="../Concord.Enums/Concord.Enums.csproj"/>
+    <ProjectReference Include="../Concord.Backend/Concord.Backend.csproj" PrivateAssets="all"/>
+    <ProjectReference Include="../Concord.Emit/Concord.Emit.csproj" PrivateAssets="all"/>
+    <ProjectReference Include="../Concord.AttachedData/Concord.AttachedData.csproj" PrivateAssets="all"/>
+    <ProjectReference Include="../Concord.Orchestration/Concord.Orchestration.csproj" PrivateAssets="all"/>
+    <ProjectReference Include="../Concord.Enums/Concord.Enums.csproj" PrivateAssets="all"/>
+    <ProjectReference Include="../Concord.Generators/Concord.Generators.csproj" Private="false" PrivateAssets="none"/>
   </ItemGroup>
+
+  <Target Name="KeepGeneratorsOutOfCompile" AfterTargets="ResolveProjectReferences">
+    <ItemGroup>
+      <_ResolvedProjectReferencePaths Remove="@(_ResolvedProjectReferencePaths)" Condition="'%(Filename)' == 'Concord.Generators'"/>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PinGeneratorsVersion" AfterTargets="_GetProjectReferenceVersions">
+    <ItemGroup>
+      <_ExactProjectReferenceVersions Include="@(_ProjectReferencesWithVersions)" ProjectVersion="[%(_ProjectReferencesWithVersions.ProjectVersion)]"/>
+      <_ProjectReferencesWithVersions Remove="@(_ProjectReferencesWithVersions)"/>
+      <_ProjectReferencesWithVersions Include="@(_ExactProjectReferenceVersions)"/>
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="ILRepack.Lib.MSBuild.Task" Version="2.0.45" PrivateAssets="all"/>

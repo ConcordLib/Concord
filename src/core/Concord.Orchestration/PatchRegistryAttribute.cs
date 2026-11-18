@@ -5,6 +5,7 @@ namespace Concord;
 ///     <see cref="Patcher.Apply(System.Reflection.Assembly)" /> enumerates declarations
 ///     through the registry instead of scanning every type in the assembly.
 /// </summary>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Assembly)]
 public sealed class PatchRegistryAttribute : Attribute {
     /// <summary>Initializes the attribute.</summary>

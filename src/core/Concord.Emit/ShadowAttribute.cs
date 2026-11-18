@@ -6,6 +6,7 @@ namespace Concord;
 ///     <see cref="InjectMethodAttribute" />) for the named target member into the partial
 ///     declaration class. Ignored at runtime.
 /// </summary>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
 public sealed class ShadowAttribute : Attribute {
     /// <summary>Initializes a shadow request for a uniquely-named target member.</summary>

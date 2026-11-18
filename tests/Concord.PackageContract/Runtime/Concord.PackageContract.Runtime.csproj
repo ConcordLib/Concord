@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>net10.0;net472</TargetFrameworks>
+    <IsPackable>false</IsPackable>
+    <DefineConstants>$(DefineConstants.Replace('CONCORD_ATTRIBUTES_IN_METADATA', ''))</DefineConstants>
+    <NoWarn>$(NoWarn);SA1600;SA1601;SA1602;SA1611;SA1615;SA1618</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Concord.Runtime" Version="0.0.0-contract"/>
+  </ItemGroup>
+
+</Project>

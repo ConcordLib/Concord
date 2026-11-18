@@ -13,5 +13,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/core/Concord.Enums/Concord.Enums.csproj"/>
     <ProjectReference Include="../../src/core/Concord.Orchestration/Concord.Orchestration.csproj"/>
+    <ProjectReference Include="../Concord.Orchestration.Tests.ManifestAssembly/Concord.Orchestration.Tests.ManifestAssembly.csproj"/>
   </ItemGroup>
 </Project>

@@ -1,4 +1,5 @@
 using System.Reflection;
+using Concord.AttachedData;
 
 namespace Concord.Emit;
 
@@ -47,7 +48,7 @@ internal static class InjectedMemberResolver {
         PropertyInfo? instanceProperty = null;
 
         foreach (PropertyInfo property in declarationType.GetProperties(DeclaredMembers)) {
-            if (property.GetCustomAttribute<InjectInstanceAttribute>() is null) {
+            if (AttributeStore.Get<InjectInstanceAttribute>(property) is null) {
                 continue;
             }
 
@@ -91,7 +92,7 @@ internal static class InjectedMemberResolver {
 
     private static void AddInjectedFields(Type declarationType, Type targetType, Dictionary<string, FieldInfo> fields) {
         foreach (FieldInfo declarationField in declarationType.GetFields(DeclaredMembers)) {
-            InjectFieldAttribute? attribute = declarationField.GetCustomAttribute<InjectFieldAttribute>();
+            InjectFieldAttribute? attribute = AttributeStore.Get<InjectFieldAttribute>(declarationField);
             if (attribute is null) {
                 continue;
             }
@@ -128,7 +129,7 @@ internal static class InjectedMemberResolver {
 
     private static void AddInjectedProperties(Type declarationType, Type targetType, Dictionary<string, MethodInfo?> methods) {
         foreach (PropertyInfo declarationProperty in declarationType.GetProperties(DeclaredMembers)) {
-            InjectPropertyAttribute? attribute = declarationProperty.GetCustomAttribute<InjectPropertyAttribute>();
+            InjectPropertyAttribute? attribute = AttributeStore.Get<InjectPropertyAttribute>(declarationProperty);
             if (attribute is null) {
                 continue;
             }
@@ -158,7 +159,7 @@ internal static class InjectedMemberResolver {
 
     private static void AddInjectedMethods(Type declarationType, Type targetType, Dictionary<string, MethodInfo?> methods) {
         foreach (MethodInfo declarationMethod in declarationType.GetMethods(DeclaredMembers)) {
-            InjectMethodAttribute? attribute = declarationMethod.GetCustomAttribute<InjectMethodAttribute>();
+            InjectMethodAttribute? attribute = AttributeStore.Get<InjectMethodAttribute>(declarationMethod);
             if (attribute is null) {
                 continue;
             }

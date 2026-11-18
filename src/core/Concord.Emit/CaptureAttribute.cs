@@ -4,6 +4,7 @@ namespace Concord;
 ///     Binds an injection parameter to one argument of the matched call site. Valid on Head and Tail
 ///     shifts of the invoke and construction forms.
 /// </summary>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Parameter)]
 public sealed class CaptureAttribute : Attribute {
     /// <summary>

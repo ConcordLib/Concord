@@ -1,4 +1,5 @@
 using System.Reflection;
+using Concord.AttachedData;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 
@@ -17,7 +18,7 @@ internal static class BoundConstants {
         typeof(Type).GetMethod(nameof(Type.GetTypeFromHandle), [typeof(RuntimeTypeHandle)])!;
 
     internal static bool IsBound(ParameterInfo parameter) {
-        return parameter.GetCustomAttribute<BoundAttribute>() is not null;
+        return AttributeStore.Get<BoundAttribute>(parameter) is not null;
     }
 
     internal static Dictionary<int, object?> Resolve(MethodBase injectionMethod, IReadOnlyDictionary<string, object?>? boundArguments) {

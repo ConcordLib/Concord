@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <DefineConstants>$(DefineConstants.Replace('CONCORD_ATTRIBUTES_IN_METADATA', ''))</DefineConstants>
+    <NoWarn>$(NoWarn);SA1600;SA1601;SA1602;SA1611;SA1615;SA1618</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Concord.Ref" Version="0.0.0-contract"/>
+    <PackageReference Include="Concord.Generators" Version="0.0.0-contract" PrivateAssets="all"/>
+  </ItemGroup>
+
+</Project>

@@ -3,12 +3,14 @@ namespace Concord;
 /// <summary>
 ///     Marks a declaration property as the patched target instance for explicit-target declarations.
 /// </summary>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Property)]
 public sealed class InjectInstanceAttribute : Attribute { }
 
 /// <summary>
 ///     Marks a declaration field as an injected field declaration for a field on the patched target type.
 /// </summary>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Field)]
 [JetBrains.Annotations.MeansImplicitUse(
     JetBrains.Annotations.ImplicitUseKindFlags.Access | JetBrains.Annotations.ImplicitUseKindFlags.Assign)]
@@ -29,6 +31,7 @@ public sealed class InjectFieldAttribute : Attribute {
 /// <summary>
 ///     Marks a declaration property as an injected property declaration for a property on the patched target type.
 /// </summary>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Property)]
 public sealed class InjectPropertyAttribute : Attribute {
     /// <summary>Initializes a declaration that resolves to a target property with the same name.</summary>
@@ -47,6 +50,7 @@ public sealed class InjectPropertyAttribute : Attribute {
 /// <summary>
 ///     Marks a declaration method as an injected member declaration for a method on the patched target type.
 /// </summary>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class InjectMethodAttribute : Attribute {
     /// <summary>Initializes a declaration that resolves to a target method with the same name.</summary>
@@ -67,6 +71,7 @@ public sealed class InjectMethodAttribute : Attribute {
 ///     such field, so reads and writes are lowered to a weak side table keyed by the instance. A runtime
 ///     adapter that supports persistence saves it. One that does not keeps it in memory.
 /// </summary>
+[System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Field)]
 [JetBrains.Annotations.MeansImplicitUse(
     JetBrains.Annotations.ImplicitUseKindFlags.Access | JetBrains.Annotations.ImplicitUseKindFlags.Assign)]

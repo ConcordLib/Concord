@@ -32,6 +32,7 @@
     <Project Path="tests/Concord.Enums.Tests/Concord.Enums.Tests.csproj"/>
     <Project Path="tests/Concord.Orchestration.Tests/Concord.Orchestration.Tests.csproj"/>
     <Project Path="tests/Concord.Orchestration.Tests.RegistryAssembly/Concord.Orchestration.Tests.RegistryAssembly.csproj"/>
+    <Project Path="tests/Concord.Orchestration.Tests.ManifestAssembly/Concord.Orchestration.Tests.ManifestAssembly.csproj"/>
     <Project Path="tests/Concord.Generators.Tests.Consumer/Concord.Generators.Tests.Consumer.csproj"/>
     <Project Path="tests/Concord.Waylith.Tests/Concord.Waylith.Tests.csproj"/>
     <Project Path="tests/Concord.Merged.Tests/Concord.Merged.Tests.csproj"/>
