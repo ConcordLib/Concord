@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout docs
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Vale
         uses: errata-ai/vale-action@85f9f7f2c5f449ac0ae5b66662961bae3f77ca6a # reviewdog
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout docs
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -76,7 +76,7 @@ jobs:
         working-directory: docs
     steps:
       - name: Checkout docs
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Detect Worker changes
         id: worker_changes
@@ -133,7 +133,7 @@ jobs:
           echo "Deploying as: $VERSION"
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.x'
 
@@ -150,7 +150,7 @@ jobs:
 
       - name: Restore API metadata cache
         id: api_metadata_cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         continue-on-error: true
         with:
           path: docs/api
@@ -162,7 +162,7 @@ jobs:
 
       - name: Setup Node
         if: steps.api_metadata_cache.outputs.cache-hit != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
 
@@ -190,7 +190,7 @@ jobs:
 
       - name: Save API metadata cache
         if: steps.api_metadata_cache.outputs.cache-hit != 'true' && steps.api_metadata.outcome == 'success'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         continue-on-error: true
         with:
           path: docs/api
