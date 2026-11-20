@@ -44,6 +44,7 @@ public sealed class CodeMatcher {
 
     /// <summary>The instruction at <see cref="Pos" />.</summary>
     /// <exception cref="ConcordEmitException">Thrown with code <c>CONC120</c> when <see cref="IsInvalid" />.</exception>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S2372", Justification = "CodeMatcher mirrors Harmony's CodeMatcher, where Instruction is a property that throws on an invalid cursor.")]
     public CodeInstruction Instruction {
         get {
             if (IsInvalid) {

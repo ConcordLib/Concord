@@ -36,7 +36,7 @@ public static class AdapterEntryPoint {
 
     private static readonly string[] Off = ["0", "false", "off", "no", "disabled"];
 
-    private static readonly object Gate = new object();
+    private static readonly Lock Gate = new Lock();
 
     private static readonly Func<int> ConcordPatchedTargets = static () => Patcher.PatchedTargetCount;
 

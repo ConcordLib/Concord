@@ -12,11 +12,6 @@
     <IsPackable>true</IsPackable>
     <PackageId>Concord.Waylith</PackageId>
     <Description>Body-replacement backend for Concord, for hosts running the WaylithCLR fork of CoreCLR. It stages each composed body through the runtime's method body transformer pipeline, and installs nothing on a runtime without that pipeline.</Description>
-    <!-- Concord.dll is supplied by the host runtime, so it does not belong in this package's
-         dependency group. Suppressing dependencies leaves a lib/ folder with no matching group,
-         which the SDK flags as NU5128. -->
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-    <WarningsNotAsErrors>NU5128</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

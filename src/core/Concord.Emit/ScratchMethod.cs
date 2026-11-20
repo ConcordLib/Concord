@@ -116,6 +116,7 @@ internal sealed class ScratchMethod : IDisposable {
             origin);
     }
 
+#if NET
     private static byte[] DynamicScopeLocals(ComposedBody body) {
         SignatureHelper helper = SignatureHelper.GetLocalVarSigHelper();
         foreach (ComposedLocal local in body.Locals) {
@@ -124,4 +125,5 @@ internal sealed class ScratchMethod : IDisposable {
 
         return helper.GetSignature();
     }
+#endif
 }

@@ -7,6 +7,7 @@ namespace Concord.Emit;
 internal static class Reflected {
     internal const string Unresolvable = "CONC182";
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S3011", Justification = "Resolving a Cecil reference to its reflection member has to reach private and internal members, since a patched body names them.")]
     private const BindingFlags Everything = BindingFlags.Public | BindingFlags.NonPublic |
         BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
 
@@ -123,9 +124,11 @@ internal static class Reflected {
             case null:
                 return null;
             case ArrayType array:
-                return TypeOf(array.ElementType) is { } element
-                    ? array.IsVector ? element.MakeArrayType() : element.MakeArrayType(array.Rank)
-                    : null;
+                if (TypeOf(array.ElementType) is not { } element) {
+                    return null;
+                }
+
+                return array.IsVector ? element.MakeArrayType() : element.MakeArrayType(array.Rank);
             case ByReferenceType byReference:
                 return TypeOf(byReference.ElementType)?.MakeByRefType();
             case PointerType pointer:

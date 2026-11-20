@@ -221,6 +221,7 @@ public static class LocalSignatureEncoder {
         return null;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S3928", Justification = "The exception names the locals parameter of the public Encode, which is the argument the caller passed.")]
     private static Type Unwrap(Type? type, string slot) {
         if (type is null) {
             throw new ArgumentException($"{slot} has a null type", "locals");
@@ -229,6 +230,7 @@ public static class LocalSignatureEncoder {
         return type.UnderlyingSystemType ?? type;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S3928", Justification = "The exception names the locals parameter of the public Encode, which is the argument the caller passed.")]
     private static ArgumentException Reject(string slot, Type type, string reason) =>
         new ArgumentException($"{slot} of type {type}: {reason}", "locals");
 }

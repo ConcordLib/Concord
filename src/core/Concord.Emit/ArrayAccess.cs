@@ -11,6 +11,7 @@ public static class ArrayAccess {
     /// <param name="row">The first-dimension index.</param>
     /// <param name="column">The second-dimension index.</param>
     /// <returns>The element at that position.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S2368", Justification = "A composed body calls this in place of a two-dimensional array pseudo-method, so it has to take the array itself.")]
     public static T Get<T>(T[,] array, int row, int column) {
         return array[row, column];
     }
@@ -21,6 +22,7 @@ public static class ArrayAccess {
     /// <param name="row">The first-dimension index.</param>
     /// <param name="column">The second-dimension index.</param>
     /// <param name="value">The element to store.</param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S2368", Justification = "A composed body calls this in place of a two-dimensional array pseudo-method, so it has to take the array itself.")]
     public static void Set<T>(T[,] array, int row, int column, T value) {
         array[row, column] = value;
     }
@@ -31,6 +33,7 @@ public static class ArrayAccess {
     /// <param name="row">The first-dimension index.</param>
     /// <param name="column">The second-dimension index.</param>
     /// <returns>A reference to the element at that position.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S2368", Justification = "A composed body calls this in place of a two-dimensional array pseudo-method, so it has to take the array itself.")]
     public static ref T Address<T>(T[,] array, int row, int column) {
         return ref array[row, column];
     }

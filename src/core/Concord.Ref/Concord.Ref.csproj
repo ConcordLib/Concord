@@ -41,10 +41,9 @@
     <PackageId>Concord.Ref</PackageId>
     <Description>Compile-time reference assembly for Concord. Reference this to author mods; the target runtime supplies the Concord Assembly.</Description>
     <BuildOutputTargetFolder>ref</BuildOutputTargetFolder>
-    <!-- A ref-only package ships a doc file alongside the assembly; the SDK flags it as
-         NU5131, a false positive here. Downgrade it to a (non-fatal) warning rather than
-         suppress, so it stays visible. -->
-    <WarningsNotAsErrors>NU5131</WarningsNotAsErrors>
+    <!-- NU5131 wants every file under ref/ listed in a nuspec references block, and
+         MSBuild pack has no input that writes one. -->
+    <NoWarn>$(NoWarn);NU5131</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

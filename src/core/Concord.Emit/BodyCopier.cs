@@ -10,6 +10,8 @@ namespace Concord.Emit;
 ///     Copies Cecil method bodies into generated wrappers while remapping Concord control calls.
 /// </summary>
 internal static class BodyCopier {
+    private const string MismatchedInjectionSignature = "CONC039";
+
     private static readonly MethodInfo AttachedGet = typeof(AttachedStorage).GetMethod(nameof(AttachedStorage.Get))!;
     private static readonly MethodInfo AttachedSet = typeof(AttachedStorage).GetMethod(nameof(AttachedStorage.Set))!;
     private static readonly MethodInfo AttachedRef = typeof(AttachedStorage).GetMethod(nameof(AttachedStorage.GetOrAddRef))!;
@@ -79,6 +81,7 @@ internal static class BodyCopier {
     ///     <c>Cancel</c> stops the throw instead of skipping the target body.
     /// </param>
     /// <returns>The copied and lowered instruction sequence.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107", Justification = "Each optional parameter selects one splice context the copy runs in, and a caller passes only the ones that apply to it.")]
     public static List<Instruction> CopyInjection(
         InjectionCopyRequest request,
         ProtocolLocals locals,
@@ -1439,7 +1442,7 @@ internal static class BodyCopier {
 
         if (isAddressOfValue || isReassignValue) {
             throw new ConcordEmitException(
-                "CONC039",
+                MismatchedInjectionSignature,
                 $"Value injection cannot take the address of or reassign its 'original' parameter. Only by-value reads are supported.");
         }
     }
@@ -1681,10 +1684,6 @@ internal static class BodyCopier {
         return int.Parse(name.Substring(2), System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private static Dictionary<int, int> BuildArgRemap(MethodBase target, MethodBase injectionMethod) {
-        return BuildArgRemap(target, injectionMethod, out _, out _);
-    }
-
     private static bool Narrows(Type declared, Type candidate) {
         if (declared == candidate) {
             return false;
@@ -1711,6 +1710,10 @@ internal static class BodyCopier {
         }
 
         return !TypeFacts.IsValueType(declared) && !declared.IsByRef && !TypeFacts.IsValueType(candidate) && !candidate.IsByRef && declared.IsAssignableFrom(candidate);
+    }
+
+    private static Dictionary<int, int> BuildArgRemap(MethodBase target, MethodBase injectionMethod) {
+        return BuildArgRemap(target, injectionMethod, out _, out _);
     }
 
     private static Dictionary<int, int> BuildArgRemap(
@@ -1794,7 +1797,7 @@ internal static class BodyCopier {
         if (receiverLocal is not null && leading == argLocals.Count + 1) {
             if (parameters[0].ParameterType != shape.ReceiverType) {
                 throw new ConcordEmitException(
-                    "CONC039",
+                    MismatchedInjectionSignature,
                     $"Around-invoke injection '{injectionMethod.DeclaringType?.Name}.{injectionMethod.Name}' declares leading parameter '{parameters[0].Name}' " +
                     $"of type '{parameters[0].ParameterType.Name}' but the matched call's receiver is of type '{shape.ReceiverType!.Name}'.");
             }
@@ -1807,13 +1810,13 @@ internal static class BodyCopier {
         for (int i = first; i < leading; i++) {
             if (siteArg >= argLocals.Count) {
                 throw new ConcordEmitException(
-                    "CONC039",
+                    MismatchedInjectionSignature,
                     $"Around-invoke injection '{injectionMethod.DeclaringType?.Name}.{injectionMethod.Name}' declares more leading parameters than the matched call has arguments.");
             }
 
             if (parameters[i].ParameterType != shape.ParameterTypes[siteArg]) {
                 throw new ConcordEmitException(
-                    "CONC039",
+                    MismatchedInjectionSignature,
                     $"Around-invoke injection '{injectionMethod.DeclaringType?.Name}.{injectionMethod.Name}' declares leading parameter '{parameters[i].Name}' " +
                     $"of type '{parameters[i].ParameterType.Name}' but the matched call's argument {siteArg} is of type '{shape.ParameterTypes[siteArg].Name}'.");
             }

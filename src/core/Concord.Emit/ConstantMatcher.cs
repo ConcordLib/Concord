@@ -23,6 +23,7 @@ internal static class ConstantMatcher {
         return matches;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Bug", "S1244", Justification = "A constant injection targets one exact literal in the IL, so the float and double operands have to match bit for bit.")]
     private static bool Matches(Instruction instruction, object value) {
         return value switch {
             int i => MatchesInt(instruction, i),

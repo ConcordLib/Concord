@@ -77,14 +77,14 @@ public sealed class PatchManifestGenerator : IIncrementalGenerator {
     }
 
     internal static string MetadataName(INamedTypeSymbol type) {
-        string name = type.MetadataName;
+        StringBuilder name = new StringBuilder(type.MetadataName);
         INamedTypeSymbol outer = type;
         while (outer.ContainingType is { } container) {
-            name = container.MetadataName + "+" + name;
+            name.Insert(0, "+").Insert(0, container.MetadataName);
             outer = container;
         }
 
-        return outer.ContainingNamespace is { IsGlobalNamespace: false } ns ? ns.ToDisplayString() + "." + name : name;
+        return outer.ContainingNamespace is { IsGlobalNamespace: false } ns ? ns.ToDisplayString() + "." + name : name.ToString();
     }
 
     internal static bool InFile(ITypeSymbol type) {
@@ -602,49 +602,7 @@ public sealed class PatchManifestGenerator : IIncrementalGenerator {
         helpers.AppendLine("        }");
     }
 
-    private static bool ContainsPointer(ITypeSymbol type) {
-        return type switch {
-            IPointerTypeSymbol or IFunctionPointerTypeSymbol => true,
-            IArrayTypeSymbol array => ContainsPointer(array.ElementType),
-            INamedTypeSymbol named => named.TypeArguments.Any(ContainsPointer),
-            _ => false,
-        };
-    }
-
-    private static ulong Bits(object value) {
-        return value switch {
-            sbyte v => unchecked((ulong)v),
-            short v => unchecked((ulong)v),
-            int v => unchecked((ulong)v),
-            long v => unchecked((ulong)v),
-            _ => Convert.ToUInt64(value, CultureInfo.InvariantCulture),
-        };
-    }
-
-    private static string Single(float value) {
-        if (float.IsNaN(value)) {
-            return "float.NaN";
-        }
-
-        if (float.IsInfinity(value)) {
-            return value > 0 ? "float.PositiveInfinity" : "float.NegativeInfinity";
-        }
-
-        return value.ToString("G9", CultureInfo.InvariantCulture) + "F";
-    }
-
-    private static string Double(double value) {
-        if (double.IsNaN(value)) {
-            return "double.NaN";
-        }
-
-        if (double.IsInfinity(value)) {
-            return value > 0 ? "double.PositiveInfinity" : "double.NegativeInfinity";
-        }
-
-        return value.ToString("G17", CultureInfo.InvariantCulture) + "D";
-    }
-
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107", Justification = "Immutable data carrier for one manifest entry. Every parameter maps to a distinct read-only property, so bundling would only add indirection.")]
     private sealed class ManifestEntry(
         string group,
         EntryKind kind,
@@ -717,6 +675,49 @@ public sealed class PatchManifestGenerator : IIncrementalGenerator {
             }
 
             return Failure is null ? code.ToString() : null;
+        }
+
+        private static bool ContainsPointer(ITypeSymbol type) {
+            return type switch {
+                IPointerTypeSymbol or IFunctionPointerTypeSymbol => true,
+                IArrayTypeSymbol array => ContainsPointer(array.ElementType),
+                INamedTypeSymbol named => named.TypeArguments.Any(ContainsPointer),
+                _ => false,
+            };
+        }
+
+        private static ulong Bits(object value) {
+            return value switch {
+                sbyte v => unchecked((ulong)v),
+                short v => unchecked((ulong)v),
+                int v => unchecked((ulong)v),
+                long v => unchecked((ulong)v),
+                _ => Convert.ToUInt64(value, CultureInfo.InvariantCulture),
+            };
+        }
+
+        private static string Single(float value) {
+            if (float.IsNaN(value)) {
+                return "float.NaN";
+            }
+
+            if (float.IsInfinity(value)) {
+                return value > 0 ? "float.PositiveInfinity" : "float.NegativeInfinity";
+            }
+
+            return value.ToString("G9", CultureInfo.InvariantCulture) + "F";
+        }
+
+        private static string Double(double value) {
+            if (double.IsNaN(value)) {
+                return "double.NaN";
+            }
+
+            if (double.IsInfinity(value)) {
+                return value > 0 ? "double.PositiveInfinity" : "double.NegativeInfinity";
+            }
+
+            return value.ToString("G17", CultureInfo.InvariantCulture) + "D";
         }
 
         private string? Value(TypedConstant constant, ITypeSymbol? slot) {

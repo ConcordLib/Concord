@@ -13,12 +13,14 @@ public sealed class ForkBodyReader {
     public static ForkBodyReader Shared { get; } = new ForkBodyReader();
 
     /// <summary><see langword="true" /> when this runtime ships the read. <see langword="false" /> off the fork.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S2325", Justification = "Callers reach this public member through the Shared instance, so it stays an instance member.")]
     public bool IsAvailable => Bound;
 
     /// <summary>Reads <paramref name="target" />'s original body, the one its metadata declares.</summary>
     /// <param name="target">The method to read.</param>
     /// <returns>The body, or <see langword="null" /> when this runtime has no such read or the host refused one.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="target" /> is <see langword="null" />.</exception>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S2325", Justification = "Callers reach this public member through the Shared instance, so it stays an instance member.")]
     public HostBody? Read(MethodBase target) {
         ArgumentNullException.ThrowIfNull(target);
         return Bound ? ForkApi.ReadDefault(target) : null;
@@ -28,6 +30,7 @@ public sealed class ForkBodyReader {
     /// <param name="target">The method to read.</param>
     /// <returns>The body, or <see langword="null" /> when this runtime has no such read or the host refused one.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="target" /> is <see langword="null" />.</exception>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S2325", Justification = "Callers reach this public member through the Shared instance, so it stays an instance member.")]
     public HostBody? ReadActive(MethodBase target) {
         ArgumentNullException.ThrowIfNull(target);
         return Bound ? ForkApi.ReadCurrent(target) : null;

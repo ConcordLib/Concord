@@ -12,11 +12,6 @@
     <IsPackable>true</IsPackable>
     <PackageId>Concord.MonoMod</PackageId>
     <Description>Emit backend for Concord on .NET Framework and mono runtimes, where there is no DynamicILInfo to write a method body through. It emits each composed body through MonoMod's DynamicMethodDefinition.</Description>
-    <!-- Concord.dll is supplied by the host runtime, so it does not belong in this package's
-         dependency group. Suppressing dependencies leaves a lib/ folder with no matching group,
-         which the SDK flags as NU5128. -->
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-    <WarningsNotAsErrors>NU5128</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,6 +27,9 @@
     <HarmonyExcludeAssets>runtime</HarmonyExcludeAssets>
   </PropertyGroup>
   <Import Project="../../../build/Harmony.targets"/>
+  <ItemGroup>
+    <PackageReference Update="Lib.Harmony" PrivateAssets="all"/>
+  </ItemGroup>
 
   <ItemGroup>
     <!-- Order-only: build the merged runtime first, but do not let MSBuild pick its reference,

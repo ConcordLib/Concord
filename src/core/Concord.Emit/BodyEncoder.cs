@@ -193,7 +193,11 @@ public static class BodyEncoder {
 
             case OperandType.InlineR:
                 il.OpCode(code);
-                il.CodeBuilder.WriteDouble(operand is double real ? real : operand is float widened ? widened : throw Bad(index, opcode, operand, "a double"));
+                il.CodeBuilder.WriteDouble(operand switch {
+                    double real => real,
+                    float widened => widened,
+                    _ => throw Bad(index, opcode, operand, "a double"),
+                });
                 return;
 
             case OperandType.InlineString:

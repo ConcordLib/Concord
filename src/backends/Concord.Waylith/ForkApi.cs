@@ -7,6 +7,7 @@ namespace Concord.Waylith;
 internal static class ForkApi {
     private const int Scratch = 64;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S3011", Justification = "The check only asks whether a fork api member exists, whatever its visibility, and never calls it.")]
     private const BindingFlags AnyMember =
         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
 

@@ -343,7 +343,7 @@ public sealed class PatchManifestGeneratorTests : IDisposable {
         Assert.Equal(-0.30000000000000004d, ConstantOf(hooks, "OnDouble"));
         Assert.Equal((byte)200, ConstantOf(hooks, "OnByte"));
         Assert.Equal((sbyte)-3, ConstantOf(hooks, "OnSByte"));
-        Assert.Equal(true, ConstantOf(hooks, "OnBool"));
+        Assert.True((bool)ConstantOf(hooks, "OnBool")!);
         Assert.Equal("Read, Exec", ConstantOf(hooks, "OnFlags")!.ToString());
         Assert.Equal(64, (int)ConstantOf(hooks, "OnUnnamed")!);
         Assert.Equal("Mod.PawnHooks+Hidden", ConstantOf(hooks, "OnHiddenEnum")!.GetType().FullName);

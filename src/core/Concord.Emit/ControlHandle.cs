@@ -17,6 +17,7 @@ public sealed class ControlHandle {
     ///     Marks the current injection as cancelling the original target invocation.
     /// </summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822", Justification = "Lowering matches Call/Callvirt on a ControlHandle instance. Making this static would change the emitted call shape and stop ControlHandleLowering from recognising the site.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Critical Code Smell", "S1186", Justification = "Marker signature erased and replaced by Concord IL lowering at emit time. A real body would be dead code.")]
     public void Cancel() { } // NOSONAR recognized control call; concord lowers this into wrapper IL, body is never executed as-is
 
     /// <summary>
@@ -28,12 +29,14 @@ public sealed class ControlHandle {
     ///     <see langword="false" /> only the target body. The overload is valid only in an At.Head injection.
     /// </param>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822", Justification = "Lowering matches Call/Callvirt on a ControlHandle instance. Making this static would change the emitted call shape and stop ControlHandleLowering from recognising the site.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Critical Code Smell", "S1186", Justification = "Marker signature erased and replaced by Concord IL lowering at emit time. A real body would be dead code.")]
     public void Cancel(bool skipRemainingHeads) { } // NOSONAR recognized control call; concord lowers this into wrapper IL, body is never executed as-is
 
     /// <summary>
     ///     Resumes the throw a Cancel call stopped. Only an At.Catch injection can call it.
     /// </summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822", Justification = "Lowering matches Call/Callvirt on a ControlHandle instance. Making this static would change the emitted call shape and stop ControlHandleLowering from recognising the site.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Critical Code Smell", "S1186", Justification = "Marker signature erased and replaced by Concord IL lowering at emit time. A real body would be dead code.")]
     public void Rethrow() { } // NOSONAR recognized control call; concord lowers this into wrapper IL, body is never executed as-is
 
     /// <summary>
@@ -43,6 +46,7 @@ public sealed class ControlHandle {
     /// <typeparam name="T">The slot's type. Every injection in one declaration must agree on it.</typeparam>
     /// <param name="value">The value to store.</param>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822", Justification = "Lowering matches Call/Callvirt on a ControlHandle instance. Making this static would change the emitted call shape and stop ControlHandleLowering from recognising the site.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Critical Code Smell", "S1186", Justification = "Marker signature erased and replaced by Concord IL lowering at emit time. A real body would be dead code.")]
     public void SetState<T>(T value) { } // NOSONAR recognized control call; concord lowers this into wrapper IL, body is never executed as-is
 
     /// <summary>
@@ -51,5 +55,6 @@ public sealed class ControlHandle {
     /// <typeparam name="T">The slot's type. Every injection in one declaration must agree on it.</typeparam>
     /// <returns>The stored value.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822", Justification = "Lowering matches Call/Callvirt on a ControlHandle instance. Making this static would change the emitted call shape and stop ControlHandleLowering from recognising the site.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S2325", Justification = "Lowering matches Call/Callvirt on a ControlHandle instance. Making this static would change the emitted call shape and stop ControlHandleLowering from recognising the site.")]
     public T GetState<T>() => default!; // NOSONAR recognized control call; concord lowers this into wrapper IL, body is never executed as-is
 }

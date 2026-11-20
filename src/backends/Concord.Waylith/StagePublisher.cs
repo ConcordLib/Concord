@@ -141,6 +141,14 @@ public sealed class StagePublisher : ITargetBodyOwner {
             "nothing to rebuild it. " + nameof(UseRebuild) + " has to run before the first publish.");
     }
 
+    private static ConcordEmitException Refusal(MethodBase target, Exception failure) {
+        return new ConcordEmitException(
+            RefusedCode,
+            "'" + WaylithClrBackend.Describe(target) + "' could not be staged through the transformer " +
+            "pipeline: " + failure.GetType().Name + ", " + failure.Message.TrimEnd('.') +
+            ". The method keeps the body it was declared with.");
+    }
+
     private Exception? Rebuilt(RuntimeMethodHandle handle, MethodBase target) {
         Exception? failure;
         try {
@@ -176,14 +184,6 @@ public sealed class StagePublisher : ITargetBodyOwner {
             RefusedMarker + " '" + WaylithClrBackend.Describe(target) + "': " + failure.GetType().Name + ", " +
             failure.Message.TrimEnd('.') + ". Its composed body was not staged, so the method keeps running the " +
             "code it was declared with and every patch on it is refused.");
-    }
-
-    private ConcordEmitException Refusal(MethodBase target, Exception failure) {
-        return new ConcordEmitException(
-            RefusedCode,
-            "'" + WaylithClrBackend.Describe(target) + "' could not be staged through the transformer " +
-            "pipeline: " + failure.GetType().Name + ", " + failure.Message.TrimEnd('.') +
-            ". The method keeps the body it was declared with.");
     }
 }
 

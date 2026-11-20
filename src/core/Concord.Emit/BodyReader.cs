@@ -10,7 +10,11 @@ internal static class BodyReader {
 
     internal static readonly bool Fenced = Type.GetType("Mono.Runtime") is not null;
 
+#if NET9_0_OR_GREATER
+    private static readonly Lock Gate = new Lock();
+#else
     private static readonly object Gate = new object();
+#endif
 
     private static readonly Dictionary<(Guid Mvid, int Token), string?> Cache =
         new Dictionary<(Guid Mvid, int Token), string?>();
@@ -184,6 +188,7 @@ internal static class BodyReader {
         return Layout(element, seen) ? $"the value type '{element.FullName}', whose fields carry a function pointer" : null;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Bug", "S4143", Justification = "The first write marks the type as in progress so a recursive layout stops on a cycle, and the second write stores the real result.")]
     private static bool Layout(TypeReference type, Dictionary<string, bool> seen) {
         string key = type.FullName;
         if (seen.TryGetValue(key, out bool cached)) {

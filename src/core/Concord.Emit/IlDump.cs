@@ -257,6 +257,7 @@ internal static class IlDump {
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Bug", "S2583", Justification = "The work queue is filled through the Seed local function before the loop, so the loop condition can be true.")]
     private static string Verify(MethodDefinition method) {
         MethodBody body = method.Body;
         Dictionary<Instruction, int> indexOf = new Dictionary<Instruction, int>();

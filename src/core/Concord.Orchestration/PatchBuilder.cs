@@ -10,6 +10,8 @@ namespace Concord;
 ///     and its overloads.
 /// </summary>
 public sealed class PatchBuilder {
+    private const string UnsupportedPosition = "CONC116";
+
     private readonly List<Injection> injections = [];
     private readonly MethodBase target;
     private PatchBody body = PatchBody.Declared;
@@ -452,6 +454,7 @@ public sealed class PatchBuilder {
         return Inject(at, ResolveInjectionMethod(injectionMethodType, injectionMethodName));
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S3011:Reflection should not be used to increase accessibility of classes, methods, or fields", Justification = "Concord binds a mod's injection method whatever its accessibility; the method is validated at resolve time.")]
     private static MethodInfo ResolveInjectionMethod(Type injectionMethodType, string injectionMethodName) {
         MethodInfo? resolved = injectionMethodType.GetMethod(
             injectionMethodName,
@@ -465,6 +468,7 @@ public sealed class PatchBuilder {
         return resolved;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S3011:Reflection should not be used to increase accessibility of classes, methods, or fields", Justification = "Concord binds a mod's injection method whatever its accessibility; the method is validated at resolve time.")]
     private static MethodInfo ResolveInjectionMethod(Type injectionMethodType, string injectionMethodName, Type[] parameterTypes) {
         MethodInfo? resolved = injectionMethodType.GetMethod(
             injectionMethodName,
@@ -492,15 +496,15 @@ public sealed class PatchBuilder {
             At.TranspilerFinal => new InjectAt.Transpiler(true),
             At.Catch => new InjectAt.Catch(),
             At.Constant => throw new ConcordEmitException(
-                "CONC116",
+                UnsupportedPosition,
                 "At.Constant needs a constant to match, and no PatchBuilder call carries one: use the constant-targeting attribute constructor [Inject(method, constant, At.Constant, by:)]. The plain position overload carries no constant, so no host was asked and no host refused this patch."),
             At.Argument => throw new ConcordEmitException(
-                "CONC116",
+                UnsupportedPosition,
                 "At.Argument needs a call site to match: use PatchBuilder.Invoke(callSiteType, callSiteMethod, injectionMethod, shift: At.Argument, by:) or PatchBuilder.NewObj(constructedType, injectionMethod, shift: At.Argument, by:). The plain position overload carries no call site, so no host was asked and no host refused this patch."),
             At.Local => throw new ConcordEmitException(
-                "CONC116",
+                UnsupportedPosition,
                 "At.Local needs a local to match: use PatchBuilder.Local(localType, access, injectionMethod, by:). The plain position overload carries no local, so no host was asked and no host refused this patch."),
-            _ => throw new ConcordEmitException("CONC116", $"Unsupported injection position '{at}'."),
+            _ => throw new ConcordEmitException(UnsupportedPosition, $"Unsupported injection position '{at}'."),
         };
     }
 }

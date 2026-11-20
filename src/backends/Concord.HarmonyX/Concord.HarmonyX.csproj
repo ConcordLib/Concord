@@ -11,11 +11,6 @@
     <IsPackable>true</IsPackable>
     <PackageId>Concord.HarmonyX</PackageId>
     <Description>Patch backend for Concord on HarmonyX hosts such as BepInEx. It joins MonoMod's hook chain with one ILHook per target, so Concord's injections and HarmonyX's patches share a method instead of fighting over its body.</Description>
-    <!-- Concord.dll, 0Harmony.dll, MonoMod.* and Mono.Cecil are all supplied by the host runtime, so
-         none of them belong in this package's dependency group. Suppressing dependencies leaves a
-         lib/ folder with no matching group, which the SDK flags as NU5128. -->
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-    <WarningsNotAsErrors>NU5128</WarningsNotAsErrors>
   </PropertyGroup>
 
   <!-- Elin ships the net35 build of all four of these, byte for byte, and binds the loose copies in

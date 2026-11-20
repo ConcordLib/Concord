@@ -4,6 +4,7 @@ using System.Text;
 namespace Concord.AttachedData;
 
 internal static class MemberIds {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S3011:Reflection should not be used to increase accessibility of classes, methods, or fields", Justification = "Concord maps a generated member id back to its member whatever that member's accessibility.")]
     private const BindingFlags Declared = BindingFlags.Public |
                                           BindingFlags.NonPublic |
                                           BindingFlags.Instance |

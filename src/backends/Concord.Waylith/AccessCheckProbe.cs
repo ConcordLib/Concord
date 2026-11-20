@@ -8,6 +8,7 @@ using WaylithClr;
 namespace Concord.Waylith;
 
 internal static class AccessCheckProbe {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S3011", Justification = "The probe names hidden members of another assembly on purpose, to learn whether the runtime checks access on a staged body.")]
     private const BindingFlags Hidden = BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -27,48 +28,9 @@ internal static class AccessCheckProbe {
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S3400", Justification = "Must be a method so the probe can stage a body over it; true means the staged body ran.")]
     private static bool Reached() {
         return false;
-    }
-
-    private static CodeInstruction[] Body() {
-        Type scanner = typeof(PatchDeclarationScanner);
-        FieldInfo flag = Find(typeof(ExtendedEnumRegistry).GetField("warnedNoStore", Hidden));
-        FieldInfo elapsed = Find(typeof(Stopwatch).GetField("_elapsed", Hidden));
-        Type closure = Find(typeof(Patcher).GetNestedTypes(BindingFlags.NonPublic).FirstOrDefault(static nested =>
-            nested.Name.StartsWith("<>c__DisplayClass", StringComparison.Ordinal)
-            && nested.GetConstructor(Type.EmptyTypes) is not null
-            && nested.GetFields().Any(static field => !field.FieldType.IsValueType)
-            && nested.GetMethods(Hidden | BindingFlags.DeclaredOnly).Length > 0));
-
-        return [
-            new CodeInstruction(OpCodes.Ldstr, "CONC061"),
-            new CodeInstruction(OpCodes.Call, Find(scanner.GetMethod("IsDeclarationScopedCode", Hidden, [typeof(string)]))),
-            new CodeInstruction(OpCodes.Pop),
-            new CodeInstruction(OpCodes.Ldstr, "System.Int32"),
-            new CodeInstruction(OpCodes.Call, Find(scanner.GetMethod("ResolveTypeByName", Hidden, [typeof(string)]))),
-            new CodeInstruction(OpCodes.Pop),
-            new CodeInstruction(OpCodes.Ldsfld, flag),
-            new CodeInstruction(OpCodes.Stsfld, flag),
-            new CodeInstruction(OpCodes.Newobj, typeof(Stopwatch).GetConstructor(Type.EmptyTypes)!),
-            new CodeInstruction(OpCodes.Dup),
-            new CodeInstruction(OpCodes.Ldfld, elapsed),
-            new CodeInstruction(OpCodes.Stfld, elapsed),
-            new CodeInstruction(OpCodes.Newobj, closure.GetConstructor(Type.EmptyTypes)!),
-            new CodeInstruction(OpCodes.Ldnull),
-            new CodeInstruction(OpCodes.Stfld, closure.GetFields().First(static field => !field.FieldType.IsValueType)),
-            new CodeInstruction(OpCodes.Ldftn, closure.GetMethods(Hidden | BindingFlags.DeclaredOnly)[0]),
-            new CodeInstruction(OpCodes.Pop),
-            new CodeInstruction(OpCodes.Ldtoken, Find(scanner.Assembly.GetType("Concord.Orchestration.PatchHandle"))),
-            new CodeInstruction(OpCodes.Pop),
-            new CodeInstruction(OpCodes.Ldc_I4_1),
-            new CodeInstruction(OpCodes.Ret),
-        ];
-    }
-
-    private static T Find<T>(T? member)
-        where T : MemberInfo {
-        return member ?? throw new MissingMemberException("a member the access check probe names is not in this build");
     }
 
     private sealed class Stage : MethodBodyTransformer {
@@ -91,6 +53,47 @@ internal static class AccessCheckProbe {
                 [.. Body().Select(static instruction => new ComposedInstruction(instruction, null, null))], [], [], false);
             result.Write(BodyEncoder.Encode(composed, new Ungated(result), new ComputedStack()).Bytes);
             return true;
+        }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S3011", Justification = "The probe names hidden members of another assembly on purpose, to learn whether the runtime checks access on a staged body.")]
+        private static CodeInstruction[] Body() {
+            Type scanner = typeof(PatchDeclarationScanner);
+            FieldInfo flag = Find(typeof(ExtendedEnumRegistry).GetField("warnedNoStore", Hidden));
+            FieldInfo elapsed = Find(typeof(Stopwatch).GetField("_elapsed", Hidden));
+            Type closure = Find(typeof(Patcher).GetNestedTypes(BindingFlags.NonPublic).FirstOrDefault(static nested =>
+                nested.Name.StartsWith("<>c__DisplayClass", StringComparison.Ordinal)
+                && nested.GetConstructor(Type.EmptyTypes) is not null
+                && nested.GetFields().Any(static field => !field.FieldType.IsValueType)
+                && nested.GetMethods(Hidden | BindingFlags.DeclaredOnly).Length > 0));
+
+            return [
+                new CodeInstruction(OpCodes.Ldstr, "CONC061"),
+                new CodeInstruction(OpCodes.Call, Find(scanner.GetMethod("IsDeclarationScopedCode", Hidden, [typeof(string)]))),
+                new CodeInstruction(OpCodes.Pop),
+                new CodeInstruction(OpCodes.Ldstr, "System.Int32"),
+                new CodeInstruction(OpCodes.Call, Find(scanner.GetMethod("ResolveTypeByName", Hidden, [typeof(string)]))),
+                new CodeInstruction(OpCodes.Pop),
+                new CodeInstruction(OpCodes.Ldsfld, flag),
+                new CodeInstruction(OpCodes.Stsfld, flag),
+                new CodeInstruction(OpCodes.Newobj, typeof(Stopwatch).GetConstructor(Type.EmptyTypes)!),
+                new CodeInstruction(OpCodes.Dup),
+                new CodeInstruction(OpCodes.Ldfld, elapsed),
+                new CodeInstruction(OpCodes.Stfld, elapsed),
+                new CodeInstruction(OpCodes.Newobj, closure.GetConstructor(Type.EmptyTypes)!),
+                new CodeInstruction(OpCodes.Ldnull),
+                new CodeInstruction(OpCodes.Stfld, closure.GetFields().First(static field => !field.FieldType.IsValueType)),
+                new CodeInstruction(OpCodes.Ldftn, closure.GetMethods(Hidden | BindingFlags.DeclaredOnly)[0]),
+                new CodeInstruction(OpCodes.Pop),
+                new CodeInstruction(OpCodes.Ldtoken, Find(scanner.Assembly.GetType("Concord.Orchestration.PatchHandle"))),
+                new CodeInstruction(OpCodes.Pop),
+                new CodeInstruction(OpCodes.Ldc_I4_1),
+                new CodeInstruction(OpCodes.Ret),
+            ];
+        }
+
+        private static T Find<T>(T? member)
+            where T : MemberInfo {
+            return member ?? throw new MissingMemberException("a member the access check probe names is not in this build");
         }
     }
 

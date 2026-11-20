@@ -9,12 +9,6 @@ internal static class AttributeStore {
 
     private static readonly ConditionalWeakTable<Assembly, Lazy<Table>> Tables = new ConditionalWeakTable<Assembly, Lazy<Table>>();
 
-    internal static T? Get<T>(MemberInfo member)
-        where T : Attribute {
-        List<Attribute>? stored = StoredOn(member);
-        return stored is null ? member.GetCustomAttribute<T>() : First<T>(stored);
-    }
-
     internal static IEnumerable<T> GetAll<T>(MemberInfo member)
         where T : Attribute {
         List<Attribute>? stored = StoredOn(member);
@@ -30,6 +24,12 @@ internal static class AttributeStore {
         }
 
         return found;
+    }
+
+    internal static T? Get<T>(MemberInfo member)
+        where T : Attribute {
+        List<Attribute>? stored = StoredOn(member);
+        return stored is null ? member.GetCustomAttribute<T>() : First<T>(stored);
     }
 
     internal static T? Get<T>(ParameterInfo parameter)

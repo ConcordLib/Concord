@@ -137,6 +137,7 @@ public sealed class CodeInstruction {
         return operand is null ? opcode.Name ?? string.Empty : opcode.Name + " " + operand;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Bug", "S1244", Justification = "An operand match compares IL constant operands, which are exact values, so a tolerance would match the wrong instruction.")]
     private static bool OperandsEqual(object matchOperand, object? operand) {
         if (operand is null) {
             return false;

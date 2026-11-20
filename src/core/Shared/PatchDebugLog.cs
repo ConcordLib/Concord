@@ -5,7 +5,11 @@ namespace Concord;
 
 internal static class PatchDebugLog {
     private const string FileName = "Concord.PatchDebug.log";
+#if NET9_0_OR_GREATER
+    private static readonly Lock Gate = new Lock();
+#else
     private static readonly object Gate = new object();
+#endif
 
     internal static void Append(MethodBase target, string il) {
         string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);

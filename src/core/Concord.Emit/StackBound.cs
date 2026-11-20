@@ -65,75 +65,6 @@ public readonly struct StackBound {
         return new StackBound(walk.Run(), usesLocalloc);
     }
 
-    private static int PushCount(OpCode opcode, object? operand) {
-        return opcode.StackBehaviourPush switch {
-            StackBehaviour.Push0 => 0,
-            StackBehaviour.Push1 => 1,
-            StackBehaviour.Pushi => 1,
-            StackBehaviour.Pushi8 => 1,
-            StackBehaviour.Pushr4 => 1,
-            StackBehaviour.Pushr8 => 1,
-            StackBehaviour.Pushref => 1,
-            StackBehaviour.Push1_push1 => 2,
-            StackBehaviour.Varpush => CallPushCount(operand),
-            _ => throw new NotSupportedException(
-                opcode.Name + " has push behaviour " + opcode.StackBehaviourPush + ", which has no push count"),
-        };
-    }
-
-    private static int CallPushCount(object? operand) {
-        return operand switch {
-            MethodInfo method => method.ReturnType == typeof(void) ? 0 : 1,
-            ConstructorInfo => 0,
-            CallSiteSignature signature => signature.ReturnsVoid ? 0 : 1,
-            _ => 1,
-        };
-    }
-
-    private static int PopCount(OpCode opcode, object? operand) {
-        return opcode.StackBehaviourPop switch {
-            StackBehaviour.Pop0 => 0,
-            StackBehaviour.Pop1 => 1,
-            StackBehaviour.Popi => 1,
-            StackBehaviour.Popref => 1,
-            StackBehaviour.Pop1_pop1 => 2,
-            StackBehaviour.Popi_pop1 => 2,
-            StackBehaviour.Popi_popi => 2,
-            StackBehaviour.Popi_popi8 => 2,
-            StackBehaviour.Popi_popr4 => 2,
-            StackBehaviour.Popi_popr8 => 2,
-            StackBehaviour.Popref_pop1 => 2,
-            StackBehaviour.Popref_popi => 2,
-            StackBehaviour.Popi_popi_popi => 3,
-            StackBehaviour.Popref_popi_pop1 => 3,
-            StackBehaviour.Popref_popi_popi => 3,
-            StackBehaviour.Popref_popi_popi8 => 3,
-            StackBehaviour.Popref_popi_popr4 => 3,
-            StackBehaviour.Popref_popi_popr8 => 3,
-            StackBehaviour.Popref_popi_popref => 3,
-            StackBehaviour.Varpop => CallPopCount(opcode, operand),
-            _ => throw new NotSupportedException(
-                opcode.Name + " has pop behaviour " + opcode.StackBehaviourPop + ", which has no pop count"),
-        };
-    }
-
-    private static int CallPopCount(OpCode opcode, object? operand) {
-        if (operand is CallSiteSignature signature) {
-            return signature.StackPops;
-        }
-
-        if (operand is not MethodBase call) {
-            return 0;
-        }
-
-        int arguments = call.GetParameters().Length;
-        if (opcode == OpCodes.Newobj) {
-            return arguments;
-        }
-
-        return call.IsStatic ? arguments : arguments + 1;
-    }
-
     private sealed class Walk {
         private readonly IReadOnlyList<ComposedInstruction> stream;
         private readonly Dictionary<Label, int> targets;
@@ -170,6 +101,75 @@ public readonly struct StackBound {
             }
 
             return deepest;
+        }
+
+        private static int PushCount(OpCode opcode, object? operand) {
+            return opcode.StackBehaviourPush switch {
+                StackBehaviour.Push0 => 0,
+                StackBehaviour.Push1 => 1,
+                StackBehaviour.Pushi => 1,
+                StackBehaviour.Pushi8 => 1,
+                StackBehaviour.Pushr4 => 1,
+                StackBehaviour.Pushr8 => 1,
+                StackBehaviour.Pushref => 1,
+                StackBehaviour.Push1_push1 => 2,
+                StackBehaviour.Varpush => CallPushCount(operand),
+                _ => throw new NotSupportedException(
+                    opcode.Name + " has push behaviour " + opcode.StackBehaviourPush + ", which has no push count"),
+            };
+        }
+
+        private static int CallPushCount(object? operand) {
+            return operand switch {
+                MethodInfo method => method.ReturnType == typeof(void) ? 0 : 1,
+                ConstructorInfo => 0,
+                CallSiteSignature signature => signature.ReturnsVoid ? 0 : 1,
+                _ => 1,
+            };
+        }
+
+        private static int PopCount(OpCode opcode, object? operand) {
+            return opcode.StackBehaviourPop switch {
+                StackBehaviour.Pop0 => 0,
+                StackBehaviour.Pop1 => 1,
+                StackBehaviour.Popi => 1,
+                StackBehaviour.Popref => 1,
+                StackBehaviour.Pop1_pop1 => 2,
+                StackBehaviour.Popi_pop1 => 2,
+                StackBehaviour.Popi_popi => 2,
+                StackBehaviour.Popi_popi8 => 2,
+                StackBehaviour.Popi_popr4 => 2,
+                StackBehaviour.Popi_popr8 => 2,
+                StackBehaviour.Popref_pop1 => 2,
+                StackBehaviour.Popref_popi => 2,
+                StackBehaviour.Popi_popi_popi => 3,
+                StackBehaviour.Popref_popi_pop1 => 3,
+                StackBehaviour.Popref_popi_popi => 3,
+                StackBehaviour.Popref_popi_popi8 => 3,
+                StackBehaviour.Popref_popi_popr4 => 3,
+                StackBehaviour.Popref_popi_popr8 => 3,
+                StackBehaviour.Popref_popi_popref => 3,
+                StackBehaviour.Varpop => CallPopCount(opcode, operand),
+                _ => throw new NotSupportedException(
+                    opcode.Name + " has pop behaviour " + opcode.StackBehaviourPop + ", which has no pop count"),
+            };
+        }
+
+        private static int CallPopCount(OpCode opcode, object? operand) {
+            if (operand is CallSiteSignature signature) {
+                return signature.StackPops;
+            }
+
+            if (operand is not MethodBase call) {
+                return 0;
+            }
+
+            int arguments = call.GetParameters().Length;
+            if (opcode == OpCodes.Newobj) {
+                return arguments;
+            }
+
+            return call.IsStatic ? arguments : arguments + 1;
         }
 
         private void Step(int index) {

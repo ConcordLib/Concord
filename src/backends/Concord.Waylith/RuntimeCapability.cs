@@ -183,12 +183,6 @@ public static class RuntimeCapability {
             : (false, $"the probe, which threw {failure.GetType().Name}: {failure.Message.TrimEnd('.')}");
     }
 
-    /// <summary>Explains this process's verdict, including the probe failure detail when there is one.</summary>
-    /// <returns>A log-ready sentence naming the api, this runtime, and why replacement is or is not usable.</returns>
-    public static string Explain() {
-        return Explain(Support, ProbeFailure);
-    }
-
     /// <summary>Looks the runtime's updater type up by name without throwing when it is absent.</summary>
     /// <returns>The updater type, or <see langword="null" /> on any runtime that does not ship it.</returns>
     public static Type? Updater() {
@@ -235,6 +229,12 @@ public static class RuntimeCapability {
             : BodyReplacement.ProbeFailed;
 
         return (support, cause.GetType().Name + ": " + cause.Message);
+    }
+
+    /// <summary>Explains this process's verdict, including the probe failure detail when there is one.</summary>
+    /// <returns>A log-ready sentence naming the api, this runtime, and why replacement is or is not usable.</returns>
+    public static string Explain() {
+        return Explain(Support, ProbeFailure);
     }
 
     /// <summary>Explains a verdict held without a probe failure detail.</summary>
@@ -369,6 +369,7 @@ public static class RuntimeCapability {
         return ForkMinter.IsAvailable && MintsMethodSpecsThrough(Mint);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S3011", Justification = "The MethodSpec probe mints a token for its own private generic method and never calls it.")]
     private static int Mint() {
         MethodInfo generic = typeof(RuntimeCapability).GetMethod(
             nameof(Generic),

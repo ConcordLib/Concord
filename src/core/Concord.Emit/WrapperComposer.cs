@@ -26,7 +26,11 @@ public static class WrapperComposer {
                                           "At.Invoke and At.NewObj. Use a plain [Local] parameter to read a local at the other positions.";
 
     private static readonly Dictionary<MethodBase, bool> SharedBodyCache = new Dictionary<MethodBase, bool>();
+#if NET9_0_OR_GREATER
+    private static readonly Lock SharedBodyGate = new Lock();
+#else
     private static readonly object SharedBodyGate = new object();
+#endif
 
     private static bool captureComposedBody;
 

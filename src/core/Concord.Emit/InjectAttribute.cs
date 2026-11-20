@@ -8,6 +8,8 @@ namespace Concord;
 [System.Diagnostics.Conditional("CONCORD_ATTRIBUTES_IN_METADATA")]
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class InjectAttribute : Attribute {
+    private const string UnsupportedPosition = "CONC116";
+
     private readonly Type? invokeDeclaringType;
     private readonly string? invokeMethod;
     private readonly At invokeShift;
@@ -247,15 +249,15 @@ public sealed class InjectAttribute : Attribute {
                 Concord.At.TranspilerFinal => new InjectAt.Transpiler(true),
                 Concord.At.Catch => new InjectAt.Catch(),
                 Concord.At.Constant => throw new ConcordEmitException(
-                    "CONC116",
+                    UnsupportedPosition,
                     "At.Constant needs the constant-targeting constructor [Inject(method, constant, At.Constant, by:)]. The plain [Inject(at, method)] constructor carries no constant to match, so no host was asked and no host refused this patch."),
                 Concord.At.Argument => throw new ConcordEmitException(
-                    "CONC116",
+                    UnsupportedPosition,
                     "At.Argument needs the invoke-splice constructor [Inject(method, invokeDeclaringType, invokeDeclaringMethod, At.Argument, arg:)] or [InjectNew(method, constructedType, At.Argument, arg:)]. The plain [Inject(at, method)] constructor carries no call site to match, so no host was asked and no host refused this patch."),
                 Concord.At.Local => throw new ConcordEmitException(
-                    "CONC116",
+                    UnsupportedPosition,
                     "At.Local needs the local-targeting constructor [Inject(method, localType, access, At.Local, by:)]. The plain [Inject(at, method)] constructor carries no local to match, so no host was asked and no host refused this patch."),
-                _ => throw new ConcordEmitException("CONC116", $"Unsupported injection position '{At}'."),
+                _ => throw new ConcordEmitException(UnsupportedPosition, $"Unsupported injection position '{At}'."),
             };
         }
     }

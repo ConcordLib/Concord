@@ -9,7 +9,11 @@ namespace Concord.AttachedData;
 ///     identified by an int baked into the emitted IL, so a field access lowers to one static call.
 /// </summary>
 public static class AttachedStorage {
+#if NET9_0_OR_GREATER
+    private static readonly Lock Gate = new Lock();
+#else
     private static readonly object Gate = new object();
+#endif
     private static readonly Dictionary<string, Allocation> Ids = new Dictionary<string, Allocation>();
     private static readonly List<IAttachedSlot> Registered = new List<IAttachedSlot>();
 

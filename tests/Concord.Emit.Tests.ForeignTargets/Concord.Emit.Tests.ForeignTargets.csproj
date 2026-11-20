@@ -12,6 +12,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <Optimize>true</Optimize>
+    <SonarQubeTestProject>true</SonarQubeTestProject>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net472'">

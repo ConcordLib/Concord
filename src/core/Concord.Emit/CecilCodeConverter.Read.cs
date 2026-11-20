@@ -10,6 +10,8 @@ using OperandType = Mono.Cecil.Cil.OperandType;
 namespace Concord.Emit;
 
 internal static partial class CecilCodeConverter {
+    private const string HandlerStartRole = "HandlerStart";
+
     private static readonly Dictionary<string, OpCode> OpCodesByName = BuildOpCodeTable();
 
     public static List<CodeInstruction> ToInstructions(MethodDefinition definition, TranspilerContext context) {
@@ -240,7 +242,7 @@ internal static partial class CecilCodeConverter {
     private static int HandlerOpenIndex(ExceptionHandler handler, Dictionary<Instruction, int> indexOf) {
         bool isFilter = handler.HandlerType == ExceptionHandlerType.Filter;
         Instruction openPosition = isFilter ? handler.FilterStart : handler.HandlerStart;
-        return IndexOf(openPosition, indexOf, handler, isFilter ? "FilterStart" : "HandlerStart");
+        return IndexOf(openPosition, indexOf, handler, isFilter ? "FilterStart" : HandlerStartRole);
     }
 
     private static int IndexOf(Instruction boundary, Dictionary<Instruction, int> indexOf, ExceptionHandler handler, string role) {
@@ -369,14 +371,14 @@ internal static partial class CecilCodeConverter {
         foreach (ExceptionHandler handler in envelope.Handlers) {
             if (handler.HandlerType == ExceptionHandlerType.Filter) {
                 points.Add((IndexOf(handler.FilterStart, indexOf, handler, "FilterStart"), handler.FilterStart, new ExceptionBlock(ExceptionBlockType.BeginExceptFilterBlock)));
-                points.Add((IndexOf(handler.HandlerStart, indexOf, handler, "HandlerStart"), handler.HandlerStart, new ExceptionBlock(ExceptionBlockType.BeginCatchBlock)));
+                points.Add((IndexOf(handler.HandlerStart, indexOf, handler, HandlerStartRole), handler.HandlerStart, new ExceptionBlock(ExceptionBlockType.BeginCatchBlock)));
             } else if (handler.HandlerType == ExceptionHandlerType.Fault) {
-                points.Add((IndexOf(handler.HandlerStart, indexOf, handler, "HandlerStart"), handler.HandlerStart, new ExceptionBlock(ExceptionBlockType.BeginFaultBlock)));
+                points.Add((IndexOf(handler.HandlerStart, indexOf, handler, HandlerStartRole), handler.HandlerStart, new ExceptionBlock(ExceptionBlockType.BeginFaultBlock)));
             } else if (handler.HandlerType == ExceptionHandlerType.Finally) {
-                points.Add((IndexOf(handler.HandlerStart, indexOf, handler, "HandlerStart"), handler.HandlerStart, new ExceptionBlock(ExceptionBlockType.BeginFinallyBlock)));
+                points.Add((IndexOf(handler.HandlerStart, indexOf, handler, HandlerStartRole), handler.HandlerStart, new ExceptionBlock(ExceptionBlockType.BeginFinallyBlock)));
             } else {
                 Type? catchType = handler.CatchType is null ? null : ResolveType(handler.CatchType);
-                points.Add((IndexOf(handler.HandlerStart, indexOf, handler, "HandlerStart"), handler.HandlerStart, new ExceptionBlock(ExceptionBlockType.BeginCatchBlock, catchType)));
+                points.Add((IndexOf(handler.HandlerStart, indexOf, handler, HandlerStartRole), handler.HandlerStart, new ExceptionBlock(ExceptionBlockType.BeginCatchBlock, catchType)));
             }
         }
 

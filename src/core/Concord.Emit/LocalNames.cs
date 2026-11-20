@@ -17,7 +17,11 @@ namespace Concord.Emit;
 internal static class LocalNames {
     private static readonly IReadOnlyList<Entry> None = [];
 
+#if NET9_0_OR_GREATER
+    private static readonly Lock Gate = new Lock();
+#else
     private static readonly object Gate = new object();
+#endif
 
     private static readonly Dictionary<Guid, string> Unreadable = new Dictionary<Guid, string>();
 

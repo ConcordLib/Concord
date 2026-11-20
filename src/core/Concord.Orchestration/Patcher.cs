@@ -14,7 +14,13 @@ namespace Concord;
 ///     explicit patch, with one call and revert by disposing the returned <see cref="IPatchHandle" />.
 /// </summary>
 public static class Patcher {
+    private const string UnsupportedPosition = "CONC116";
+
+#if NET9_0_OR_GREATER
+    private static readonly Lock Gate = new Lock();
+#else
     private static readonly object Gate = new object();
+#endif
     private static readonly Dictionary<Assembly, IPatchHandle> Applied = [];
     private static readonly HashSet<IPatchHandle> Live = [];
     private static readonly AttachedPropertyStore Seen = new AttachedPropertyStore();
@@ -399,18 +405,19 @@ public static class Patcher {
             At.TranspilerFinal => new InjectAt.Transpiler(true),
             At.Catch => new InjectAt.Catch(),
             At.Constant => throw new ConcordEmitException(
-                "CONC116",
+                UnsupportedPosition,
                 "At.Constant needs a constant to match, and no PatchBuilder call carries one: use the constant-targeting attribute constructor [Inject(method, constant, At.Constant, by:)]. The plain position overload carries no constant, so no host was asked and no host refused this patch."),
             At.Argument => throw new ConcordEmitException(
-                "CONC116",
+                UnsupportedPosition,
                 "At.Argument needs a call site to match: use PatchBuilder.Invoke(callSiteType, callSiteMethod, injectionMethod, shift: At.Argument, by:) or PatchBuilder.NewObj(constructedType, injectionMethod, shift: At.Argument, by:). The plain position overload carries no call site, so no host was asked and no host refused this patch."),
             At.Local => throw new ConcordEmitException(
-                "CONC116",
+                UnsupportedPosition,
                 "At.Local needs a local to match: use PatchBuilder.Local(localType, access, injectionMethod, by:). The plain position overload carries no local, so no host was asked and no host refused this patch."),
-            _ => throw new ConcordEmitException("CONC116", $"Unsupported injection position '{at}'."),
+            _ => throw new ConcordEmitException(UnsupportedPosition, $"Unsupported injection position '{at}'."),
         };
     }
 
+    [SuppressMessage("Major Code Smell", "S3011:Reflection should not be used to increase accessibility of classes, methods, or fields", Justification = "Concord reaches a patch target's private members by design; the target is validated at resolve time.")]
     private static MethodBase ResolveMethod(Type type, string method) {
         MethodInfo? resolved;
         try {
@@ -433,6 +440,7 @@ public static class Patcher {
         return resolved;
     }
 
+    [SuppressMessage("Major Code Smell", "S3011:Reflection should not be used to increase accessibility of classes, methods, or fields", Justification = "Concord reaches a patch target's private members by design; the target is validated at resolve time.")]
     private static MethodBase ResolveMethod(Type type, string method, Type[] parameterTypes) {
         MethodInfo? resolved = type.GetMethod(
             method,
@@ -448,6 +456,7 @@ public static class Patcher {
         return resolved;
     }
 
+    [SuppressMessage("Major Code Smell", "S3011:Reflection should not be used to increase accessibility of classes, methods, or fields", Justification = "Concord reaches a patch target's private members by design; the target is validated at resolve time.")]
     private static ConstructorInfo ResolveConstructor(Type type, Type[] parameterTypes) {
         ConstructorInfo? resolved = type.GetConstructor(
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, // NOSONAR concord reaches private target members by design; validated at resolve time

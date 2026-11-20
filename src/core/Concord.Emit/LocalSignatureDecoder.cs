@@ -326,10 +326,8 @@ public static class LocalSignatureDecoder {
                 : throw new BadImageFormatException($"0x{blob[start]:x2} starts no valid compressed integer");
         }
 
-        internal int Signed() {
-            int packed = Compressed();
-            int value = packed >> 1;
-            return (packed & 1) == 0 ? value : value - (1 << 30);
+        internal void Signed() {
+            Compressed();
         }
 
         internal int TypeToken() {

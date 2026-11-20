@@ -44,7 +44,7 @@ public static class BodyDecoder {
         }
 
         Walk walk = new Walk(body.Il, method.Module, typeArguments, methodArguments);
-        if (!walk.Decode(out refusal)) {
+        if (!walk.TryDecode(out refusal)) {
             return null;
         }
 
@@ -68,7 +68,7 @@ public static class BodyDecoder {
             this.methodArguments = methodArguments;
         }
 
-        internal bool Decode(out string? skipped) {
+        internal bool TryDecode(out string? skipped) {
             skipped = null;
             int at = 0;
             while (at < il.Length) {

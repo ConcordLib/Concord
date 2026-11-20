@@ -168,7 +168,7 @@ internal sealed class TargetEntry {
 
     private readonly Action<string> log;
 
-    private readonly object gate = new object();
+    private readonly Lock gate = new Lock();
 
     private readonly List<(long Seq, Injection Injection)> live = [];
 

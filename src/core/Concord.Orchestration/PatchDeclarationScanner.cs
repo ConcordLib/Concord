@@ -257,6 +257,7 @@ public static class PatchDeclarationScanner {
         }
     }
 
+    [SuppressMessage("Major Code Smell", "S3011:Reflection should not be used to increase accessibility of classes, methods, or fields", Justification = "Concord reads a declaration's own private members by design; the declaration opted in with [Patch].")]
     private static List<(MethodBase Target, Injection Injection)> ResolveInjections(
         Type declaration,
         Type baseType,
@@ -342,6 +343,7 @@ public static class PatchDeclarationScanner {
         }
     }
 
+    [SuppressMessage("Major Code Smell", "S3011:Reflection should not be used to increase accessibility of classes, methods, or fields", Justification = "Concord reads a declaration's own private members by design; the declaration opted in with [Patch].")]
     private static void RegisterAttachedProperties(Type declaration, Type baseType, IAttachedPropertyRegistry props) {
         const BindingFlags declared = BindingFlags.Public |
                                       BindingFlags.NonPublic | // NOSONAR concord reaches private target members by design; validated at resolve time
@@ -380,6 +382,7 @@ public static class PatchDeclarationScanner {
         return resolved.ToArray();
     }
 
+    [SuppressMessage("Major Code Smell", "S3011:Reflection should not be used to increase accessibility of classes, methods, or fields", Justification = "Concord reaches a patch target's private members by design; the target is validated at resolve time.")]
     private static MethodBase ResolveInjectionTarget(
         Type declaration,
         Type baseType,

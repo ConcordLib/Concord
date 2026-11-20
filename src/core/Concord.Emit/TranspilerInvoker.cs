@@ -9,7 +9,11 @@ namespace Concord.Emit;
 ///     <see cref="MethodBase.Invoke(object, object[])" /> per call.
 /// </summary>
 public static class TranspilerInvoker {
+#if NET9_0_OR_GREATER
+    private static readonly Lock CacheLock = new Lock();
+#else
     private static readonly object CacheLock = new object();
+#endif
 
     private static readonly Dictionary<MethodBase, Func<IEnumerable<CodeInstruction>, ITranspilerContext, IEnumerable<CodeInstruction>>> Cache =
         new Dictionary<MethodBase, Func<IEnumerable<CodeInstruction>, ITranspilerContext, IEnumerable<CodeInstruction>>>();
