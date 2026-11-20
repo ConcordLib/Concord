@@ -80,104 +80,8 @@ public static class BodyDecoder {
                     return false;
                 }
 
-                object? operand = null;
-                int[]? targets = null;
-                switch (opcode.OperandType) {
-                    case OperandType.InlineNone:
-                        break;
-                    case OperandType.ShortInlineBrTarget:
-                        targets = [at + 1 + (sbyte)il[at]];
-                        at += 1;
-                        break;
-                    case OperandType.InlineBrTarget:
-                        targets = [at + 4 + BitConverter.ToInt32(il, at)];
-                        at += 4;
-                        break;
-                    case OperandType.InlineSwitch: {
-                        int cases = BitConverter.ToInt32(il, at);
-                        int after = at + 4 + (cases * 4);
-                        targets = new int[cases];
-                        for (int index = 0; index < cases; index++) {
-                            targets[index] = after + BitConverter.ToInt32(il, at + 4 + (index * 4));
-                        }
-
-                        at = after;
-                        break;
-                    }
-
-                    case OperandType.ShortInlineI:
-                        operand = opcode == OpCodes.Ldc_I4_S ? (sbyte)il[at] : il[at];
-                        at += 1;
-                        break;
-                    case OperandType.InlineI:
-                        operand = BitConverter.ToInt32(il, at);
-                        at += 4;
-                        break;
-                    case OperandType.InlineI8:
-                        operand = BitConverter.ToInt64(il, at);
-                        at += 8;
-                        break;
-                    case OperandType.ShortInlineR:
-                        operand = BitConverter.ToSingle(il, at);
-                        at += 4;
-                        break;
-                    case OperandType.InlineR:
-                        operand = BitConverter.ToDouble(il, at);
-                        at += 8;
-                        break;
-                    case OperandType.ShortInlineVar:
-                        operand = (int)il[at];
-                        at += 1;
-                        break;
-                    case OperandType.InlineVar:
-                        operand = (int)BitConverter.ToUInt16(il, at);
-                        at += 2;
-                        break;
-                    case OperandType.InlineString:
-                        try {
-                            operand = module.ResolveString(BitConverter.ToInt32(il, at));
-                        } catch (Exception unresolved) when (unresolved is not OutOfMemoryException) {
-                            skipped = "ResolveString " + unresolved.GetType().Name;
-                            return false;
-                        }
-
-                        at += 4;
-                        break;
-                    case OperandType.InlineType:
-                    case OperandType.InlineField:
-                    case OperandType.InlineMethod:
-                    case OperandType.InlineTok: {
-                        MemberInfo member;
-                        try {
-                            member = module.ResolveMember(BitConverter.ToInt32(il, at), typeArguments, methodArguments)!;
-                        } catch (Exception unresolved) when (unresolved is not OutOfMemoryException) {
-                            skipped = "ResolveMember " + unresolved.GetType().Name;
-                            return false;
-                        }
-
-                        at += 4;
-                        if (member is not (Type or FieldInfo or MethodBase)) {
-                            skipped = "operand member " + member.GetType().Name;
-                            return false;
-                        }
-
-                        operand = member;
-                        break;
-                    }
-
-                    case OperandType.InlineSig: {
-                        operand = Signature(BitConverter.ToInt32(il, at), start, opcode, out skipped);
-                        if (operand is null) {
-                            return false;
-                        }
-
-                        at += 4;
-                        break;
-                    }
-
-                    default:
-                        skipped = $"{opcode.Name} at IL_{start:x4} carries a {opcode.OperandType} operand";
-                        return false;
+                if (!ReadOperand(opcode, start, ref at, out object? operand, out int[]? targets, out skipped)) {
+                    return false;
                 }
 
                 offsets.Add(start);
@@ -221,11 +125,8 @@ public static class BodyDecoder {
                     continue;
                 }
 
-                foreach (int target in targets) {
-                    if (!indexOf.TryGetValue(target, out int resolved) || resolved == offsets.Count) {
-                        skipped = "branch to " + target;
-                        return null;
-                    }
+                if (!TargetsResolve(targets, indexOf, out skipped)) {
+                    return null;
                 }
 
                 operands[index] = opcodes[index].OperandType == OperandType.InlineSwitch
@@ -233,55 +134,13 @@ public static class BodyDecoder {
                     : MarkAt(targets[0]);
             }
 
-            ComposedInstruction[] instructions = new ComposedInstruction[opcodes.Count];
-            for (int index = 0; index < opcodes.Count; index++) {
-                CodeInstruction instruction = new CodeInstruction(opcodes[index], operands[index]);
-                if (marks.TryGetValue(offsets[index], out Label mark)) {
-                    instruction.labels.Add(mark);
-                }
-
-                instructions[index] = new ComposedInstruction(instruction, offsets[index], null);
-            }
+            ComposedInstruction[] instructions = Instructions(marks);
 
             List<ComposedClause> clauses = [];
             foreach (HostClause clause in body.Clauses) {
-                if (!indexOf.TryGetValue(clause.TryOffset, out int tryStart)
-                    || !indexOf.TryGetValue(clause.TryOffset + clause.TryLength, out int tryEnd)
-                    || !indexOf.TryGetValue(clause.HandlerOffset, out int handlerStart)
-                    || !indexOf.TryGetValue(clause.HandlerOffset + clause.HandlerLength, out int handlerEnd)) {
-                    skipped = "clause boundary off an instruction";
+                if (!TryAddClause(clause, indexOf, typeArguments, methodArguments, clauses, out skipped)) {
                     return null;
                 }
-
-                int filterStart = -1;
-                Type? caught = null;
-                if (clause.Flags == CatchFlags) {
-                    try {
-                        caught = clause.CaughtType
-                            ?? module.ResolveType(clause.ClassTokenOrFilterOffset, typeArguments, methodArguments);
-                    } catch (Exception unresolved) when (unresolved is not OutOfMemoryException) {
-                        skipped = "catch type " + unresolved.GetType().Name;
-                        return null;
-                    }
-
-                    if (caught is null) {
-                        skipped = "catch with no type";
-                        return null;
-                    }
-                } else if (clause.Flags == FilterFlags
-                    && !indexOf.TryGetValue(clause.ClassTokenOrFilterOffset, out filterStart)) {
-                    skipped = "filter start off an instruction";
-                    return null;
-                }
-
-                ClauseKind kind = clause.Flags switch {
-                    CatchFlags => ClauseKind.Catch,
-                    FilterFlags => ClauseKind.Filter,
-                    FinallyFlags => ClauseKind.Finally,
-                    _ => ClauseKind.Fault,
-                };
-
-                clauses.Add(new ComposedClause(kind, tryStart, tryEnd, handlerStart, handlerEnd, caught, filterStart));
             }
 
             return new ComposedBody(instructions, locals, clauses, body.InitLocals);
@@ -293,6 +152,185 @@ public static class BodyDecoder {
             builder.WriteCompressedInteger(count + 1);
             builder.WriteBytes(signature, from, signature.Length - from);
             return builder.ToArray();
+        }
+
+        private bool ReadOperand(OpCode opcode, int start, ref int at, out object? operand, out int[]? targets, out string? skipped) {
+            skipped = null;
+            operand = null;
+            targets = null;
+            switch (opcode.OperandType) {
+                case OperandType.InlineNone:
+                    break;
+                case OperandType.ShortInlineBrTarget:
+                    targets = [at + 1 + (sbyte)il[at]];
+                    at += 1;
+                    break;
+                case OperandType.InlineBrTarget:
+                    targets = [at + 4 + BitConverter.ToInt32(il, at)];
+                    at += 4;
+                    break;
+                case OperandType.InlineSwitch: {
+                    int cases = BitConverter.ToInt32(il, at);
+                    int after = at + 4 + (cases * 4);
+                    targets = new int[cases];
+                    for (int index = 0; index < cases; index++) {
+                        targets[index] = after + BitConverter.ToInt32(il, at + 4 + (index * 4));
+                    }
+
+                    at = after;
+                    break;
+                }
+
+                case OperandType.ShortInlineI:
+                    operand = opcode == OpCodes.Ldc_I4_S ? (sbyte)il[at] : il[at];
+                    at += 1;
+                    break;
+                case OperandType.InlineI:
+                    operand = BitConverter.ToInt32(il, at);
+                    at += 4;
+                    break;
+                case OperandType.InlineI8:
+                    operand = BitConverter.ToInt64(il, at);
+                    at += 8;
+                    break;
+                case OperandType.ShortInlineR:
+                    operand = BitConverter.ToSingle(il, at);
+                    at += 4;
+                    break;
+                case OperandType.InlineR:
+                    operand = BitConverter.ToDouble(il, at);
+                    at += 8;
+                    break;
+                case OperandType.ShortInlineVar:
+                    operand = (int)il[at];
+                    at += 1;
+                    break;
+                case OperandType.InlineVar:
+                    operand = (int)BitConverter.ToUInt16(il, at);
+                    at += 2;
+                    break;
+                case OperandType.InlineString:
+                    try {
+                        operand = module.ResolveString(BitConverter.ToInt32(il, at));
+                    } catch (Exception unresolved) when (unresolved is not OutOfMemoryException) {
+                        skipped = "ResolveString " + unresolved.GetType().Name;
+                        return false;
+                    }
+
+                    at += 4;
+                    break;
+                case OperandType.InlineType:
+                case OperandType.InlineField:
+                case OperandType.InlineMethod:
+                case OperandType.InlineTok: {
+                    MemberInfo member;
+                    try {
+                        member = module.ResolveMember(BitConverter.ToInt32(il, at), typeArguments, methodArguments)!;
+                    } catch (Exception unresolved) when (unresolved is not OutOfMemoryException) {
+                        skipped = "ResolveMember " + unresolved.GetType().Name;
+                        return false;
+                    }
+
+                    at += 4;
+                    if (member is not (Type or FieldInfo or MethodBase)) {
+                        skipped = "operand member " + member.GetType().Name;
+                        return false;
+                    }
+
+                    operand = member;
+                    break;
+                }
+
+                case OperandType.InlineSig: {
+                    operand = Signature(BitConverter.ToInt32(il, at), start, opcode, out skipped);
+                    if (operand is null) {
+                        return false;
+                    }
+
+                    at += 4;
+                    break;
+                }
+
+                default:
+                    skipped = $"{opcode.Name} at IL_{start:x4} carries a {opcode.OperandType} operand";
+                    return false;
+            }
+
+            return true;
+        }
+
+        private bool TargetsResolve(int[] targets, Dictionary<int, int> indexOf, out string? skipped) {
+            foreach (int target in targets) {
+                if (!indexOf.TryGetValue(target, out int resolved) || resolved == offsets.Count) {
+                    skipped = "branch to " + target;
+                    return false;
+                }
+            }
+
+            skipped = null;
+            return true;
+        }
+
+        private ComposedInstruction[] Instructions(Dictionary<int, Label> marks) {
+            ComposedInstruction[] instructions = new ComposedInstruction[opcodes.Count];
+            for (int index = 0; index < opcodes.Count; index++) {
+                CodeInstruction instruction = new CodeInstruction(opcodes[index], operands[index]);
+                if (marks.TryGetValue(offsets[index], out Label mark)) {
+                    instruction.labels.Add(mark);
+                }
+
+                instructions[index] = new ComposedInstruction(instruction, offsets[index], null);
+            }
+
+            return instructions;
+        }
+
+        private bool TryAddClause(
+            HostClause clause,
+            Dictionary<int, int> indexOf,
+            Type[]? typeArguments,
+            Type[]? methodArguments,
+            List<ComposedClause> clauses,
+            out string? skipped) {
+            skipped = null;
+            if (!indexOf.TryGetValue(clause.TryOffset, out int tryStart)
+                || !indexOf.TryGetValue(clause.TryOffset + clause.TryLength, out int tryEnd)
+                || !indexOf.TryGetValue(clause.HandlerOffset, out int handlerStart)
+                || !indexOf.TryGetValue(clause.HandlerOffset + clause.HandlerLength, out int handlerEnd)) {
+                skipped = "clause boundary off an instruction";
+                return false;
+            }
+
+            int filterStart = -1;
+            Type? caught = null;
+            if (clause.Flags == CatchFlags) {
+                try {
+                    caught = clause.CaughtType
+                        ?? module.ResolveType(clause.ClassTokenOrFilterOffset, typeArguments, methodArguments);
+                } catch (Exception unresolved) when (unresolved is not OutOfMemoryException) {
+                    skipped = "catch type " + unresolved.GetType().Name;
+                    return false;
+                }
+
+                if (caught is null) {
+                    skipped = "catch with no type";
+                    return false;
+                }
+            } else if (clause.Flags == FilterFlags
+                && !indexOf.TryGetValue(clause.ClassTokenOrFilterOffset, out filterStart)) {
+                skipped = "filter start off an instruction";
+                return false;
+            }
+
+            ClauseKind kind = clause.Flags switch {
+                CatchFlags => ClauseKind.Catch,
+                FilterFlags => ClauseKind.Filter,
+                FinallyFlags => ClauseKind.Finally,
+                _ => ClauseKind.Fault,
+            };
+
+            clauses.Add(new ComposedClause(kind, tryStart, tryEnd, handlerStart, handlerEnd, caught, filterStart));
+            return true;
         }
 
         private CallSiteSignature? Signature(int token, int start, OpCode opcode, out string? skipped) {

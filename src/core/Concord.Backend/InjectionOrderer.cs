@@ -25,7 +25,6 @@ public static class InjectionOrderer {
     /// <param name="live">Injections paired with registration sequence number.</param>
     /// <returns>Injections in composition order (the order bodies are composed/nested).</returns>
     /// <exception cref="ConcordEmitException">If ordering constraints form a cycle.</exception>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S4158", Justification = "The owner maps fill across loop iterations through origin.Add, so a later injection of the same owner finds its list.")]
     public static Injection[] OrderForComposition(IReadOnlyList<(long Seq, Injection Injection)> live) {
         int count = live.Count;
         if (count == 0) {
@@ -35,17 +34,7 @@ public static class InjectionOrderer {
         Dictionary<string, List<int>> concordOwners = new Dictionary<string, List<int>>(StringComparer.Ordinal);
         Dictionary<string, List<int>> foreignOwners = new Dictionary<string, List<int>>(StringComparer.Ordinal);
         List<HashSet<int>> outgoing = new List<HashSet<int>>(count);
-        for (int i = 0; i < count; i++) {
-            Injection injection = live[i].Injection;
-            Dictionary<string, List<int>> origin = injection.ForeignOrigin ? foreignOwners : concordOwners;
-            if (!origin.TryGetValue(injection.Owner, out List<int>? nodes)) {
-                nodes = [];
-                origin.Add(injection.Owner, nodes);
-            }
-
-            nodes.Add(i);
-            outgoing.Add([]);
-        }
+        IndexOwners(live, concordOwners, foreignOwners, outgoing);
 
         int[] incoming = new int[count];
         for (int i = 0; i < count; i++) {
@@ -79,6 +68,25 @@ public static class InjectionOrderer {
         }
 
         return result;
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S4158", Justification = "The owner maps fill across loop iterations through origin.Add, so a later injection of the same owner finds its list.")]
+    private static void IndexOwners(
+        IReadOnlyList<(long Seq, Injection Injection)> live,
+        Dictionary<string, List<int>> concordOwners,
+        Dictionary<string, List<int>> foreignOwners,
+        List<HashSet<int>> outgoing) {
+        for (int i = 0; i < live.Count; i++) {
+            Injection injection = live[i].Injection;
+            Dictionary<string, List<int>> origin = injection.ForeignOrigin ? foreignOwners : concordOwners;
+            if (!origin.TryGetValue(injection.Owner, out List<int>? nodes)) {
+                nodes = [];
+                origin.Add(injection.Owner, nodes);
+            }
+
+            nodes.Add(i);
+            outgoing.Add([]);
+        }
     }
 
     private static void RejectLayeringConflict(

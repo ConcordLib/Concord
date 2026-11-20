@@ -1411,13 +1411,7 @@ public static class WrapperComposer {
         Injection? aroundInjection = dispatched.AroundInjection;
         Instruction? lastExit = dispatched.LastExit;
 
-        if (lastExit is not null) {
-            List<Instruction> tails = ChainBodies(buffers.TailBodies, lastExit);
-            RedirectProtectedRegionExits(spine, lastExit, tails[0]);
-            RetargetHandlerBoundaries(body.ExceptionHandlers, lastExit, tails[0]);
-            int exitIndex = spine.IndexOf(lastExit);
-            spine.InsertRange(exitIndex, tails);
-        }
+        SpliceTailBodies(spine, body.ExceptionHandlers, buffers.TailBodies, lastExit);
 
         List<Instruction>? aroundBody = null;
         if (aroundInjection is not null) {
@@ -1444,12 +1438,7 @@ public static class WrapperComposer {
                 $"Target '{target.DeclaringType?.Name}.{target.Name}' has both an At.Catch injection and a whole-method Around. An Around already owns the whole body. Write the try/catch inside it.");
         }
 
-        if (hasHead && cancelLanding.Count > 0) {
-            List<Instruction> skipped = aroundBody ?? spine;
-            guardBranch.OpCode = OpCodes.Brfalse;
-            guardBranch.Operand = skipped[0];
-            skipped.InsertRange(0, cancelLanding);
-        }
+        SpliceCancelLanding(hasHead, cancelLanding, aroundBody, spine, guardBranch);
 
         List<Instruction> assembled = AssembleFinalBody(
             new AssembledBodyParts(heads, hasHead, guardStart, guardBranch, aroundBody, spine, afterSpine, returns, epilogue, finallyBody, finallyEnd, leaveEpilogue));
@@ -1460,11 +1449,53 @@ public static class WrapperComposer {
             SpliceCatchRegion(assembled, afterSpine, leaveEpilogue, catchHandler);
         }
 
+        ReplaceInstructions(body, assembled);
+
+        AddProtectedRegions(body, module, assembled, catchHandler, finallyBody, epilogueStart);
+    }
+
+    private static void SpliceTailBodies(
+        List<Instruction> spine,
+        IList<ExceptionHandler> exceptionHandlers,
+        List<List<Instruction>> tailBodies,
+        Instruction? lastExit) {
+        if (lastExit is not null) {
+            List<Instruction> tails = ChainBodies(tailBodies, lastExit);
+            RedirectProtectedRegionExits(spine, lastExit, tails[0]);
+            RetargetHandlerBoundaries(exceptionHandlers, lastExit, tails[0]);
+            int exitIndex = spine.IndexOf(lastExit);
+            spine.InsertRange(exitIndex, tails);
+        }
+    }
+
+    private static void SpliceCancelLanding(
+        bool hasHead,
+        List<Instruction> cancelLanding,
+        List<Instruction>? aroundBody,
+        List<Instruction> spine,
+        Instruction guardBranch) {
+        if (hasHead && cancelLanding.Count > 0) {
+            List<Instruction> skipped = aroundBody ?? spine;
+            guardBranch.OpCode = OpCodes.Brfalse;
+            guardBranch.Operand = skipped[0];
+            skipped.InsertRange(0, cancelLanding);
+        }
+    }
+
+    private static void ReplaceInstructions(MethodBody body, List<Instruction> assembled) {
         body.Instructions.Clear();
         foreach (Instruction instruction in assembled) {
             body.Instructions.Add(instruction);
         }
+    }
 
+    private static void AddProtectedRegions(
+        MethodBody body,
+        ModuleDefinition module,
+        List<Instruction> assembled,
+        List<Instruction> catchHandler,
+        List<Instruction> finallyBody,
+        Instruction epilogueStart) {
         if (catchHandler.Count > 0) {
             body.ExceptionHandlers.Add(new ExceptionHandler(ExceptionHandlerType.Catch) {
                 CatchType = module.ImportReference(typeof(Exception)),
@@ -1566,27 +1597,7 @@ public static class WrapperComposer {
         List<Instruction> preSpliceSpine,
         DispatchState state) {
         if (injection.At is InjectAt.Head) {
-            bool hasHead = state.HasHead;
-            int firstHeadBody = buffers.HeadBodies.Count;
-            ProcessHeadInjection(new InjectionSiteContext(injection, context.WrapperDefinition, context.Target, context.Locals), anchors.GuardStart, context.IsVoid, ref hasHead, buffers.HeadBodies);
-            PrefixSharedGenericGuard(context.WrapperDefinition, injection, buffers.HeadBodies, firstHeadBody, anchors.GuardStart);
-            List<Instruction> skipGuards = [];
-            if (!injection.ForeignOrigin) {
-                skipGuards.Add(Instruction.Create(OpCodes.Ldloc, context.Locals.SkipRemainingHeads));
-                skipGuards.Add(Instruction.Create(OpCodes.Brtrue, anchors.GuardStart));
-            }
-
-            if (injection.AffectsOriginal ?? (!injection.ForeignOrigin && HeadAffectsOriginal(injection))) {
-                skipGuards.Add(Instruction.Create(OpCodes.Ldloc, context.Locals.SkipAffectingHeads));
-                skipGuards.Add(Instruction.Create(OpCodes.Brtrue, anchors.GuardStart));
-            }
-
-            if (skipGuards.Count > 0) {
-                InstructionOrigins.RecordInjection(skipGuards, injection.InjectionMethod);
-                buffers.HeadBodies[firstHeadBody].InsertRange(0, skipGuards);
-            }
-
-            return state with { HasHead = hasHead };
+            return DispatchHeadInjection(context, anchors, buffers, injection, state);
         }
 
         if (injection.At is InjectAt.Tail) {
@@ -1639,6 +1650,35 @@ public static class WrapperComposer {
         }
 
         throw new ConcordEmitException("CONC116", $"Unsupported injection position '{injection.At.GetType().Name}' reached composition dispatch.");
+    }
+
+    private static DispatchState DispatchHeadInjection(
+        WrapperAssembly context,
+        AssemblyAnchors anchors,
+        InjectionBuffers buffers,
+        Injection injection,
+        DispatchState state) {
+        bool hasHead = state.HasHead;
+        int firstHeadBody = buffers.HeadBodies.Count;
+        ProcessHeadInjection(new InjectionSiteContext(injection, context.WrapperDefinition, context.Target, context.Locals), anchors.GuardStart, context.IsVoid, ref hasHead, buffers.HeadBodies);
+        PrefixSharedGenericGuard(context.WrapperDefinition, injection, buffers.HeadBodies, firstHeadBody, anchors.GuardStart);
+        List<Instruction> skipGuards = [];
+        if (!injection.ForeignOrigin) {
+            skipGuards.Add(Instruction.Create(OpCodes.Ldloc, context.Locals.SkipRemainingHeads));
+            skipGuards.Add(Instruction.Create(OpCodes.Brtrue, anchors.GuardStart));
+        }
+
+        if (injection.AffectsOriginal ?? (!injection.ForeignOrigin && HeadAffectsOriginal(injection))) {
+            skipGuards.Add(Instruction.Create(OpCodes.Ldloc, context.Locals.SkipAffectingHeads));
+            skipGuards.Add(Instruction.Create(OpCodes.Brtrue, anchors.GuardStart));
+        }
+
+        if (skipGuards.Count > 0) {
+            InstructionOrigins.RecordInjection(skipGuards, injection.InjectionMethod);
+            buffers.HeadBodies[firstHeadBody].InsertRange(0, skipGuards);
+        }
+
+        return state with { HasHead = hasHead };
     }
 
     private static Instruction? DispatchTailInjection(
@@ -1811,34 +1851,43 @@ public static class WrapperComposer {
                 continue;
             }
 
-            if (parameterType.IsByRef) {
-                throw RejectCatchException(
-                    injectionMethod,
-                    target,
-                    $"declares exception parameter '{parameters[i].Name}' by reference as '{parameterType}'. " +
-                    "The thrown exception arrives as a by-value System.Exception parameter, so drop the ref, out or in.");
-            }
-
-            if (parameterType != typeof(Exception)) {
-                throw RejectCatchException(
-                    injectionMethod,
-                    target,
-                    $"declares exception parameter '{parameters[i].Name}' as '{parameterType}'. " +
-                    "The thrown exception arrives as System.Exception.");
-            }
-
-            if (binding is not null) {
-                throw RejectCatchException(
-                    injectionMethod,
-                    target,
-                    $"declares a second System.Exception parameter '{parameters[i].Name}'. The thrown exception " +
-                    "arrives as one System.Exception parameter.");
-            }
+            RejectBadExceptionParameter(injectionMethod, target, parameters[i], parameterType, binding is not null);
 
             binding = new Dictionary<int, VariableDefinition>(1) { [i + offset] = locals.CaughtException! };
         }
 
         return binding;
+    }
+
+    private static void RejectBadExceptionParameter(
+        MethodBase injectionMethod,
+        MethodBase target,
+        ParameterInfo parameter,
+        Type parameterType,
+        bool hasBinding) {
+        if (parameterType.IsByRef) {
+            throw RejectCatchException(
+                injectionMethod,
+                target,
+                $"declares exception parameter '{parameter.Name}' by reference as '{parameterType}'. " +
+                "The thrown exception arrives as a by-value System.Exception parameter, so drop the ref, out or in.");
+        }
+
+        if (parameterType != typeof(Exception)) {
+            throw RejectCatchException(
+                injectionMethod,
+                target,
+                $"declares exception parameter '{parameter.Name}' as '{parameterType}'. " +
+                "The thrown exception arrives as System.Exception.");
+        }
+
+        if (hasBinding) {
+            throw RejectCatchException(
+                injectionMethod,
+                target,
+                $"declares a second System.Exception parameter '{parameter.Name}'. The thrown exception " +
+                "arrives as one System.Exception parameter.");
+        }
     }
 
     private static ConcordEmitException RejectCatchException(MethodBase injectionMethod, MethodBase target, string tail) {
@@ -3358,17 +3407,8 @@ public static class WrapperComposer {
                 continue;
             }
 
-            if (instruction.Operand is Instruction target
-                && (ReferenceEquals(target, sharedLoad) || ReferenceEquals(target, exitStore) || ReferenceEquals(target, exitBranch))) {
+            if (OperandNamesDeadTail(instruction, sharedLoad, exitStore, exitBranch)) {
                 return true;
-            }
-
-            if (instruction.Operand is Instruction[] targets) {
-                for (int i = 0; i < targets.Length; i++) {
-                    if (ReferenceEquals(targets[i], sharedLoad) || ReferenceEquals(targets[i], exitStore) || ReferenceEquals(targets[i], exitBranch)) {
-                        return true;
-                    }
-                }
             }
         }
 
@@ -3379,6 +3419,23 @@ public static class WrapperComposer {
                 || NamesDeadTail(handler.HandlerEnd, exitStore, exitBranch)
                 || NamesDeadTail(handler.FilterStart, exitStore, exitBranch)) {
                 return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool OperandNamesDeadTail(Instruction instruction, Instruction sharedLoad, Instruction exitStore, Instruction exitBranch) {
+        if (instruction.Operand is Instruction target
+            && (ReferenceEquals(target, sharedLoad) || ReferenceEquals(target, exitStore) || ReferenceEquals(target, exitBranch))) {
+            return true;
+        }
+
+        if (instruction.Operand is Instruction[] targets) {
+            for (int i = 0; i < targets.Length; i++) {
+                if (ReferenceEquals(targets[i], sharedLoad) || ReferenceEquals(targets[i], exitStore) || ReferenceEquals(targets[i], exitBranch)) {
+                    return true;
+                }
             }
         }
 

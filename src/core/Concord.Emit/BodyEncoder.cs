@@ -139,47 +139,17 @@ public static class BodyEncoder {
                 il.Branch(code.GetLongBranch(), boundaries[TargetOf(operand, index, opcode, targets)]);
                 return;
 
-            case OperandType.InlineSwitch: {
-                Label[] cases = operand as Label[] ?? throw Bad(index, opcode, operand, "a Label[]");
-                SwitchInstructionEncoder table = il.Switch(cases.Length);
-                foreach (Label label in cases) {
-                    table.Branch(boundaries[TargetOf(label, index, opcode, targets)]);
-                }
-
+            case OperandType.InlineSwitch:
+                EmitSwitch(il, operand, index, opcode, targets, boundaries);
                 return;
-            }
 
-            case OperandType.ShortInlineI: {
-                long value = Integer(operand, index, opcode);
-                if (opcode == OpCodes.Ldc_I4_S) {
-                    if (value is < sbyte.MinValue or > sbyte.MaxValue) {
-                        throw Range(index, opcode, value, "-128 to 127");
-                    }
-
-                    il.OpCode(code);
-                    il.CodeBuilder.WriteSByte((sbyte)value);
-                    return;
-                }
-
-                if (value is < 0 or > byte.MaxValue) {
-                    throw Range(index, opcode, value, "0 to 255");
-                }
-
-                il.OpCode(code);
-                il.CodeBuilder.WriteByte((byte)value);
+            case OperandType.ShortInlineI:
+                EmitShortInteger(il, code, operand, index, opcode);
                 return;
-            }
 
-            case OperandType.InlineI: {
-                long value = Integer(operand, index, opcode);
-                if (value is < int.MinValue or > uint.MaxValue) {
-                    throw Range(index, opcode, value, "a 32-bit range");
-                }
-
-                il.OpCode(code);
-                il.CodeBuilder.WriteInt32(unchecked((int)value));
+            case OperandType.InlineI:
+                EmitInteger(il, code, operand, index, opcode);
                 return;
-            }
 
             case OperandType.InlineI8:
                 il.OpCode(code);
@@ -214,25 +184,9 @@ public static class BodyEncoder {
                 return;
 
             case OperandType.ShortInlineVar:
-            case OperandType.InlineVar: {
-                int slot = SlotOf(operand, index, opcode);
-                il.OpCode(code);
-                if (opcode.OperandType == OperandType.ShortInlineVar) {
-                    if (slot is < 0 or > byte.MaxValue) {
-                        throw Range(index, opcode, slot, "0 to 255");
-                    }
-
-                    il.CodeBuilder.WriteByte((byte)slot);
-                    return;
-                }
-
-                if (slot is < 0 or > ushort.MaxValue) {
-                    throw Range(index, opcode, slot, "0 to 65535");
-                }
-
-                il.CodeBuilder.WriteUInt16((ushort)slot);
+            case OperandType.InlineVar:
+                EmitVariable(il, code, operand, index, opcode);
                 return;
-            }
 
             case OperandType.InlineSig:
                 il.OpCode(code);
@@ -242,6 +196,63 @@ public static class BodyEncoder {
             default:
                 throw new NotSupportedException($"Instruction {index} is '{opcode.Name}', whose operand kind '{opcode.OperandType}' has no encoding.");
         }
+    }
+
+    private static void EmitSwitch(InstructionEncoder il, object? operand, int index, OpCode opcode, Dictionary<Label, int> targets, LabelHandle[] boundaries) {
+        Label[] cases = operand as Label[] ?? throw Bad(index, opcode, operand, "a Label[]");
+        SwitchInstructionEncoder table = il.Switch(cases.Length);
+        foreach (Label label in cases) {
+            table.Branch(boundaries[TargetOf(label, index, opcode, targets)]);
+        }
+    }
+
+    private static void EmitShortInteger(InstructionEncoder il, ILOpCode code, object? operand, int index, OpCode opcode) {
+        long value = Integer(operand, index, opcode);
+        if (opcode == OpCodes.Ldc_I4_S) {
+            if (value is < sbyte.MinValue or > sbyte.MaxValue) {
+                throw Range(index, opcode, value, "-128 to 127");
+            }
+
+            il.OpCode(code);
+            il.CodeBuilder.WriteSByte((sbyte)value);
+            return;
+        }
+
+        if (value is < 0 or > byte.MaxValue) {
+            throw Range(index, opcode, value, "0 to 255");
+        }
+
+        il.OpCode(code);
+        il.CodeBuilder.WriteByte((byte)value);
+    }
+
+    private static void EmitInteger(InstructionEncoder il, ILOpCode code, object? operand, int index, OpCode opcode) {
+        long value = Integer(operand, index, opcode);
+        if (value is < int.MinValue or > uint.MaxValue) {
+            throw Range(index, opcode, value, "a 32-bit range");
+        }
+
+        il.OpCode(code);
+        il.CodeBuilder.WriteInt32(unchecked((int)value));
+    }
+
+    private static void EmitVariable(InstructionEncoder il, ILOpCode code, object? operand, int index, OpCode opcode) {
+        int slot = SlotOf(operand, index, opcode);
+        il.OpCode(code);
+        if (opcode.OperandType == OperandType.ShortInlineVar) {
+            if (slot is < 0 or > byte.MaxValue) {
+                throw Range(index, opcode, slot, "0 to 255");
+            }
+
+            il.CodeBuilder.WriteByte((byte)slot);
+            return;
+        }
+
+        if (slot is < 0 or > ushort.MaxValue) {
+            throw Range(index, opcode, slot, "0 to 65535");
+        }
+
+        il.CodeBuilder.WriteUInt16((ushort)slot);
     }
 
     private static void AddRegions(ControlFlowBuilder flow, ComposedBody body, LabelHandle[] boundaries, ITokenSource tokens) {

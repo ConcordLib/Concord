@@ -121,44 +121,10 @@ internal static class BodyCopier {
             argRemap.Remove(resultArg);
         }
 
-        int nullInstanceArg = -1;
-        int structInstanceArg = -1;
-        if (request.InstanceArgIndex is int instanceArg) {
-            if (request.Target.IsStatic) {
-                argRemap.Remove(instanceArg);
-                nullInstanceArg = instanceArg;
-            } else if (request.Target.DeclaringType is { } instanceDeclaring && TypeFacts.IsValueType(instanceDeclaring)) {
-                argRemap.Remove(instanceArg);
-                structInstanceArg = instanceArg;
-            } else if (NarrowsInstance(request, instanceArg)) {
-                argRemap.Remove(instanceArg);
-                narrowArgs ??= new Dictionary<int, int>();
-                narrowArgs[instanceArg] = 0;
-            } else {
-                argRemap[instanceArg] = 0;
-            }
-        }
+        BindInstanceArg(request, argRemap, ref narrowArgs, out int nullInstanceArg, out int structInstanceArg);
 
         Dictionary<int, int>? addressArgs = BindAddressArgs(request, argRemap);
-        if (request.StateArg is int stateArg) {
-            argRemap.Remove(stateArg);
-        }
-
-        if (request.OriginalMethodArg is int originalMethodArg) {
-            argRemap.Remove(originalMethodArg);
-        }
-
-        if (request.RunOriginalArgIndex is int runOriginalArg) {
-            argRemap.Remove(runOriginalArg);
-        }
-
-        if (request.ArgsArgIndex is int argsArg) {
-            argRemap.Remove(argsArg);
-        }
-
-        if (request.ForeignStateArg is int foreignStateArg) {
-            argRemap.Remove(foreignStateArg);
-        }
+        RemoveProtocolArgs(request, argRemap);
 
         List<Instruction> scratchPrologue = [];
         Dictionary<int, VariableDefinition>? scratchArgs =
@@ -749,15 +715,7 @@ internal static class BodyCopier {
         bool isAddress = source.OpCode == OpCodes.Ldarga || source.OpCode == OpCodes.Ldarga_S;
         bool isStore = source.OpCode == OpCodes.Starg || source.OpCode == OpCodes.Starg_S;
         if (site.ResultCopy is not null) {
-            if (isStore) {
-                return new List<Instruction> { Instruction.Create(OpCodes.Stloc, site.ResultCopy) };
-            }
-
-            if (!isAddress && !IsLoadArgOpCode(source.OpCode)) {
-                return null;
-            }
-
-            return new List<Instruction> { Instruction.Create(isAddress ? OpCodes.Ldloca : OpCodes.Ldloc, site.ResultCopy) };
+            return LowerResultCopy(source, site.ResultCopy, isAddress, isStore);
         }
 
         if (isStore && !site.ReturnsIntoResult) {
@@ -783,6 +741,65 @@ internal static class BodyCopier {
 
         bool byRef = isAddress || ParameterIsByRef(site.InjectionMethod, resultArg);
         return new List<Instruction> { Instruction.Create(byRef ? OpCodes.Ldloca : OpCodes.Ldloc, slot) };
+    }
+
+    private static List<Instruction>? LowerResultCopy(Instruction source, VariableDefinition resultCopy, bool isAddress, bool isStore) {
+        if (isStore) {
+            return new List<Instruction> { Instruction.Create(OpCodes.Stloc, resultCopy) };
+        }
+
+        if (!isAddress && !IsLoadArgOpCode(source.OpCode)) {
+            return null;
+        }
+
+        return new List<Instruction> { Instruction.Create(isAddress ? OpCodes.Ldloca : OpCodes.Ldloc, resultCopy) };
+    }
+
+    private static void BindInstanceArg(
+        InjectionCopyRequest request,
+        Dictionary<int, int> argRemap,
+        ref Dictionary<int, int>? narrowArgs,
+        out int nullInstanceArg,
+        out int structInstanceArg) {
+        nullInstanceArg = -1;
+        structInstanceArg = -1;
+        if (request.InstanceArgIndex is int instanceArg) {
+            if (request.Target.IsStatic) {
+                argRemap.Remove(instanceArg);
+                nullInstanceArg = instanceArg;
+            } else if (request.Target.DeclaringType is { } instanceDeclaring && TypeFacts.IsValueType(instanceDeclaring)) {
+                argRemap.Remove(instanceArg);
+                structInstanceArg = instanceArg;
+            } else if (NarrowsInstance(request, instanceArg)) {
+                argRemap.Remove(instanceArg);
+                narrowArgs ??= new Dictionary<int, int>();
+                narrowArgs[instanceArg] = 0;
+            } else {
+                argRemap[instanceArg] = 0;
+            }
+        }
+    }
+
+    private static void RemoveProtocolArgs(InjectionCopyRequest request, Dictionary<int, int> argRemap) {
+        if (request.StateArg is int stateArg) {
+            argRemap.Remove(stateArg);
+        }
+
+        if (request.OriginalMethodArg is int originalMethodArg) {
+            argRemap.Remove(originalMethodArg);
+        }
+
+        if (request.RunOriginalArgIndex is int runOriginalArg) {
+            argRemap.Remove(runOriginalArg);
+        }
+
+        if (request.ArgsArgIndex is int argsArg) {
+            argRemap.Remove(argsArg);
+        }
+
+        if (request.ForeignStateArg is int foreignStateArg) {
+            argRemap.Remove(foreignStateArg);
+        }
     }
 
     private static Dictionary<int, int>? BindAddressArgs(InjectionCopyRequest request, Dictionary<int, int> argRemap) {
@@ -1745,38 +1762,49 @@ internal static class BodyCopier {
                 }
             }
 
-            for (int si = 0; si < targetParams.Length; si++) {
-                if (injectionParameters[ti].Name != targetParams[si].Name) {
-                    continue;
-                }
-
-                Type declaredType = injectionParameters[ti].ParameterType;
-                Type targetType = targetParams[si].ParameterType;
-                if (declaredType == targetType) {
-                    remap[injectionArgIndex] = si + targetOffset;
-                    break;
-                }
-
-                if (!targetType.IsByRef && Widens(declaredType, targetType)) {
-                    remap[injectionArgIndex] = si + targetOffset;
-                    break;
-                }
-
-                if (targetType.IsByRef && !declaredType.IsByRef && Widens(declaredType, targetType.GetElementType()!)) {
-                    derefArgs ??= new Dictionary<int, int>();
-                    derefArgs[injectionArgIndex] = si + targetOffset;
-                    break;
-                }
-
-                if (!targetType.IsByRef && Narrows(declaredType, targetType)) {
-                    narrowArgs ??= new Dictionary<int, int>();
-                    narrowArgs[injectionArgIndex] = si + targetOffset;
-                    break;
-                }
-            }
+            BindNamedArg(injectionParameters[ti], targetParams, injectionArgIndex, targetOffset, remap, ref derefArgs, ref narrowArgs);
         }
 
         return remap;
+    }
+
+    private static void BindNamedArg(
+        ParameterInfo injectionParameter,
+        ParameterInfo[] targetParams,
+        int injectionArgIndex,
+        int targetOffset,
+        Dictionary<int, int> remap,
+        ref Dictionary<int, int>? derefArgs,
+        ref Dictionary<int, int>? narrowArgs) {
+        for (int si = 0; si < targetParams.Length; si++) {
+            if (injectionParameter.Name != targetParams[si].Name) {
+                continue;
+            }
+
+            Type declaredType = injectionParameter.ParameterType;
+            Type targetType = targetParams[si].ParameterType;
+            if (declaredType == targetType) {
+                remap[injectionArgIndex] = si + targetOffset;
+                break;
+            }
+
+            if (!targetType.IsByRef && Widens(declaredType, targetType)) {
+                remap[injectionArgIndex] = si + targetOffset;
+                break;
+            }
+
+            if (targetType.IsByRef && !declaredType.IsByRef && Widens(declaredType, targetType.GetElementType()!)) {
+                derefArgs ??= new Dictionary<int, int>();
+                derefArgs[injectionArgIndex] = si + targetOffset;
+                break;
+            }
+
+            if (!targetType.IsByRef && Narrows(declaredType, targetType)) {
+                narrowArgs ??= new Dictionary<int, int>();
+                narrowArgs[injectionArgIndex] = si + targetOffset;
+                break;
+            }
+        }
     }
 
     private static Dictionary<int, VariableDefinition> BuildWrapArgBinding(

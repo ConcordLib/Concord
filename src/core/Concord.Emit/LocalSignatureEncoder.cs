@@ -210,6 +210,10 @@ public static class LocalSignatureEncoder {
         if (type == typeof(ushort)) return PrimitiveTypeCode.UInt16;
         if (type == typeof(int)) return PrimitiveTypeCode.Int32;
         if (type == typeof(uint)) return PrimitiveTypeCode.UInt32;
+        return WidePrimitiveOf(type);
+    }
+
+    private static PrimitiveTypeCode? WidePrimitiveOf(Type type) {
         if (type == typeof(long)) return PrimitiveTypeCode.Int64;
         if (type == typeof(ulong)) return PrimitiveTypeCode.UInt64;
         if (type == typeof(float)) return PrimitiveTypeCode.Single;

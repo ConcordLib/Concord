@@ -516,30 +516,7 @@ public sealed class PatchManifestGenerator : IIncrementalGenerator {
             return;
         }
 
-        described.Sort(static (left, right) => {
-            int order = string.CompareOrdinal(left.Group, right.Group);
-            if (order == 0) {
-                order = left.Depth.CompareTo(right.Depth);
-            }
-
-            if (order == 0) {
-                order = string.CompareOrdinal(left.File, right.File);
-            }
-
-            if (order == 0) {
-                order = left.Start.CompareTo(right.Start);
-            }
-
-            if (order == 0) {
-                order = left.Order.CompareTo(right.Order);
-            }
-
-            if (order == 0) {
-                order = string.CompareOrdinal(left.MemberId, right.MemberId);
-            }
-
-            return order == 0 ? left.Position.CompareTo(right.Position) : order;
-        });
+        SortEntries(described);
 
         StringBuilder describe = new StringBuilder();
         StringBuilder helpers = new StringBuilder();
@@ -578,6 +555,33 @@ public sealed class PatchManifestGenerator : IIncrementalGenerator {
         source.AppendLine("    }");
         source.AppendLine("}");
         context.AddSource("ConcordPatchManifest.g.cs", SourceText.From(source.ToString(), Encoding.UTF8));
+    }
+
+    private static void SortEntries(List<ManifestEntry> described) {
+        described.Sort(static (left, right) => {
+            int order = string.CompareOrdinal(left.Group, right.Group);
+            if (order == 0) {
+                order = left.Depth.CompareTo(right.Depth);
+            }
+
+            if (order == 0) {
+                order = string.CompareOrdinal(left.File, right.File);
+            }
+
+            if (order == 0) {
+                order = left.Start.CompareTo(right.Start);
+            }
+
+            if (order == 0) {
+                order = left.Order.CompareTo(right.Order);
+            }
+
+            if (order == 0) {
+                order = string.CompareOrdinal(left.MemberId, right.MemberId);
+            }
+
+            return order == 0 ? left.Position.CompareTo(right.Position) : order;
+        });
     }
 
     private static void WriteHelper(StringBuilder helpers, string name, List<ManifestEntry> entries, int start, int end) {
